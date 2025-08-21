@@ -1,0 +1,115 @@
+# 股票分析系统 Git 忽略文件配置
+
+# 操作系统相关
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# 编辑器配置
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 后端 Python 相关
+backend/venv/
+backend/__pycache__/
+backend/**/__pycache__/
+backend/*.pyc
+backend/*.pyo
+backend/*.pyd
+backend/.env
+backend/.env.local
+backend/.env.production
+backend/logs/
+backend/uploads/
+backend/temp/
+backend/.pytest_cache/
+backend/htmlcov/
+backend/.coverage
+backend/coverage.xml
+
+# 前端 Node.js 相关
+frontend/node_modules/
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+frontend/.env
+frontend/.env.local
+frontend/.env.production
+frontend/dist/
+frontend/build/
+frontend/.vite/
+frontend/.cache/
+
+# 数据库相关
+*.sql.backup
+backup_*.sql
+database/backups/
+mysql_data/
+
+# 日志文件
+logs/
+*.log
+*.log.*
+
+# 临时文件
+temp/
+tmp/
+*.tmp
+*.temp
+
+# 备份文件
+backup_*/
+*.backup
+*.bak
+
+# 运行时文件
+.dev_pids
+*.pid
+
+# 证书和密钥
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+
+# 敏感配置
+secrets/
+.secrets
+config/local.py
+config/production.py
+
+# 测试相关
+.pytest_cache/
+.coverage
+htmlcov/
+test-results/
+playwright-report/
+
+# 打包文件
+*.tar.gz
+*.zip
+*.tar
+*.rar
+
+# IDE 生成文件
+.vscode/settings.json
+.idea/workspace.xml
+.idea/tasks.xml
+
+# macOS 特殊文件
+.Trash/
+.fseventsd/
+.VolumeIcon.icns
+
+# Windows 特殊文件
+Thumbs.db
+ehthumbs.db
+Desktop.ini
