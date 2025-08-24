@@ -20,12 +20,12 @@ class Settings(BaseSettings):
     PORT: int = 8000
     
     # 数据库配置
-    DATABASE_URL: str = "mysql+pymysql://root:root123@localhost:3306/stock_analysis"
+    DATABASE_URL: str = "mysql+pymysql://root:Pp123456@localhost:3306/stock_analysis_dev"
     DATABASE_HOST: str = "localhost"
     DATABASE_PORT: int = 3306
     DATABASE_USER: str = "root"
-    DATABASE_PASSWORD: str = "root123"
-    DATABASE_NAME: str = "stock_analysis"
+    DATABASE_PASSWORD: str = "Pp123456"
+    DATABASE_NAME: str = "stock_analysis_dev"
     
     # JWT 配置
     SECRET_KEY: str = "your-super-secret-key-change-in-production"
@@ -50,6 +50,20 @@ class Settings(BaseSettings):
     # 日志配置
     LOG_LEVEL: str = "INFO"
     LOG_FILE: str = "logs/app.log"
+    
+    # 微信支付配置
+    WECHAT_APPID: str = ""  # 微信公众平台/开放平台 AppID
+    WECHAT_MCH_ID: str = ""  # 微信商户号
+    WECHAT_API_KEY: str = ""  # 微信支付API密钥
+    WECHAT_CERT_PATH: str = ""  # 商户证书路径（可选，用于退款等操作）
+    WECHAT_KEY_PATH: str = ""  # 商户私钥路径（可选）
+    
+    # 应用基础URL（用于支付回调）
+    BASE_URL: str = "http://localhost:8000"
+    
+    # 支付配置
+    PAYMENT_ORDER_TIMEOUT_HOURS: int = 2  # 支付订单超时时间（小时）
+    PAYMENT_ENABLED: bool = True  # 是否启用支付功能
     
     class Config:
         env_file = ".env"

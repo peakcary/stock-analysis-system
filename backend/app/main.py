@@ -7,16 +7,29 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
-# TODO: 导入路由和配置
-# from app.api.api_v1.api import api_router
-# from app.core.config import settings
+# 导入路由和配置
+from app.api.api_v1.api import api_router
+from app.api.simple_import import router as simple_import_router
+from app.core.config import settings
+from app.core.logging import setup_logging
+from app.core.exception_handlers import setup_exception_handlers
+from app.middleware.request_middleware import (
+    RequestLoggingMiddleware,
+    RateLimitMiddleware
+)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """应用生命周期管理"""
     # 启动时执行
+    setup_logging(
+        log_level="INFO",
+        log_file="logs/app.log",
+        use_json_format=False
+    )
     print("🚀 股票分析系统启动中...")
+    print("📊 日志系统已初始化")
     yield
     # 关闭时执行
     print("🛑 股票分析系统已关闭")
@@ -32,6 +45,13 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+# 设置异常处理器
+setup_exception_handlers(app)
+
+# 添加中间件
+app.add_middleware(RequestLoggingMiddleware, log_requests=True, log_responses=False)
+app.add_middleware(RateLimitMiddleware, max_requests=200, window_seconds=60)
+
 # 配置 CORS 中间件
 app.add_middleware(
     CORSMiddleware,
@@ -45,8 +65,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# TODO: 添加 API 路由
-# app.include_router(api_router, prefix="/api/v1")
+# 添加 API 路由
+app.include_router(api_router, prefix="/api/v1")
+app.include_router(simple_import_router, prefix="/simple-import")
 
 
 @app.get("/")

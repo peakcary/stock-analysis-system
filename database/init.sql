@@ -1,10 +1,11 @@
 -- 股票概念分析系统数据库初始化脚本
 -- Stock Concept Analysis System Database Initialization Script
 
--- 创建数据库
-CREATE DATABASE IF NOT EXISTS stock_analysis CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+SET NAMES utf8mb4;
+SET FOREIGN_KEY_CHECKS = 0;
 
-USE stock_analysis;
+-- 使用刚创建的数据库
+USE stock_analysis_dev;
 
 -- 1. 股票基本信息表
 CREATE TABLE stocks (
@@ -104,7 +105,7 @@ CREATE TABLE users (
     username VARCHAR(50) UNIQUE NOT NULL COMMENT '用户名',
     email VARCHAR(100) UNIQUE NOT NULL COMMENT '邮箱',
     password_hash VARCHAR(255) NOT NULL COMMENT '密码哈希',
-    membership_type ENUM('free', 'paid_10', 'monthly', 'quarterly', 'yearly') DEFAULT 'free' COMMENT '会员类型',
+    membership_type ENUM('free', 'pro', 'premium', 'paid_10', 'monthly', 'quarterly', 'yearly') DEFAULT 'free' COMMENT '会员类型',
     queries_remaining INT DEFAULT 10 COMMENT '剩余查询次数',
     membership_expires_at DATETIME NULL COMMENT '会员到期时间',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
@@ -143,6 +144,24 @@ CREATE TABLE payments (
     INDEX idx_transaction_id (transaction_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='支付记录表';
 
+-- 10. 数据导入记录表
+CREATE TABLE data_import_records (
+    id INT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
+    import_date DATE NOT NULL COMMENT '导入日期',
+    import_type ENUM('csv', 'txt', 'both') NOT NULL COMMENT '导入类型',
+    file_name VARCHAR(255) NOT NULL COMMENT '文件名',
+    imported_records INT DEFAULT 0 COMMENT '导入记录数',
+    skipped_records INT DEFAULT 0 COMMENT '跳过记录数',
+    import_status ENUM('success', 'failed', 'partial') DEFAULT 'success' COMMENT '导入状态',
+    error_message TEXT COMMENT '错误信息',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    INDEX idx_import_date (import_date),
+    INDEX idx_import_type (import_type),
+    INDEX idx_import_status (import_status),
+    UNIQUE KEY uk_date_type_file (import_date, import_type, file_name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='数据导入记录表';
+
 -- 插入一些测试数据
 -- 测试股票数据
 INSERT INTO stocks (stock_code, stock_name, industry, is_convertible_bond) VALUES
@@ -170,7 +189,7 @@ INSERT INTO stock_concepts (stock_id, concept_id) VALUES
 
 -- 创建默认管理员用户 (密码: admin123)
 INSERT INTO users (username, email, password_hash, membership_type, queries_remaining) VALUES
-('admin', 'admin@example.com', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewxOr4f4eP3QdWJa', 'yearly', 999999);
+('admin', 'admin@example.com', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewxOr4f4eP3QdWJa', 'premium', 999999);
 
 COMMIT;
 
