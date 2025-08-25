@@ -17,11 +17,11 @@ class Settings(BaseSettings):
     
     # 服务器配置
     HOST: str = "0.0.0.0"
-    PORT: int = 8000
+    PORT: int = 3007
     
     # 数据库配置
-    DATABASE_URL: str = "mysql+pymysql://root:Pp123456@localhost:3306/stock_analysis_dev"
-    DATABASE_HOST: str = "localhost"
+    DATABASE_URL: str = "mysql+pymysql://root:Pp123456@127.0.0.1:3306/stock_analysis_dev"
+    DATABASE_HOST: str = "127.0.0.1"
     DATABASE_PORT: int = 3306
     DATABASE_USER: str = "root"
     DATABASE_PASSWORD: str = "Pp123456"
@@ -34,9 +34,10 @@ class Settings(BaseSettings):
     
     # CORS 配置
     ALLOWED_ORIGINS: list = [
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "http://localhost:3001"
+        "http://localhost:8005",
+        "http://127.0.0.1:8005",
+        "http://localhost:8006",
+        "http://127.0.0.1:8006"
     ]
     
     # 分页配置
@@ -59,7 +60,7 @@ class Settings(BaseSettings):
     WECHAT_KEY_PATH: str = ""  # 商户私钥路径（可选）
     
     # 应用基础URL（用于支付回调）
-    BASE_URL: str = "http://localhost:8000"
+    BASE_URL: str = "http://localhost:3007"
     
     # 支付配置
     PAYMENT_ORDER_TIMEOUT_HOURS: int = 2  # 支付订单超时时间（小时）
