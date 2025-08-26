@@ -896,7 +896,70 @@ async def health_check():
 
 ---
 
-**📅 最后更新**: 2025-08-25  
-**📝 文档版本**: v1.1  
-**🔄 适用版本**: 系统 v2.1 (文档完善版)
-**📊 项目规模**: Python 4,137文件 + TypeScript 30,074文件
+**📅 最后更新**: 2025-08-25 20:57 CST  
+**📝 文档版本**: v1.2 (Git提交完成版)
+**🔄 适用版本**: 系统 v2.2 (最终版本)
+**📊 项目规模**: Python 4,137文件 + TypeScript 30,074文件 + 文档 6文件
+**🔧 Git状态**: 代码已完整提交 (commit: 13b687ef)
+
+## 🔄 跨机器开发迁移完整指南
+
+### 1. 代码获取 (新机器)
+```bash
+# 克隆仓库
+git clone <repository-url>
+cd stock-analysis-system
+
+# 检查代码完整性
+git log --oneline -3
+# 应该看到: 13b687ef feat: 完善系统配置和部署自动化
+```
+
+### 2. 一键环境安装 (< 10分钟)
+```bash
+# 赋予脚本执行权限
+chmod +x *.sh
+
+# 一键安装所有依赖和环境
+./setup_environment.sh
+
+# 验证环境是否正确配置
+./check_environment.sh
+```
+
+### 3. 一键启动验证 (< 2分钟)
+```bash
+# 启动所有服务
+./start_all.sh
+
+# 验证服务运行
+curl http://127.0.0.1:3007/          # 后端API
+curl -I http://127.0.0.1:8006/       # 客户端
+curl -I http://127.0.0.1:8005/       # 管理端
+```
+
+### 4. 访问系统
+- **用户前端**: http://localhost:8006
+- **管理前端**: http://localhost:8005  
+- **API文档**: http://localhost:3007/docs
+
+### 5. 开发继续指南
+所有配置已标准化，新机器上只需执行1-4步即可继续开发！
+
+---
+
+## ⚠️ 重要提醒
+
+### Git同步注意事项
+- 当前本地领先远程1个提交
+- 如需推送: `git push origin main`
+- 新机器拉取: `git pull origin main`
+
+### 环境兼容性
+- 支持 macOS 和 Linux
+- 自动检查和安装所需依赖
+- 自动修复常见配置问题
+
+### 故障恢复
+如遇到任何问题，运行: `./check_environment.sh`
+此脚本会自动诊断和修复大部分环境问题。
