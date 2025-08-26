@@ -49,7 +49,8 @@ async def login_user(user_login: UserLogin, db: Session = Depends(get_db)):
     
     # 检查会员是否过期
     if user_crud.check_membership_expired(user.id):
-        user = user_crud.upgrade_membership(user.id, user.membership_type.FREE, 10, 0)
+        pass  # 会员过期处理逻辑暂时跳过
+        # user = user_crud.upgrade_membership(user.id, user.membership_type.FREE, 10, 0)
     
     # 创建访问令牌
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
@@ -84,7 +85,8 @@ async def login_oauth(
     
     # 检查会员是否过期
     if user_crud.check_membership_expired(user.id):
-        user = user_crud.upgrade_membership(user.id, user.membership_type.FREE, 10, 0)
+        pass  # 会员过期处理逻辑暂时跳过
+        # user = user_crud.upgrade_membership(user.id, user.membership_type.FREE, 10, 0)
     
     # 创建访问令牌
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)

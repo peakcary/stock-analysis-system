@@ -7,10 +7,11 @@ import {
 import { 
   SearchOutlined, UserOutlined, ApiOutlined, UploadOutlined, 
   CloudUploadOutlined, FileTextOutlined, DatabaseOutlined,
-  CheckCircleOutlined, ClockCircleOutlined
+  CheckCircleOutlined, ClockCircleOutlined, GiftOutlined
 } from '@ant-design/icons';
 import axios from 'axios';
 import UserManagement from './components/UserManagement';
+import PackageManagement from './components/PackageManagement';
 
 const { Header, Content, Sider } = Layout;
 const { Title, Text, Paragraph } = Typography;
@@ -444,7 +445,12 @@ const App: React.FC = () => {
     {
       key: 'user',
       icon: <UserOutlined />,
-      label: '用户中心',
+      label: '用户管理',
+    },
+    {
+      key: 'packages',
+      icon: <GiftOutlined />,
+      label: '套餐管理',
     },
   ];
 
@@ -1054,6 +1060,10 @@ const App: React.FC = () => {
 
             {activeTab === 'user' && (
               <UserManagement />
+            )}
+
+            {activeTab === 'packages' && (
+              <PackageManagement />
             )}
           </Content>
         </Layout>

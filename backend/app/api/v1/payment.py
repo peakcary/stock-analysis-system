@@ -1,5 +1,5 @@
 """
-支付相关API路由
+支付相关API路由（重构版 - 使用数据库套餐配置）
 """
 
 from typing import List, Optional
@@ -10,57 +10,20 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.auth import get_current_user
 from app.models.user import User, Payment, PaymentStatus, PaymentType, MembershipType
-from app.schemas.payment import PaymentCreate, PaymentResponse, PaymentPackage
-
+from app.models.payment import PaymentPackage
+from app.schemas.payment import PaymentCreate, PaymentResponse, PaymentPackage as PaymentPackageSchema
 
 router = APIRouter()
 
 
-# 支付套餐配置
-PAYMENT_PACKAGES = [
-    PaymentPackage(
-        id="10_queries",
-        name="10次查询包",
-        description="一次性获得10次查询机会",
-        price=9.9,
-        payment_type=PaymentType.TEN_QUERIES,
-        queries_included=10,
-        validity_days=0  # 永久有效
-    ),
-    PaymentPackage(
-        id="monthly",
-        name="月度会员",
-        description="30天无限查询 + 专属功能",
-        price=29.9,
-        payment_type=PaymentType.MONTHLY,
-        queries_included=999,
-        validity_days=30
-    ),
-    PaymentPackage(
-        id="quarterly",
-        name="季度会员",
-        description="90天无限查询 + 专属功能",
-        price=79.9,
-        payment_type=PaymentType.QUARTERLY,
-        queries_included=999,
-        validity_days=90
-    ),
-    PaymentPackage(
-        id="yearly",
-        name="年度会员",
-        description="365天无限查询 + 专属功能",
-        price=299.9,
-        payment_type=PaymentType.YEARLY,
-        queries_included=999,
-        validity_days=365
-    )
-]
-
-
-@router.get("/packages", response_model=List[PaymentPackage])
-async def get_payment_packages():
-    """获取所有支付套餐"""
-    return PAYMENT_PACKAGES
+@router.get("/packages", response_model=List[PaymentPackageSchema])
+async def get_payment_packages(db: Session = Depends(get_db)):
+    """获取所有启用的支付套餐"""
+    packages = db.query(PaymentPackage).filter(
+        PaymentPackage.is_active == True
+    ).order_by(PaymentPackage.sort_order, PaymentPackage.id).all()
+    
+    return packages
 
 
 @router.post("/create", response_model=PaymentResponse)
@@ -71,16 +34,16 @@ async def create_payment(
 ):
     """创建支付订单"""
     
-    # 查找支付套餐
-    package = next(
-        (pkg for pkg in PAYMENT_PACKAGES if pkg.payment_type == payment_data.payment_type),
-        None
-    )
+    # 查找支付套餐 - 从数据库查询
+    package = db.query(PaymentPackage).filter(
+        PaymentPackage.package_type == payment_data.payment_type,
+        PaymentPackage.is_active == True
+    ).first()
     
     if not package:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="无效的支付类型"
+            detail="无效的支付类型或套餐已下架"
         )
     
     # 创建支付记录
@@ -132,33 +95,34 @@ async def confirm_payment(
             detail="支付记录不存在或已处理"
         )
     
+    # 从数据库查找套餐配置
+    package = db.query(PaymentPackage).filter(
+        PaymentPackage.package_type == payment.payment_type
+    ).first()
+    
+    if not package:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="套餐配置不存在"
+        )
+    
     # 更新支付状态
     payment.payment_status = PaymentStatus.COMPLETED
     payment.completed_at = datetime.utcnow()
     payment.transaction_id = f"TXN_{payment.id}_{int(datetime.now().timestamp())}"
     
-    # 找到对应的套餐
-    package = next(
-        (pkg for pkg in PAYMENT_PACKAGES if pkg.payment_type == payment.payment_type),
-        None
-    )
-    
-    if package:
-        # 更新用户会员状态
-        if payment.payment_type == PaymentType.TEN_QUERIES:
-            # 10次查询包 - 增加查询次数
-            current_user.queries_remaining += package.queries_included
-        else:
-            # 会员套餐 - 更新会员类型和到期时间
-            current_user.membership_type = {
-                PaymentType.MONTHLY: MembershipType.MONTHLY,
-                PaymentType.QUARTERLY: MembershipType.QUARTERLY,
-                PaymentType.YEARLY: MembershipType.YEARLY,
-            }[payment.payment_type]
-            
-            # 设置会员到期时间
+    # 根据套餐配置更新用户会员状态
+    if package.queries_count > 0 and package.validity_days == 0:
+        # 查询包 - 增加查询次数
+        current_user.queries_remaining += package.queries_count
+    else:
+        # 会员套餐 - 更新会员类型和到期时间
+        current_user.membership_type = package.membership_type.value
+        
+        # 设置会员到期时间
+        if package.validity_days > 0:
             current_user.membership_expires_at = datetime.utcnow() + timedelta(days=package.validity_days)
-            current_user.queries_remaining = package.queries_included
+            current_user.queries_remaining = package.queries_count
     
     db.commit()
     

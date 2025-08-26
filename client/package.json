@@ -3,11 +3,11 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "vite --port 3001",
-    "start": "vite --port 3001",
+    "dev": "vite --port 8006",
+    "start": "vite --port 8006",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview --port 3001"
+    "preview": "vite preview --port 8006"
   },
   "dependencies": {
     "@ant-design/charts": "^2.6.2",
