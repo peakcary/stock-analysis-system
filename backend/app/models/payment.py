@@ -32,9 +32,9 @@ class PaymentMethod(str, enum.Enum):
 
 class MembershipTypeEnum(str, enum.Enum):
     """会员类型枚举"""
-    FREE = "free"
-    PRO = "pro"
-    PREMIUM = "premium"
+    FREE = "FREE"
+    PRO = "PRO"
+    PREMIUM = "PREMIUM"
 
 
 class ActionType(str, enum.Enum):

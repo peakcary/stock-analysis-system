@@ -69,6 +69,36 @@ async def get_all_packages(
     return packages
 
 
+@router.get("/packages/stats")
+async def get_package_stats(
+    admin_user: User = Depends(check_admin_user),
+    db: Session = Depends(get_db)
+):
+    """获取套餐统计信息（管理员专用）"""
+    
+    # 基础统计
+    total_packages = db.query(PaymentPackage).count()
+    active_packages = db.query(PaymentPackage).filter(PaymentPackage.is_active == True).count()
+    inactive_packages = total_packages - active_packages
+    
+    # 按会员类型统计
+    from sqlalchemy import func
+    membership_stats = db.query(
+        PaymentPackage.membership_type,
+        func.count(PaymentPackage.id).label('count')
+    ).group_by(PaymentPackage.membership_type).all()
+    
+    return {
+        "total_packages": total_packages,
+        "active_packages": active_packages,
+        "inactive_packages": inactive_packages,
+        "membership_distribution": [
+            {"membership_type": stat.membership_type, "count": stat.count}
+            for stat in membership_stats
+        ]
+    }
+
+
 @router.get("/packages/{package_id}", response_model=PaymentPackageSchema)
 async def get_package_by_id(
     package_id: int,
@@ -267,31 +297,3 @@ async def batch_update_package_order(
         )
 
 
-@router.get("/packages/stats")
-async def get_package_stats(
-    admin_user: User = Depends(check_admin_user),
-    db: Session = Depends(get_db)
-):
-    """获取套餐统计信息（管理员专用）"""
-    
-    # 基础统计
-    total_packages = db.query(PaymentPackage).count()
-    active_packages = db.query(PaymentPackage).filter(PaymentPackage.is_active == True).count()
-    inactive_packages = total_packages - active_packages
-    
-    # 按会员类型统计
-    from sqlalchemy import func
-    membership_stats = db.query(
-        PaymentPackage.membership_type,
-        func.count(PaymentPackage.id).label('count')
-    ).group_by(PaymentPackage.membership_type).all()
-    
-    return {
-        "total_packages": total_packages,
-        "active_packages": active_packages,
-        "inactive_packages": inactive_packages,
-        "membership_distribution": [
-            {"membership_type": stat.membership_type, "count": stat.count}
-            for stat in membership_stats
-        ]
-    }

@@ -65,6 +65,7 @@ class Settings(BaseSettings):
     # 支付配置
     PAYMENT_ORDER_TIMEOUT_HOURS: int = 2  # 支付订单超时时间（小时）
     PAYMENT_ENABLED: bool = True  # 是否启用支付功能
+    PAYMENT_MOCK_MODE: bool = True  # 是否启用模拟支付（用于本地测试）
     
     class Config:
         env_file = ".env"

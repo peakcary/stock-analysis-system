@@ -30,9 +30,9 @@ class PaymentMethodEnum(str, Enum):
 
 class MembershipTypeEnum(str, Enum):
     """会员类型枚举"""
-    FREE = "free"
-    PRO = "pro"
-    PREMIUM = "premium"
+    FREE = "FREE"
+    PRO = "PRO"
+    PREMIUM = "PREMIUM"
 
 
 # ============ 支付套餐相关 Schema ============

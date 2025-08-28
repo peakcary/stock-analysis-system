@@ -21,6 +21,8 @@ from app.schemas.payment import (
     PaymentNotifyResponse, OrderStatusCheck
 )
 from app.services.wechat_pay import wechat_pay_service, WechatPayException
+from app.services.mock_payment import mock_payment_service
+from app.core.config import settings
 from app.services.membership import membership_service
 
 router = APIRouter()
@@ -136,28 +138,40 @@ async def create_payment_order(
         client_ip = order_data.client_ip or request.client.host
         user_agent = order_data.user_agent or request.headers.get("user-agent", "")
         
-        # 调用微信支付统一下单
-        trade_type = "NATIVE" if order_data.payment_method == "wechat_native" else "MWEB"
-        wechat_result = await wechat_pay_service.unified_order(
-            user_id=current_user.id,
-            package_type=package.package_type,
-            package_name=package.name,
-            total_fee=int(package.price * 100),  # 转换为分
-            trade_type=trade_type,
-            client_ip=client_ip
-        )
+        # 根据配置选择支付服务
+        if settings.PAYMENT_MOCK_MODE:
+            # 使用模拟支付服务
+            payment_result = await mock_payment_service.unified_order(
+                user_id=current_user.id,
+                package_type=package.package_type,
+                package_name=package.name,
+                total_fee=int(package.price * 100),  # 转换为分
+                trade_type="NATIVE" if order_data.payment_method == "wechat_native" else "MWEB",
+                client_ip=client_ip
+            )
+        else:
+            # 调用真实微信支付统一下单
+            trade_type = "NATIVE" if order_data.payment_method == "wechat_native" else "MWEB"
+            payment_result = await wechat_pay_service.unified_order(
+                user_id=current_user.id,
+                package_type=package.package_type,
+                package_name=package.name,
+                total_fee=int(package.price * 100),  # 转换为分
+                trade_type=trade_type,
+                client_ip=client_ip
+            )
         
         # 创建订单记录
         order = PaymentOrder(
             user_id=current_user.id,
-            out_trade_no=wechat_result["out_trade_no"],
+            out_trade_no=payment_result["out_trade_no"],
             package_type=package.package_type,
             package_name=package.name,
             amount=package.price,
             payment_method=order_data.payment_method,
-            prepay_id=wechat_result.get("prepay_id"),
-            code_url=wechat_result.get("code_url"),
-            h5_url=wechat_result.get("mweb_url"),
+            prepay_id=payment_result.get("prepay_id"),
+            code_url=payment_result.get("code_url"),
+            h5_url=payment_result.get("mweb_url"),
             expire_time=datetime.now() + timedelta(hours=2),
             client_ip=client_ip,
             user_agent=user_agent
@@ -257,26 +271,32 @@ async def check_payment_status(
                 detail="支付订单不存在"
             )
         
-        # 如果订单未支付且未过期，查询微信支付状态
+        # 如果订单未支付且未过期，查询支付状态
         if order.status == "pending" and order.expire_time > datetime.now():
             try:
-                wechat_result = await wechat_pay_service.query_order(out_trade_no)
+                if settings.PAYMENT_MOCK_MODE:
+                    # 使用模拟支付服务查询
+                    payment_result = await mock_payment_service.query_order(out_trade_no)
+                else:
+                    # 查询真实微信支付状态
+                    payment_result = await wechat_pay_service.query_order(out_trade_no)
                 
                 # 更新订单状态
-                if wechat_result.get("trade_state") == "SUCCESS":
+                trade_state = payment_result.get("trade_state") if settings.PAYMENT_MOCK_MODE else payment_result.get("trade_state")
+                if trade_state == "SUCCESS":
                     order.status = "paid"
-                    order.transaction_id = wechat_result.get("transaction_id")
+                    order.transaction_id = payment_result.get("transaction_id")
                     order.paid_at = datetime.now()
                     
                     # 处理会员权益
                     await membership_service.process_payment_success(db, order)
                     
                     db.commit()
-                elif wechat_result.get("trade_state") in ["CLOSED", "REVOKED", "PAYERROR"]:
+                elif trade_state in ["CLOSED", "REVOKED", "PAYERROR"]:
                     order.status = "failed"
                     db.commit()
                     
-            except WechatPayException:
+            except (WechatPayException, Exception):
                 # 查询失败，保持原状态
                 pass
         
@@ -322,8 +342,11 @@ async def cancel_payment_order(
                 detail="支付订单不存在或无法取消"
             )
         
-        # 关闭微信支付订单
-        await wechat_pay_service.close_order(out_trade_no)
+        # 关闭支付订单
+        if settings.PAYMENT_MOCK_MODE:
+            await mock_payment_service.close_order(out_trade_no)
+        else:
+            await wechat_pay_service.close_order(out_trade_no)
         
         # 更新订单状态
         order.status = "cancelled"
@@ -415,6 +438,70 @@ async def payment_notify(
         return Response(
             content=wechat_pay_service.create_fail_response("SYSTEM_ERROR"),
             media_type="application/xml"
+        )
+
+
+# ============ 测试接口（仅在模拟模式下可用） ============
+
+@router.post("/test/simulate-success/{out_trade_no}")
+async def simulate_payment_success(
+    out_trade_no: str,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """模拟支付成功（仅在测试模式下可用）"""
+    if not settings.PAYMENT_MOCK_MODE:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="此接口仅在测试模式下可用"
+        )
+    
+    try:
+        order = db.query(PaymentOrder).filter(
+            and_(
+                PaymentOrder.out_trade_no == out_trade_no,
+                PaymentOrder.user_id == current_user.id,
+                PaymentOrder.status == "pending"
+            )
+        ).first()
+        
+        if not order:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="订单不存在或已处理"
+            )
+        
+        # 使用模拟支付服务模拟成功
+        success = mock_payment_service.simulate_payment_success(out_trade_no)
+        
+        if success:
+            # 更新订单状态
+            order.status = "paid"
+            order.transaction_id = f'4200001234567890{out_trade_no[-8:]}'
+            order.paid_at = datetime.now()
+            
+            # 处理会员权益
+            await membership_service.process_payment_success(db, order)
+            
+            db.commit()
+            
+            return {
+                "message": "支付成功模拟完成",
+                "out_trade_no": out_trade_no,
+                "status": "paid"
+            }
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="模拟支付失败，订单可能不存在"
+            )
+            
+    except Exception as e:
+        logger.error(f"Simulate payment success error: {e}")
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="模拟支付成功失败"
         )
 
 

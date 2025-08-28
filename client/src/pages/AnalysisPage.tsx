@@ -281,7 +281,7 @@ export const AnalysisPage: React.FC<AnalysisPageProps> = ({ user }) => {
                 <Col xs={24} sm={4}>
                   <Space wrap size={[4, 4]}>
                     {stock.concepts.slice(0, 2).map(concept => (
-                      <Tag key={concept} size="small" style={{ fontSize: '10px' }}>
+                      <Tag key={concept} style={{ fontSize: '10px' }}>
                         {concept}
                       </Tag>
                     ))}

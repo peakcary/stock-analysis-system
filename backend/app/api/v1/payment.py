@@ -117,7 +117,13 @@ async def confirm_payment(
         current_user.queries_remaining += package.queries_count
     else:
         # 会员套餐 - 更新会员类型和到期时间
-        current_user.membership_type = package.membership_type.value
+        # 根据套餐的会员类型更新用户会员类型
+        if package.membership_type.value == "FREE":
+            current_user.membership_type = MembershipType.FREE
+        elif package.membership_type.value == "PRO":
+            current_user.membership_type = MembershipType.PRO
+        elif package.membership_type.value == "PREMIUM":
+            current_user.membership_type = MembershipType.PREMIUM
         
         # 设置会员到期时间
         if package.validity_days > 0:
