@@ -250,9 +250,13 @@ const PaymentPackagesInline: React.FC<PaymentPackagesInlineProps> = ({ onSuccess
   };
 
   // 选择套餐
-  const selectPackage = () => {
+  const selectPackage = (packageType: string) => {
+    console.log('选择套餐:', packageType);
+    setSelectedPackage(packageType);
     setPaymentPackagesVisible(true);
   };
+
+  const [selectedPackage, setSelectedPackage] = useState<string>('');
 
   // 支付成功回调
   const handlePaymentSuccess = () => {
@@ -375,7 +379,7 @@ const PaymentPackagesInline: React.FC<PaymentPackagesInlineProps> = ({ onSuccess
                     type="primary"
                     size="large"
                     block
-                    onClick={selectPackage}
+                    onClick={() => selectPackage(pkg.package_type)}
                     style={{
                       height: '48px',
                       fontSize: '16px',
@@ -400,6 +404,7 @@ const PaymentPackagesInline: React.FC<PaymentPackagesInlineProps> = ({ onSuccess
         visible={paymentPackagesVisible}
         onCancel={() => setPaymentPackagesVisible(false)}
         onSuccess={handlePaymentSuccess}
+        selectedPackageType={selectedPackage}
       />
     </motion.div>
   );

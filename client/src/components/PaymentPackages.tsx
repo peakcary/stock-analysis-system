@@ -29,12 +29,14 @@ interface PaymentPackagesProps {
   visible: boolean;
   onCancel: () => void;
   onSuccess: () => void;
+  selectedPackageType?: string;
 }
 
 const PaymentPackages: React.FC<PaymentPackagesProps> = ({
   visible,
   onCancel,
-  onSuccess
+  onSuccess,
+  selectedPackageType
 }) => {
   const [packages, setPackages] = useState<PaymentPackage[]>([]);
   const [loading, setLoading] = useState(false);
@@ -58,8 +60,13 @@ const PaymentPackages: React.FC<PaymentPackagesProps> = ({
   useEffect(() => {
     if (visible) {
       fetchPackages();
+      // 如果有预选的套餐类型，直接跳转到支付页面
+      if (selectedPackageType) {
+        setSelectedPackage(selectedPackageType);
+        setPaymentModalVisible(true);
+      }
     }
-  }, [visible]);
+  }, [visible, selectedPackageType]);
 
   // 获取套餐图标
   const getPackageIcon = (packageType: string, membershipType: string) => {
