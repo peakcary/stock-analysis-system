@@ -8,6 +8,7 @@ import AuthPage from './pages/AuthPage';
 import MembershipPage from './pages/MembershipPage';
 import AnalysisPage from './pages/AnalysisPage';
 import MobileLayout from './components/MobileLayout';
+import { tokenManager, mockLogin } from './utils/auth';
 
 // 主题配置
 const theme = {
@@ -50,9 +51,22 @@ const App: React.FC = () => {
 
   // 初始化应用
   useEffect(() => {
-    // 模拟加载用户数据
+    // 初始化认证和加载用户数据
     const initApp = async () => {
       try {
+        // 初始化认证token
+        tokenManager.initToken();
+        
+        // 尝试自动登录用于测试
+        if (!tokenManager.getToken()) {
+          const loginResult = await mockLogin('admin', 'admin123');
+          if (loginResult.success) {
+            console.log('自动登录成功:', loginResult.user);
+          } else {
+            console.log('自动登录失败:', loginResult.error);
+          }
+        }
+        
         // 这里会调用API获取用户信息
         const savedUser = localStorage.getItem('user');
         if (savedUser) {
