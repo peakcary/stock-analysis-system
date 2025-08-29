@@ -47,6 +47,10 @@ yarn-debug.log*
 yarn-error.log*
 lerna-debug.log*
 
+# TypeScript
+*.tsbuildinfo
+tsconfig.tsbuildinfo
+
 # React build
 client/build/
 client/dist/
