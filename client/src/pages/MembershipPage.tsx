@@ -210,6 +210,7 @@ const PaymentPackagesInline: React.FC<PaymentPackagesInlineProps> = ({ onSuccess
     setLoading(true);
     try {
       const response = await axios.get('/api/v1/payment/packages');
+      console.log('获取到套餐数据:', response.data);
       setPackages(response.data);
     } catch (error) {
       console.error('获取套餐列表失败:', error);
@@ -266,6 +267,8 @@ const PaymentPackagesInline: React.FC<PaymentPackagesInlineProps> = ({ onSuccess
       </div>
     );
   }
+
+  console.log('当前套餐数据:', packages, '数量:', packages.length);
 
   return (
     <motion.div
