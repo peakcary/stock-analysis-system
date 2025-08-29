@@ -14,20 +14,20 @@ from app.core.database import Base
 
 class PaymentStatus(str, enum.Enum):
     """支付状态枚举"""
-    PENDING = "pending"
-    PAID = "paid"
-    FAILED = "failed"
-    CANCELLED = "cancelled"
-    REFUNDED = "refunded"
-    EXPIRED = "expired"
+    PENDING = "PENDING"
+    PAID = "PAID"
+    FAILED = "FAILED"
+    CANCELLED = "CANCELLED"
+    REFUNDED = "REFUNDED"
+    EXPIRED = "EXPIRED"
 
 
 class PaymentMethod(str, enum.Enum):
     """支付方式枚举"""
-    WECHAT_NATIVE = "wechat_native"
-    WECHAT_H5 = "wechat_h5"
-    WECHAT_MINIPROGRAM = "wechat_miniprogram"
-    ALIPAY = "alipay"
+    WECHAT_NATIVE = "WECHAT_NATIVE"
+    WECHAT_H5 = "WECHAT_H5"
+    WECHAT_MINIPROGRAM = "WECHAT_MINIPROGRAM"
+    ALIPAY = "ALIPAY"
 
 
 class MembershipTypeEnum(str, enum.Enum):

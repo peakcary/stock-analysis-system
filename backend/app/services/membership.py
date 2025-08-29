@@ -10,7 +10,7 @@ from sqlalchemy import and_
 
 from app.core.logging import logger
 from app.models.user import User
-from app.models.payment import PaymentOrder, PaymentPackage, MembershipLog
+from app.models.payment import PaymentOrder, PaymentPackage, MembershipLog, MembershipTypeEnum
 
 
 class MembershipService:
@@ -32,7 +32,7 @@ class MembershipService:
                 raise Exception(f"Package not found: {payment_order.package_type}")
             
             # 记录原始状态
-            old_membership_type = user.membership_type
+            old_membership_type = MembershipTypeEnum[user.membership_type.value.upper()]
             old_queries_remaining = user.queries_remaining
             old_expires_at = user.membership_expires_at
             
@@ -40,7 +40,7 @@ class MembershipService:
             if package.package_type.startswith('queries_'):
                 # 查询包类型 - 只增加查询次数
                 user.queries_remaining += package.queries_count
-                new_membership_type = user.membership_type
+                new_membership_type = MembershipTypeEnum[user.membership_type.value.upper()]
                 new_expires_at = user.membership_expires_at
                 action_type = "add_queries"
                 
@@ -58,7 +58,7 @@ class MembershipService:
                     new_expires_at = datetime.now() + timedelta(days=package.validity_days)
                 
                 user.membership_expires_at = new_expires_at
-                new_membership_type = user.membership_type
+                new_membership_type = MembershipTypeEnum[user.membership_type.value.upper()]
                 action_type = "upgrade" if old_membership_type != new_membership_type else "renew"
             
             # 创建会员变更日志
@@ -121,7 +121,7 @@ class MembershipService:
             
             if is_expired and user.membership_type.value != "free":
                 # 降级为免费用户
-                old_membership_type = user.membership_type
+                old_membership_type = MembershipTypeEnum[user.membership_type.value.upper()]
                 user.membership_type = "free"
                 
                 # 记录日志
@@ -129,7 +129,7 @@ class MembershipService:
                     user_id=user.id,
                     action_type="expire",
                     old_membership_type=old_membership_type,
-                    new_membership_type=user.membership_type,
+                    new_membership_type=MembershipTypeEnum[user.membership_type.value.upper()],
                     old_queries_remaining=user.queries_remaining,
                     new_queries_remaining=user.queries_remaining,
                     old_expires_at=user.membership_expires_at,
@@ -179,7 +179,7 @@ class MembershipService:
                 raise Exception(f"User not found: {user_id}")
             
             # 记录原始状态
-            old_membership_type = user.membership_type
+            old_membership_type = MembershipTypeEnum[user.membership_type.value.upper()]
             old_queries_remaining = user.queries_remaining
             old_expires_at = user.membership_expires_at
             
@@ -205,7 +205,7 @@ class MembershipService:
                 user_id=user.id,
                 action_type="manual",
                 old_membership_type=old_membership_type,
-                new_membership_type=user.membership_type,
+                new_membership_type=MembershipTypeEnum[user.membership_type.value.upper()],
                 old_queries_remaining=old_queries_remaining,
                 new_queries_remaining=user.queries_remaining,
                 queries_added=queries_to_add,
