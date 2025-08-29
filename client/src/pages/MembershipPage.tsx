@@ -3,7 +3,7 @@ import {
   Card, Button, Space, Typography, Row, Col, message
 } from 'antd';
 import PaymentModal from '../components/PaymentModal';
-import axios from 'axios';
+import { apiClient } from '../utils/auth';
 import { 
   StarOutlined, SafetyCertificateOutlined
 } from '@ant-design/icons';
@@ -209,7 +209,7 @@ const PaymentPackagesInline: React.FC<PaymentPackagesInlineProps> = ({ onSuccess
   const fetchPackages = async () => {
     setLoading(true);
     try {
-      const response = await axios.get('/api/v1/payment/packages');
+      const response = await apiClient.get('/api/v1/payment/packages');
       console.log('获取到套餐数据:', response.data);
       setPackages(response.data);
     } catch (error) {

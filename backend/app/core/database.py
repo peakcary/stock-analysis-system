@@ -13,7 +13,10 @@ from app.core.config import settings, get_database_url
 engine = create_engine(
     get_database_url(),
     pool_pre_ping=True,  # 连接前检查
-    pool_recycle=300,    # 连接回收时间（秒）
+    pool_size=settings.DATABASE_POOL_SIZE,  # 连接池大小
+    max_overflow=settings.DATABASE_MAX_OVERFLOW,  # 最大溢出连接数
+    pool_timeout=settings.DATABASE_POOL_TIMEOUT,  # 连接超时时间
+    pool_recycle=settings.DATABASE_POOL_RECYCLE,  # 连接回收时间（秒）
     echo=settings.DEBUG  # 在调试模式下打印SQL语句
 )
 

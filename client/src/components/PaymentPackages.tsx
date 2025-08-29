@@ -7,7 +7,7 @@ import {
   CrownOutlined, StarOutlined, FireOutlined, ThunderboltOutlined,
   CheckOutlined, WechatOutlined
 } from '@ant-design/icons';
-import axios from 'axios';
+import { apiClient } from '../utils/auth';
 import PaymentModal from './PaymentModal';
 
 const { Title, Text } = Typography;
@@ -47,7 +47,7 @@ const PaymentPackages: React.FC<PaymentPackagesProps> = ({
   const fetchPackages = async () => {
     setLoading(true);
     try {
-      const response = await axios.get('/api/v1/payment/packages');
+      const response = await apiClient.get('/api/v1/payment/packages');
       setPackages(response.data);
     } catch (error) {
       console.error('获取套餐列表失败:', error);

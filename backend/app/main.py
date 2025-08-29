@@ -56,26 +56,19 @@ app.add_middleware(RateLimitMiddleware, max_requests=200, window_seconds=60)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://localhost:3000",  # React 开发服务器
-        "http://127.0.0.1:3000",
-        "http://localhost:3001",  # 备用端口
-        "http://localhost:8005",  # Frontend 管理端口
+        "http://localhost:8005",  # Client 应用
         "http://127.0.0.1:8005",
-        "http://localhost:8006",  # Client 端口
+        "http://localhost:8006",  # Frontend 管理应用  
         "http://127.0.0.1:8006",
-        "http://localhost:8007",  # Frontend 管理端口 (新端口)
-        "http://127.0.0.1:8007",
-        "http://localhost:8008",  # Frontend 管理端口 (备用)
-        "http://127.0.0.1:8008",
     ],
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["*"],
+    allow_headers=["Authorization", "Content-Type", "Accept"],
 )
 
-# 添加 API 路由
+# 添加 API 路由 - 统一在 /api/v1 下
 app.include_router(api_router, prefix="/api/v1")
-app.include_router(simple_import_router, prefix="/simple-import")
+app.include_router(simple_import_router, prefix="/api/v1/import")
 
 
 @app.get("/")

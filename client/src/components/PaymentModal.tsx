@@ -7,8 +7,8 @@ import {
   WechatOutlined, ClockCircleOutlined, CheckCircleOutlined,
   CloseCircleOutlined, CopyOutlined
 } from '@ant-design/icons';
-import axios from 'axios';
 import dayjs from 'dayjs';
+import { apiClient } from '../utils/auth';
 
 const { Title, Text } = Typography;
 
@@ -54,12 +54,12 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
   const [orderData, setOrderData] = useState<PaymentOrder | null>(null);
   const [packageData, setPackageData] = useState<PaymentPackage | null>(null);
   const [countdown, setCountdown] = useState(0);
-  const [paymentStatus, setPaymentStatus] = useState<'pending' | 'paid' | 'failed' | 'expired'>('pending');
+  const [paymentStatus, setPaymentStatus] = useState<'pending' | 'paid' | 'failed' | 'expired' | 'cancelled'>('pending');
 
   // 获取套餐信息
   const fetchPackageInfo = async () => {
     try {
-      const response = await axios.get(`/api/v1/payment/packages/${packageType}`);
+      const response = await apiClient.get(`/api/v1/payment/packages/${packageType}`);
       setPackageData(response.data);
     } catch (error) {
       console.error('获取套餐信息失败:', error);
@@ -71,7 +71,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
   const createPaymentOrder = async () => {
     setLoading(true);
     try {
-      const response = await axios.post('/api/v1/payment/orders', {
+      const response = await apiClient.post('/api/v1/payment/orders', {
         package_type: packageType,
         payment_method: 'wechat_native',
         client_ip: undefined,
@@ -105,7 +105,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
     
     const pollInterval = setInterval(async () => {
       try {
-        const response = await axios.get(`/api/v1/payment/orders/${outTradeNo}/status`);
+        const response = await apiClient.get(`/api/v1/payment/orders/${outTradeNo}/status`);
         const status = response.data.status;
         
         setPaymentStatus(status);
@@ -199,7 +199,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
     if (!orderData) return;
     
     try {
-      await axios.post(`/api/v1/payment/orders/${orderData.out_trade_no}/cancel`);
+      await apiClient.post(`/api/v1/payment/orders/${orderData.out_trade_no}/cancel`);
       setPaymentStatus('cancelled');
       setPolling(false);
       message.success('订单已取消');

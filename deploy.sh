@@ -1,14 +1,38 @@
 #!/bin/bash
 
 # 股票分析系统自动部署脚本
-# 服务器配置: 2核2G阿里云ECS
+# ⚠️ 警告：此脚本包含敏感操作，仅用于开发环境
+# 🔐 生产环境请使用 deploy-secure.sh
 
 set -e
 
-# 配置变量
-SERVER_IP="47.92.236.28"
-SERVER_USER="root"
-SERVER_PASS="Pp123456"
+echo "⚠️ 此脚本仅用于开发和测试环境"
+echo "🔐 生产部署请使用 deploy-secure.sh 脚本"
+echo ""
+
+# 检查是否为生产环境部署
+read -p "确认这是开发/测试环境部署? (输入 'dev' 确认): " env_confirm
+if [ "$env_confirm" != "dev" ]; then
+    echo "❌ 请使用 deploy-secure.sh 进行生产部署"
+    exit 1
+fi
+
+# 配置变量 - 从环境变量读取
+SERVER_IP="${DEPLOY_SERVER_IP:-}"
+SERVER_USER="${DEPLOY_SERVER_USER:-}"
+SERVER_PASS="${DEPLOY_SERVER_PASS:-}"
+
+# 检查必需的环境变量
+if [ -z "$SERVER_IP" ] || [ -z "$SERVER_USER" ] || [ -z "$SERVER_PASS" ]; then
+    echo "❌ 请设置以下环境变量："
+    echo "   DEPLOY_SERVER_IP - 服务器IP地址"
+    echo "   DEPLOY_SERVER_USER - 服务器用户名" 
+    echo "   DEPLOY_SERVER_PASS - 服务器密码"
+    echo ""
+    echo "或者使用安全的部署方式："
+    echo "   ./deploy-secure.sh"
+    exit 1
+fi
 
 echo "🚀 开始部署股票分析系统到 $SERVER_IP..."
 
@@ -72,18 +96,25 @@ EOF
 
 # 3. 配置MySQL
 echo "🗄️ 配置MySQL数据库..."
+echo "⚠️ 警告：使用默认测试密码，生产环境请修改"
+
 sshpass -p "$SERVER_PASS" ssh -o StrictHostKeyChecking=no "$SERVER_USER@$SERVER_IP" << 'EOF'
+# 设置默认密码变量（仅用于开发环境）
+DB_ROOT_PASS="DevTestDB2024"
+DB_APP_PASS="DevTestApp2024"
+
 # MySQL安全配置
-mysql -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY 'StockDB2024!';"
+mysql -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '${DB_ROOT_PASS}';"
 mysql -e "FLUSH PRIVILEGES;"
 
 # 创建数据库和用户
-mysql -u root -pStockDB2024! -e "CREATE DATABASE IF NOT EXISTS stock_analysis CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
-mysql -u root -pStockDB2024! -e "CREATE USER IF NOT EXISTS 'stockapp'@'localhost' IDENTIFIED BY 'StockApp2024!';"
-mysql -u root -pStockDB2024! -e "GRANT ALL PRIVILEGES ON stock_analysis.* TO 'stockapp'@'localhost';"
-mysql -u root -pStockDB2024! -e "FLUSH PRIVILEGES;"
+mysql -u root -p${DB_ROOT_PASS} -e "CREATE DATABASE IF NOT EXISTS stock_analysis CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+mysql -u root -p${DB_ROOT_PASS} -e "CREATE USER IF NOT EXISTS 'stockapp'@'localhost' IDENTIFIED BY '${DB_APP_PASS}';"
+mysql -u root -p${DB_ROOT_PASS} -e "GRANT ALL PRIVILEGES ON stock_analysis.* TO 'stockapp'@'localhost';"
+mysql -u root -p${DB_ROOT_PASS} -e "FLUSH PRIVILEGES;"
 
-echo "✅ MySQL配置完成"
+echo "✅ MySQL配置完成 (使用开发测试密码)"
+echo "🔐 生产环境请立即修改数据库密码！"
 EOF
 
 # 4. 配置后端
@@ -124,7 +155,7 @@ if not admin_user:
     admin_user = User(
         username='admin',
         email='admin@stockanalysis.com',
-        hashed_password=get_password_hash('admin123'),
+        hashed_password=get_password_hash('DevAdmin2024!'),
         is_active=True,
         membership_type='free',
         queries_remaining=9999,
@@ -133,7 +164,7 @@ if not admin_user:
     )
     db.add(admin_user)
     db.commit()
-    print('管理员用户创建完成: admin/admin123')
+    print('管理员用户创建完成: admin/DevAdmin2024!')
 else:
     print('管理员用户已存在')
 db.close()
@@ -289,7 +320,7 @@ echo ""
 echo "🎉 部署完成！"
 echo "🌐 访问地址: http://47.92.236.28"
 echo "👤 管理员账号: admin"
-echo "🔑 管理员密码: admin123"
+echo "🔑 管理员密码: DevAdmin2024! (开发环境密码)"
 echo ""
 echo "⚠️ 安全提醒："
 echo "1. 请立即登录系统修改默认密码"

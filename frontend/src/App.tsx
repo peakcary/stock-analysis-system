@@ -9,7 +9,7 @@ import {
   CloudUploadOutlined, FileTextOutlined, DatabaseOutlined,
   CheckCircleOutlined, ClockCircleOutlined, GiftOutlined
 } from '@ant-design/icons';
-import axios from 'axios';
+import { apiClient } from '../../shared/auth';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import LoginPage from './components/LoginPage';
 import AdminLayout from './components/AdminLayout';
@@ -78,7 +78,7 @@ const AdminApp: React.FC = () => {
 
     setLoading(true);
     try {
-      const response = await axios.get(`/api/v1/stocks`, {
+      const response = await apiClient.get(`/api/v1/stocks`, {
         params: { search: searchText }
       });
       setStocks(response.data || []);
@@ -96,7 +96,7 @@ const AdminApp: React.FC = () => {
   const getAllStocks = async () => {
     setLoading(true);
     try {
-      const response = await axios.get('/api/v1/stocks');
+      const response = await apiClient.get('/api/v1/stocks');
       setStocks(response.data || []);
       message.success(`获取到 ${response.data?.length || 0} 只股票`);
     } catch (error) {
@@ -113,7 +113,7 @@ const AdminApp: React.FC = () => {
     try {
       const today = new Date().toISOString().split('T')[0];
       console.log('获取导入状态，日期:', today);
-      const response = await axios.get(`/api/v1/data/import-status/${today}`);
+      const response = await apiClient.get(`/api/v1/data/import-status/${today}`);
       console.log('导入状态响应:', response.data);
       setTodayImportStatus(response.data);
       
@@ -180,14 +180,13 @@ const AdminApp: React.FC = () => {
         const formData = new FormData();
         formData.append('file', file);
         
-        const baseUrl = 'http://localhost:8000/api/v1/data/import-csv';
         const url = todayImportStatus.csv_imported 
-          ? `${baseUrl}?allow_overwrite=true` 
-          : baseUrl;
+          ? '/api/v1/data/import-csv?allow_overwrite=true' 
+          : '/api/v1/data/import-csv';
         
         console.log('📡 发送请求到:', url);
         
-        const result = await axios.post(url, formData, {
+        const result = await apiClient.post(url, formData, {
           headers: { 'Content-Type': 'multipart/form-data' },
           timeout: 300000
         });
@@ -244,7 +243,7 @@ const AdminApp: React.FC = () => {
         const formData = new FormData();
         formData.append('file', file);
         
-        const result = await axios.post('/api/v1/simple-import/simple-csv', formData, {
+        const result = await apiClient.post('/api/v1/simple-import/simple-csv', formData, {
           headers: { 'Content-Type': 'multipart/form-data' },
           timeout: 600000 // 10分钟超时
         });
@@ -285,7 +284,7 @@ const AdminApp: React.FC = () => {
         const formData = new FormData();
         formData.append('file', file);
         
-        const result = await axios.post('/api/v1/simple-import/simple-txt', formData, {
+        const result = await apiClient.post('/api/v1/simple-import/simple-txt', formData, {
           headers: { 'Content-Type': 'multipart/form-data' },
           timeout: 1800000 // 30分钟超时，TXT文件很大
         });
@@ -360,10 +359,9 @@ const AdminApp: React.FC = () => {
         formData.append('file', selectedFile);
         
         // 构建请求URL
-        const baseUrl = 'http://localhost:8000/api/v1/data/import-txt';
         const url = todayImportStatus.txt_imported 
-          ? `${baseUrl}?allow_overwrite=true` 
-          : baseUrl;
+          ? '/api/v1/data/import-txt?allow_overwrite=true' 
+          : '/api/v1/data/import-txt';
         
         console.log('🚀 开始TXT导入:', {
           fileName: selectedFile.name,
@@ -372,7 +370,7 @@ const AdminApp: React.FC = () => {
           isOverwrite: todayImportStatus.txt_imported
         });
         
-        const result = await axios.post(url, formData, {
+        const result = await apiClient.post(url, formData, {
           headers: { 
             'Content-Type': 'multipart/form-data'
           },
@@ -852,7 +850,7 @@ const AdminApp: React.FC = () => {
                               
                               // 测试API连通性
                               try {
-                                const response = await axios.get('/health');
+                                const response = await apiClient.get('/health');
                                 console.log('✅ 后端连接正常:', response.data);
                                 message.success('后端连接正常');
                                 

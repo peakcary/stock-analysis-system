@@ -6,7 +6,7 @@ Payment related schemas
 from datetime import datetime
 from decimal import Decimal
 from typing import Optional, List, Any, Dict
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, validator, field_serializer
 from enum import Enum
 
 
@@ -75,13 +75,21 @@ class PaymentOrderResponse(BaseModel):
     id: int
     out_trade_no: str = Field(..., description="商户订单号")
     package_name: str = Field(..., description="套餐名称")
-    amount: Decimal = Field(..., description="支付金额")
-    status: PaymentStatusEnum
-    payment_method: PaymentMethodEnum
+    amount: str = Field(..., description="支付金额")
+    status: str
+    payment_method: str
     code_url: Optional[str] = Field(None, description="扫码支付链接")
     h5_url: Optional[str] = Field(None, description="H5支付链接")
     expire_time: datetime = Field(..., description="过期时间")
     created_at: datetime
+
+    @field_serializer('status')
+    def serialize_status(self, value):
+        return value.value.lower() if hasattr(value, 'value') else str(value).lower()
+    
+    @field_serializer('payment_method')
+    def serialize_payment_method(self, value):
+        return value.value.lower() if hasattr(value, 'value') else str(value).lower()
 
     class Config:
         from_attributes = True
@@ -113,9 +121,13 @@ class PaymentOrderQuery(BaseModel):
 class OrderStatusCheck(BaseModel):
     """订单状态检查"""
     out_trade_no: str
-    status: PaymentStatusEnum
+    status: str
     paid_at: Optional[datetime] = None
     transaction_id: Optional[str] = None
+    
+    @field_serializer('status')
+    def serialize_status(self, value):
+        return value.value.lower() if hasattr(value, 'value') else str(value).lower()
 
 
 # ============ 兼容旧版API的Schema ============

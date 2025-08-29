@@ -1,15 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
 import { message } from 'antd';
-import axios from 'axios';
+import { authManager, apiClient, type User } from '../../../shared/auth';
 
-interface User {
-  id: number;
-  username: string;
-  email: string;
-  membership_type: string;
-  queries_remaining: number;
-  membership_expires_at?: string;
-}
 
 interface AuthContextType {
   isAuthenticated: boolean;
@@ -38,47 +30,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // 获取存储的token
-  const getToken = () => {
-    return localStorage.getItem('admin_token');
-  };
-
-  // 设置axios默认头部
-  const setAuthHeader = (token: string | null) => {
-    if (token) {
-      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-    } else {
-      delete axios.defaults.headers.common['Authorization'];
-    }
-  };
-
-  // 验证token有效性
-  const verifyToken = async (token: string): Promise<boolean> => {
-    try {
-      const response = await axios.get('/api/v1/auth/me', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setUser(response.data);
-      return true;
-    } catch (error) {
-      console.error('Token验证失败:', error);
-      return false;
-    }
-  };
 
   // 登录函数
   const login = async (username: string, password: string): Promise<boolean> => {
     try {
-      const response = await axios.post('/api/v1/auth/login', {
-        username,
-        password
-      });
-
-      if (response.data.access_token) {
-        const token = response.data.access_token;
-        localStorage.setItem('admin_token', token);
-        setAuthHeader(token);
-        setUser(response.data.user);
+      const result = await authManager.login(username, password);
+      if (result.success && result.user) {
+        setUser(result.user);
         setIsAuthenticated(true);
         message.success('登录成功');
         return true;
@@ -86,15 +44,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       return false;
     } catch (error: any) {
       console.error('登录失败:', error);
-      message.error(error.response?.data?.detail || '登录失败');
+      message.error(error || '登录失败');
       return false;
     }
   };
 
   // 退出登录
   const logout = () => {
-    localStorage.removeItem('admin_token');
-    setAuthHeader(null);
+    authManager.logout();
     setUser(null);
     setIsAuthenticated(false);
     message.success('已退出登录');
@@ -103,14 +60,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // 初始化认证状态
   useEffect(() => {
     const initAuth = async () => {
-      const token = getToken();
-      if (token) {
-        setAuthHeader(token);
-        const isValid = await verifyToken(token);
+      if (authManager.isAuthenticated()) {
+        const isValid = await authManager.checkAuth();
         if (isValid) {
+          const currentUser = authManager.getUser();
+          setUser(currentUser);
           setIsAuthenticated(true);
         } else {
-          // Token无效，清除
           logout();
         }
       }

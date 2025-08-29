@@ -1,0 +1,84 @@
+# MySQL 性能优化配置
+# MySQL Performance Optimization Configuration
+
+[mysqld]
+# ============ 基础配置 ============
+# 设置字符集
+character-set-server = utf8mb4
+collation-server = utf8mb4_unicode_ci
+
+# ============ 内存配置 ============
+# InnoDB缓冲池大小 (推荐系统内存的70-80%)
+# 对于2GB内存服务器，设置为1GB
+innodb_buffer_pool_size = 1024M
+
+# 查询缓存配置 (MySQL 5.7及以下版本)
+query_cache_type = 1
+query_cache_size = 64M
+
+# 表缓存数量
+table_open_cache = 2000
+
+# 线程缓存大小
+thread_cache_size = 10
+
+# ============ 连接配置 ============
+# 最大连接数
+max_connections = 100
+
+# 连接超时时间
+wait_timeout = 28800
+interactive_timeout = 28800
+
+# ============ InnoDB配置 ============
+# InnoDB日志文件大小
+innodb_log_file_size = 256M
+
+# InnoDB日志缓冲区大小
+innodb_log_buffer_size = 32M
+
+# InnoDB刷新日志的频率
+innodb_flush_log_at_trx_commit = 2
+
+# InnoDB IO容量
+innodb_io_capacity = 200
+
+# 临时表配置
+tmp_table_size = 128M
+max_heap_table_size = 128M
+
+# ============ 慢查询日志 ============
+# 启用慢查询日志
+slow_query_log = 1
+slow_query_log_file = /var/log/mysql/mysql-slow.log
+long_query_time = 2
+
+# 记录没有使用索引的查询
+log_queries_not_using_indexes = 1
+
+# ============ 二进制日志配置 ============
+# 如果不需要主从复制，可以关闭二进制日志以提升性能
+# log_bin = OFF
+# binlog_format = ROW
+
+# ============ 其他优化 ============
+# 跳过域名解析
+skip_name_resolve = 1
+
+# 排序缓冲区大小
+sort_buffer_size = 4M
+
+# 读缓冲区大小
+read_buffer_size = 2M
+
+# 随机读缓冲区大小
+read_rnd_buffer_size = 8M
+
+# MyISAM键缓冲区大小 (如果使用MyISAM表)
+key_buffer_size = 64M
+
+[mysql]
+default-character-set = utf8mb4
+
+[client]
+default-character-set = utf8mb4

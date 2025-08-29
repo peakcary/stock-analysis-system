@@ -4,22 +4,26 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "start": "vite",
+    "dev": "vite --port 8006",
+    "start": "vite --port 8006",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview --port 8006"
   },
   "dependencies": {
     "@ant-design/charts": "^2.6.2",
-    "@reduxjs/toolkit": "^2.8.2",
+    "@ant-design/icons": "^5.4.0",
     "antd": "^5.27.1",
     "axios": "^1.11.0",
     "dayjs": "^1.11.10",
-    "react": "^19.1.1",
-    "react-dom": "^19.1.1",
-    "react-redux": "^9.2.0",
-    "react-router-dom": "^7.8.1"
+    "echarts": "^5.4.3",
+    "echarts-for-react": "^3.0.2",
+    "framer-motion": "^11.0.0",
+    "numeral": "^2.0.6",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.8.1",
+    "react-device-detect": "^2.2.3"
   },
   "devDependencies": {
     "@eslint/js": "^9.33.0",

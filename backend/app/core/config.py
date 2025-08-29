@@ -19,16 +19,19 @@ class Settings(BaseSettings):
     HOST: str = "0.0.0.0"
     PORT: int = 3007
     
-    # 数据库配置
-    DATABASE_URL: str = "mysql+pymysql://root:Pp123456@127.0.0.1:3306/stock_analysis_dev"
+    # 数据库配置 - 使用环境变量
     DATABASE_HOST: str = "127.0.0.1"
     DATABASE_PORT: int = 3306
     DATABASE_USER: str = "root"
-    DATABASE_PASSWORD: str = "Pp123456"
+    DATABASE_PASSWORD: str = ""
     DATABASE_NAME: str = "stock_analysis_dev"
     
-    # JWT 配置
-    SECRET_KEY: str = "your-super-secret-key-change-in-production"
+    @property
+    def DATABASE_URL(self) -> str:
+        return f"mysql+pymysql://{self.DATABASE_USER}:{self.DATABASE_PASSWORD}@{self.DATABASE_HOST}:{self.DATABASE_PORT}/{self.DATABASE_NAME}"
+    
+    # JWT 配置 - 使用环境变量
+    SECRET_KEY: str = ""
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     
@@ -61,6 +64,12 @@ class Settings(BaseSettings):
     
     # 应用基础URL（用于支付回调）
     BASE_URL: str = "http://localhost:3007"
+    
+    # 数据库连接池配置
+    DATABASE_POOL_SIZE: int = 10
+    DATABASE_MAX_OVERFLOW: int = 20
+    DATABASE_POOL_TIMEOUT: int = 30
+    DATABASE_POOL_RECYCLE: int = 3600
     
     # 支付配置
     PAYMENT_ORDER_TIMEOUT_HOURS: int = 2  # 支付订单超时时间（小时）

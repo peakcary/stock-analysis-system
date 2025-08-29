@@ -1,0 +1,21 @@
+{
+  "name": "@stock-analysis/shared",
+  "version": "1.0.0", 
+  "main": "auth.js",
+  "types": "auth.d.ts",
+  "description": "股票分析系统共享模块 - 客户端和管理端共用的认证和API工具",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch"
+  },
+  "keywords": ["stock", "analysis", "auth", "shared"],
+  "author": "Stock Analysis Team",
+  "license": "MIT",
+  "dependencies": {
+    "axios": "^1.11.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.3",
+    "@types/node": "^20.0.0"
+  }
+}

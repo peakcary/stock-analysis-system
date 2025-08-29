@@ -14,7 +14,7 @@ from app.core.database import get_db
 from app.core.auth import get_current_active_user
 from app.core.logging import logger
 from app.models.user import User
-from app.models.payment import PaymentPackage, PaymentOrder, PaymentNotification, MembershipLog
+from app.models.payment import PaymentPackage, PaymentOrder, PaymentNotification, MembershipLog, PaymentStatus
 from app.schemas.payment import (
     PaymentPackage as PaymentPackageSchema,
     PaymentOrderCreate, PaymentOrderResponse, PaymentOrderQuery,
@@ -125,7 +125,7 @@ async def create_payment_order(
             and_(
                 PaymentOrder.user_id == current_user.id,
                 PaymentOrder.package_type == order_data.package_type,
-                PaymentOrder.status == "pending",
+                PaymentOrder.status == PaymentStatus.PENDING,
                 PaymentOrder.expire_time > datetime.now()
             )
         ).first()
@@ -272,7 +272,7 @@ async def check_payment_status(
             )
         
         # 如果订单未支付且未过期，查询支付状态
-        if order.status == "pending" and order.expire_time > datetime.now():
+        if order.status == PaymentStatus.PENDING and order.expire_time > datetime.now():
             try:
                 if settings.PAYMENT_MOCK_MODE:
                     # 使用模拟支付服务查询
@@ -284,7 +284,7 @@ async def check_payment_status(
                 # 更新订单状态
                 trade_state = payment_result.get("trade_state") if settings.PAYMENT_MOCK_MODE else payment_result.get("trade_state")
                 if trade_state == "SUCCESS":
-                    order.status = "paid"
+                    order.status = PaymentStatus.PAID
                     order.transaction_id = payment_result.get("transaction_id")
                     order.paid_at = datetime.now()
                     
@@ -293,7 +293,7 @@ async def check_payment_status(
                     
                     db.commit()
                 elif trade_state in ["CLOSED", "REVOKED", "PAYERROR"]:
-                    order.status = "failed"
+                    order.status = PaymentStatus.FAILED
                     db.commit()
                     
             except (WechatPayException, Exception):
@@ -301,8 +301,8 @@ async def check_payment_status(
                 pass
         
         # 检查订单是否过期
-        elif order.status == "pending" and order.expire_time <= datetime.now():
-            order.status = "expired"
+        elif order.status == PaymentStatus.PENDING and order.expire_time <= datetime.now():
+            order.status = PaymentStatus.EXPIRED
             db.commit()
         
         return OrderStatusCheck(
@@ -332,7 +332,7 @@ async def cancel_payment_order(
             and_(
                 PaymentOrder.out_trade_no == out_trade_no,
                 PaymentOrder.user_id == current_user.id,
-                PaymentOrder.status == "pending"
+                PaymentOrder.status == PaymentStatus.PENDING
             )
         ).first()
         
@@ -349,7 +349,7 @@ async def cancel_payment_order(
             await wechat_pay_service.close_order(out_trade_no)
         
         # 更新订单状态
-        order.status = "cancelled"
+        order.status = PaymentStatus.CANCELLED
         order.cancelled_at = datetime.now()
         db.commit()
         
@@ -398,9 +398,9 @@ async def payment_notify(
                 PaymentOrder.out_trade_no == notify_data["out_trade_no"]
             ).first()
             
-            if order and order.status == "pending":
+            if order and order.status == PaymentStatus.PENDING:
                 # 更新订单状态
-                order.status = "paid"
+                order.status = PaymentStatus.PAID
                 order.transaction_id = notify_data["transaction_id"]
                 order.paid_at = datetime.now()
                 order.notify_data = notify_data["raw_data"]
@@ -443,6 +443,22 @@ async def payment_notify(
 
 # ============ 测试接口（仅在模拟模式下可用） ============
 
+@router.get("/test/debug-auth")
+async def debug_auth(
+    request: Request,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """调试认证信息"""
+    headers = dict(request.headers)
+    return {
+        "authenticated": True,
+        "user_id": current_user.id,
+        "username": current_user.username,
+        "headers": headers,
+        "authorization": headers.get("authorization", "No Authorization header")
+    }
+
 @router.post("/test/simulate-success/{out_trade_no}")
 async def simulate_payment_success(
     out_trade_no: str,
@@ -461,7 +477,7 @@ async def simulate_payment_success(
             and_(
                 PaymentOrder.out_trade_no == out_trade_no,
                 PaymentOrder.user_id == current_user.id,
-                PaymentOrder.status == "pending"
+                PaymentOrder.status == PaymentStatus.PENDING
             )
         ).first()
         
@@ -476,7 +492,7 @@ async def simulate_payment_success(
         
         if success:
             # 更新订单状态
-            order.status = "paid"
+            order.status = PaymentStatus.PAID
             order.transaction_id = f'4200001234567890{out_trade_no[-8:]}'
             order.paid_at = datetime.now()
             
@@ -518,13 +534,13 @@ async def get_payment_stats(
             func.count(PaymentOrder.id).label("total_orders"),
             func.sum(
                 func.case(
-                    (PaymentOrder.status == "paid", PaymentOrder.amount),
+                    (PaymentOrder.status == PaymentStatus.PAID, PaymentOrder.amount),
                     else_=0
                 )
             ).label("total_amount"),
             func.count(
                 func.case(
-                    (PaymentOrder.status == "paid", 1),
+                    (PaymentOrder.status == PaymentStatus.PAID, 1),
                     else_=None
                 )
             ).label("paid_orders")

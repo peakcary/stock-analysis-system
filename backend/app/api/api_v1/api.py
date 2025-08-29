@@ -3,7 +3,7 @@ API v1 主路由配置
 """
 
 from fastapi import APIRouter
-from app.api.api_v1.endpoints import stocks, concepts, data_import, auth, admin_users, payment, admin_packages
+from app.api.api_v1.endpoints import stocks, concepts, data_import, auth, admin_users, payment, admin_packages, system
 from app.api import simple_import
 
 api_router = APIRouter()
