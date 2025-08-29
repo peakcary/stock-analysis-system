@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Card, Button, Space, Typography, Row, Col, message
 } from 'antd';
-import PaymentPackages from '../components/PaymentPackages';
+import PaymentModal from '../components/PaymentModal';
 import axios from 'axios';
 import { 
   StarOutlined, SafetyCertificateOutlined
@@ -19,7 +19,8 @@ interface MembershipPageProps {
 // 移除硬编码的套餐数据，改用API数据
 
 export const MembershipPage: React.FC<MembershipPageProps> = ({ user, onUpgrade }) => {
-  const [paymentPackagesVisible, setPaymentPackagesVisible] = useState(false);
+  const [paymentModalVisible, setPaymentModalVisible] = useState(false);
+  const [selectedPackage, setSelectedPackage] = useState<string>('');
   const [userStats, setUserStats] = useState<any>(null);
 
   // 客户端不需要支付统计数据，注释掉
@@ -40,9 +41,16 @@ export const MembershipPage: React.FC<MembershipPageProps> = ({ user, onUpgrade 
 
   // 支付成功回调
   const handlePaymentSuccess = () => {
-    setPaymentPackagesVisible(false);
+    setPaymentModalVisible(false);
     // fetchUserStats(); // 客户端不需要统计数据
     message.success('支付成功，会员权益已生效！');
+  };
+
+  // 选择套餐
+  const selectPackage = (packageType: string) => {
+    console.log('选择套餐:', packageType);
+    setSelectedPackage(packageType);
+    setPaymentModalVisible(true);
   };
 
   return (
@@ -119,7 +127,7 @@ export const MembershipPage: React.FC<MembershipPageProps> = ({ user, onUpgrade 
         </motion.div>
 
         {/* 套餐展示区域 */}
-        <PaymentPackagesInline onSuccess={handlePaymentSuccess} />
+        <PaymentPackagesInline onSuccess={handlePaymentSuccess} onSelectPackage={selectPackage} />
         
         {/* 底部保障说明 */}
         <motion.div
@@ -176,11 +184,12 @@ export const MembershipPage: React.FC<MembershipPageProps> = ({ user, onUpgrade 
         </motion.div>
       </div>
 
-      {/* 支付套餐选择弹窗 */}
-      <PaymentPackages
-        visible={paymentPackagesVisible}
-        onCancel={() => setPaymentPackagesVisible(false)}
+      {/* 支付弹窗 */}
+      <PaymentModal
+        visible={paymentModalVisible}
+        onCancel={() => setPaymentModalVisible(false)}
         onSuccess={handlePaymentSuccess}
+        packageType={selectedPackage}
       />
     </div>
   );
@@ -189,12 +198,12 @@ export const MembershipPage: React.FC<MembershipPageProps> = ({ user, onUpgrade 
 // PaymentPackagesInline 组件 - 直接在页面中显示套餐
 interface PaymentPackagesInlineProps {
   onSuccess: () => void;
+  onSelectPackage: (packageType: string) => void;
 }
 
-const PaymentPackagesInline: React.FC<PaymentPackagesInlineProps> = ({ onSuccess }) => {
+const PaymentPackagesInline: React.FC<PaymentPackagesInlineProps> = ({ onSuccess, onSelectPackage }) => {
   const [packages, setPackages] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
-  const [paymentPackagesVisible, setPaymentPackagesVisible] = useState(false);
 
   // 获取支付套餐列表
   const fetchPackages = async () => {
@@ -249,20 +258,6 @@ const PaymentPackagesInline: React.FC<PaymentPackagesInlineProps> = ({ onSuccess
     return packageType.includes('monthly') || packageType.includes('queries_10');
   };
 
-  // 选择套餐
-  const selectPackage = (packageType: string) => {
-    console.log('选择套餐:', packageType);
-    setSelectedPackage(packageType);
-    setPaymentPackagesVisible(true);
-  };
-
-  const [selectedPackage, setSelectedPackage] = useState<string>('');
-
-  // 支付成功回调
-  const handlePaymentSuccess = () => {
-    setPaymentPackagesVisible(false);
-    onSuccess();
-  };
 
   if (loading) {
     return (
@@ -379,7 +374,7 @@ const PaymentPackagesInline: React.FC<PaymentPackagesInlineProps> = ({ onSuccess
                     type="primary"
                     size="large"
                     block
-                    onClick={() => selectPackage(pkg.package_type)}
+                    onClick={() => onSelectPackage(pkg.package_type)}
                     style={{
                       height: '48px',
                       fontSize: '16px',
@@ -399,13 +394,6 @@ const PaymentPackagesInline: React.FC<PaymentPackagesInlineProps> = ({ onSuccess
         ))}
       </Row>
 
-      {/* 支付弹窗 */}
-      <PaymentPackages
-        visible={paymentPackagesVisible}
-        onCancel={() => setPaymentPackagesVisible(false)}
-        onSuccess={handlePaymentSuccess}
-        selectedPackageType={selectedPackage}
-      />
     </motion.div>
   );
 };
