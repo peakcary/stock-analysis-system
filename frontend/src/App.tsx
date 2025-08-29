@@ -78,7 +78,7 @@ const AdminApp: React.FC = () => {
 
     setLoading(true);
     try {
-      const response = await axios.get(`http://localhost:8000/api/v1/stocks`, {
+      const response = await axios.get(`/api/v1/stocks`, {
         params: { search: searchText }
       });
       setStocks(response.data || []);
@@ -96,7 +96,7 @@ const AdminApp: React.FC = () => {
   const getAllStocks = async () => {
     setLoading(true);
     try {
-      const response = await axios.get('http://localhost:8000/api/v1/stocks');
+      const response = await axios.get('/api/v1/stocks');
       setStocks(response.data || []);
       message.success(`获取到 ${response.data?.length || 0} 只股票`);
     } catch (error) {
@@ -113,7 +113,7 @@ const AdminApp: React.FC = () => {
     try {
       const today = new Date().toISOString().split('T')[0];
       console.log('获取导入状态，日期:', today);
-      const response = await axios.get(`http://localhost:8000/api/v1/data/import-status/${today}`);
+      const response = await axios.get(`/api/v1/data/import-status/${today}`);
       console.log('导入状态响应:', response.data);
       setTodayImportStatus(response.data);
       
@@ -244,7 +244,7 @@ const AdminApp: React.FC = () => {
         const formData = new FormData();
         formData.append('file', file);
         
-        const result = await axios.post('http://localhost:8000/api/v1/simple-import/simple-csv', formData, {
+        const result = await axios.post('/api/v1/simple-import/simple-csv', formData, {
           headers: { 'Content-Type': 'multipart/form-data' },
           timeout: 600000 // 10分钟超时
         });
@@ -285,7 +285,7 @@ const AdminApp: React.FC = () => {
         const formData = new FormData();
         formData.append('file', file);
         
-        const result = await axios.post('http://localhost:8000/api/v1/simple-import/simple-txt', formData, {
+        const result = await axios.post('/api/v1/simple-import/simple-txt', formData, {
           headers: { 'Content-Type': 'multipart/form-data' },
           timeout: 1800000 // 30分钟超时，TXT文件很大
         });
@@ -852,7 +852,7 @@ const AdminApp: React.FC = () => {
                               
                               // 测试API连通性
                               try {
-                                const response = await axios.get('http://localhost:8000/health');
+                                const response = await axios.get('/health');
                                 console.log('✅ 后端连接正常:', response.data);
                                 message.success('后端连接正常');
                                 

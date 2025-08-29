@@ -95,7 +95,7 @@ const UserManagement: React.FC = () => {
       }
 
       // 模拟管理员API调用 - 实际使用时需要添加认证
-      const response = await axios.get('http://localhost:8000/api/v1/admin/users', {
+      const response = await axios.get('/api/v1/admin/users', {
         params,
         headers: {
           'Authorization': 'Bearer admin-token' // 实际使用时需要真实token
@@ -142,7 +142,7 @@ const UserManagement: React.FC = () => {
   // 获取用户统计
   const fetchStats = async () => {
     try {
-      const response = await axios.get('http://localhost:8000/api/v1/admin/stats', {
+      const response = await axios.get('/api/v1/admin/stats', {
         headers: {
           'Authorization': 'Bearer admin-token'
         }
@@ -168,13 +168,13 @@ const UserManagement: React.FC = () => {
   const fetchUserDetail = async (userId: number) => {
     try {
       // 获取用户查询记录
-      const queriesResponse = await axios.get(`http://localhost:8000/api/v1/admin/users/${userId}/queries`, {
+      const queriesResponse = await axios.get(`/api/v1/admin/users/${userId}/queries`, {
         headers: { 'Authorization': 'Bearer admin-token' }
       });
       setUserQueries(queriesResponse.data.queries || []);
 
       // 获取用户支付记录
-      const paymentsResponse = await axios.get(`http://localhost:8000/api/v1/admin/users/${userId}/payments`, {
+      const paymentsResponse = await axios.get(`/api/v1/admin/users/${userId}/payments`, {
         headers: { 'Authorization': 'Bearer admin-token' }
       });
       setUserPayments(paymentsResponse.data.payments || []);
@@ -204,7 +204,7 @@ const UserManagement: React.FC = () => {
         message.success('用户更新成功');
       } else {
         // 创建用户
-        await axios.post('http://localhost:8000/api/v1/admin/users', values, {
+        await axios.post('/api/v1/admin/users', values, {
           headers: { 'Authorization': 'Bearer admin-token' }
         });
         message.success('用户创建成功');
@@ -236,7 +236,7 @@ const UserManagement: React.FC = () => {
   // 升级会员
   const handleUpgradeMembership = async (userId: number, membershipType: string) => {
     try {
-      await axios.post(`http://localhost:8000/api/v1/admin/users/${userId}/membership`, {
+      await axios.post(`/api/v1/admin/users/${userId}/membership`, {
         membership_type: membershipType,
         queries_to_add: membershipType === 'pro' ? 1000 : membershipType === 'premium' ? 9999 : 0,
         days_to_add: membershipType === 'pro' ? 30 : membershipType === 'premium' ? 365 : 0
@@ -255,7 +255,7 @@ const UserManagement: React.FC = () => {
   const handleResetPassword = async (userId: number) => {
     const newPassword = 'reset123';
     try {
-      await axios.post(`http://localhost:8000/api/v1/admin/users/${userId}/reset-password?new_password=${newPassword}`, {}, {
+      await axios.post(`/api/v1/admin/users/${userId}/reset-password?new_password=${newPassword}`, {}, {
         headers: { 'Authorization': 'Bearer admin-token' }
       });
       message.success(`密码重置成功，新密码: ${newPassword}`);
