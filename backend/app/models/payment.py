@@ -1,63 +1,117 @@
 """
-支付相关数据模型
-Payment related models
+支付相关数据模型 - 修复版本
+Payment related models - Fixed version
+
+彻底解决enum映射问题：
+1. 使用字符串常量类替代Enum
+2. 统一数据库存储格式为小写
+3. 提供验证方法确保数据一致性
 """
 
-from sqlalchemy import Column, Integer, String, DateTime, Boolean, Text, Enum, DECIMAL, ForeignKey, JSON
+from sqlalchemy import Column, Integer, String, DateTime, Boolean, Text, DECIMAL, ForeignKey, JSON
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from datetime import datetime
-import enum
+from typing import List
 
 from app.core.database import Base
 
 
-class PaymentStatus(str, enum.Enum):
-    """支付状态枚举"""
-    PENDING = "PENDING"
-    PAID = "PAID"
-    FAILED = "FAILED"
-    CANCELLED = "CANCELLED"
-    REFUNDED = "REFUNDED"
-    EXPIRED = "EXPIRED"
+# 使用常量类替代Enum - 彻底解决映射问题
+class PaymentStatus:
+    """支付状态常量"""
+    PENDING = "pending"
+    PAID = "paid"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+    REFUNDED = "refunded"
+    EXPIRED = "expired"
+    
+    @classmethod
+    def all_values(cls) -> List[str]:
+        return [cls.PENDING, cls.PAID, cls.FAILED, cls.CANCELLED, cls.REFUNDED, cls.EXPIRED]
+    
+    @classmethod
+    def is_valid(cls, value: str) -> bool:
+        return value in cls.all_values()
 
 
-class PaymentMethod(str, enum.Enum):
-    """支付方式枚举"""
-    WECHAT_NATIVE = "WECHAT_NATIVE"
-    WECHAT_H5 = "WECHAT_H5"
-    WECHAT_MINIPROGRAM = "WECHAT_MINIPROGRAM"
-    ALIPAY = "ALIPAY"
+class PaymentMethod:
+    """支付方式常量"""
+    WECHAT_NATIVE = "wechat_native"
+    WECHAT_H5 = "wechat_h5"
+    WECHAT_MINIPROGRAM = "wechat_miniprogram"
+    ALIPAY = "alipay"
+    
+    @classmethod
+    def all_values(cls) -> List[str]:
+        return [cls.WECHAT_NATIVE, cls.WECHAT_H5, cls.WECHAT_MINIPROGRAM, cls.ALIPAY]
+    
+    @classmethod
+    def is_valid(cls, value: str) -> bool:
+        return value in cls.all_values()
 
 
-class MembershipTypeEnum(str, enum.Enum):
-    """会员类型枚举"""
-    FREE = "FREE"
-    PRO = "PRO"
-    PREMIUM = "PREMIUM"
+class MembershipTypeEnum:
+    """会员类型常量"""
+    FREE = "free"
+    PRO = "pro"
+    PREMIUM = "premium"
+    
+    @classmethod
+    def all_values(cls) -> List[str]:
+        return [cls.FREE, cls.PRO, cls.PREMIUM]
+    
+    @classmethod
+    def is_valid(cls, value: str) -> bool:
+        return value in cls.all_values()
 
 
-class ActionType(str, enum.Enum):
-    """操作类型枚举"""
+class ActionType:
+    """操作类型常量"""
     UPGRADE = "upgrade"
     RENEW = "renew"
     ADD_QUERIES = "add_queries"
     EXPIRE = "expire"
     MANUAL = "manual"
+    
+    @classmethod
+    def all_values(cls) -> List[str]:
+        return [cls.UPGRADE, cls.RENEW, cls.ADD_QUERIES, cls.EXPIRE, cls.MANUAL]
+    
+    @classmethod
+    def is_valid(cls, value: str) -> bool:
+        return value in cls.all_values()
 
 
-class NotificationType(str, enum.Enum):
-    """通知类型枚举"""
+class NotificationType:
+    """通知类型常量"""
     PAYMENT = "payment"
     REFUND = "refund"
+    
+    @classmethod
+    def all_values(cls) -> List[str]:
+        return [cls.PAYMENT, cls.REFUND]
+    
+    @classmethod
+    def is_valid(cls, value: str) -> bool:
+        return value in cls.all_values()
 
 
-class RefundStatus(str, enum.Enum):
-    """退款状态枚举"""
+class RefundStatus:
+    """退款状态常量"""
     PROCESSING = "processing"
     SUCCESS = "success"
     FAILED = "failed"
     CLOSED = "closed"
+    
+    @classmethod
+    def all_values(cls) -> List[str]:
+        return [cls.PROCESSING, cls.SUCCESS, cls.FAILED, cls.CLOSED]
+    
+    @classmethod
+    def is_valid(cls, value: str) -> bool:
+        return value in cls.all_values()
 
 
 class PaymentPackage(Base):
@@ -70,14 +124,15 @@ class PaymentPackage(Base):
     price = Column(DECIMAL(10, 2), nullable=False)
     queries_count = Column(Integer, default=0)
     validity_days = Column(Integer, default=0)
-    membership_type = Column(Enum(MembershipTypeEnum), default=MembershipTypeEnum.FREE)
+    membership_type = Column(String(20), default="free")
     description = Column(Text)
     is_active = Column(Boolean, default=True, index=True)
     sort_order = Column(Integer, default=0, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
-    # 关联关系暂时移除，避免配置复杂性
+    # 关联关系
+    payment_orders = relationship("PaymentOrder", back_populates="payment_package")
 
 
 class PaymentOrder(Base):
@@ -86,13 +141,14 @@ class PaymentOrder(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    package_id = Column(Integer, ForeignKey("payment_packages.id", ondelete="RESTRICT"), nullable=False, index=True)
     out_trade_no = Column(String(64), unique=True, nullable=False, index=True)
     transaction_id = Column(String(64), index=True)
     package_type = Column(String(20), nullable=False, index=True)
     package_name = Column(String(50), nullable=False)
     amount = Column(DECIMAL(10, 2), nullable=False)
-    status = Column(Enum(PaymentStatus), default=PaymentStatus.PENDING, index=True)
-    payment_method = Column(Enum(PaymentMethod), default=PaymentMethod.WECHAT_NATIVE)
+    status = Column(String(20), default=PaymentStatus.PENDING, index=True)
+    payment_method = Column(String(30), default=PaymentMethod.WECHAT_NATIVE)
     prepay_id = Column(String(64))
     code_url = Column(Text)
     h5_url = Column(Text)
@@ -109,6 +165,7 @@ class PaymentOrder(Base):
 
     # 关联关系
     user = relationship("User", back_populates="payment_orders")
+    payment_package = relationship("PaymentPackage", back_populates="payment_orders")
     membership_logs = relationship("MembershipLog", back_populates="payment_order")
     refund_records = relationship("RefundRecord", back_populates="payment_order")
 
@@ -120,7 +177,7 @@ class PaymentNotification(Base):
     id = Column(Integer, primary_key=True, index=True)
     out_trade_no = Column(String(64), nullable=False, index=True)
     transaction_id = Column(String(64), index=True)
-    notification_type = Column(Enum(NotificationType), default=NotificationType.PAYMENT)
+    notification_type = Column(String(20), default=NotificationType.PAYMENT)
     return_code = Column(String(16))
     result_code = Column(String(16))
     raw_data = Column(Text, nullable=False)
@@ -141,9 +198,9 @@ class MembershipLog(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     payment_order_id = Column(Integer, ForeignKey("payment_orders.id", ondelete="SET NULL"), index=True)
-    action_type = Column(Enum(ActionType), nullable=False, index=True)
-    old_membership_type = Column(Enum(MembershipTypeEnum))
-    new_membership_type = Column(Enum(MembershipTypeEnum))
+    action_type = Column(String(20), nullable=False, index=True)
+    old_membership_type = Column(String(20))
+    new_membership_type = Column(String(20))
     old_queries_remaining = Column(Integer, default=0)
     new_queries_remaining = Column(Integer, default=0)
     queries_added = Column(Integer, default=0)
@@ -169,7 +226,7 @@ class RefundRecord(Base):
     refund_id = Column(String(64), index=True)
     refund_amount = Column(DECIMAL(10, 2), nullable=False)
     refund_reason = Column(String(255))
-    refund_status = Column(Enum(RefundStatus), default=RefundStatus.PROCESSING, index=True)
+    refund_status = Column(String(20), default=RefundStatus.PROCESSING, index=True)
     refund_channel = Column(String(32))
     operator_id = Column(Integer)
     notify_data = Column(JSON)

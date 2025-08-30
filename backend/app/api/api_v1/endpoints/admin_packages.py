@@ -10,7 +10,7 @@ from decimal import Decimal
 from app.core.database import get_db
 from app.core.auth import get_current_active_user
 from app.models.user import User
-from app.models.payment import PaymentPackage, MembershipTypeEnum
+from app.models.payment import PaymentPackage
 from app.schemas.payment import PaymentPackageBase, PaymentPackage as PaymentPackageSchema
 
 router = APIRouter()
@@ -40,7 +40,7 @@ class PaymentPackageUpdate(PaymentPackageBase):
     price: Optional[Decimal] = None
     queries_count: Optional[int] = None
     validity_days: Optional[int] = None
-    membership_type: Optional[MembershipTypeEnum] = None
+    membership_type: Optional[str] = None
     description: Optional[str] = None
     is_active: Optional[bool] = None
     sort_order: Optional[int] = None

@@ -3,7 +3,7 @@ API v1 主路由配置
 """
 
 from fastapi import APIRouter
-from app.api.api_v1.endpoints import stocks, concepts, data_import, auth, admin_users, payment, admin_packages, system
+from app.api.api_v1.endpoints import stocks, concepts, data_import, auth, admin_users, payment, admin_packages, system, mock_payment, admin_order_management
 from app.api import simple_import
 
 api_router = APIRouter()
@@ -16,5 +16,7 @@ api_router.include_router(stocks.router, prefix="/stocks", tags=["stocks"])
 api_router.include_router(concepts.router, prefix="/concepts", tags=["concepts"])
 api_router.include_router(data_import.router, prefix="/data", tags=["data-import"])
 api_router.include_router(payment.router, prefix="/payment", tags=["payment"])
+api_router.include_router(mock_payment.router, prefix="/mock", tags=["mock-payment"])
+api_router.include_router(admin_order_management.router, prefix="/admin/orders", tags=["admin-order-management"])
 # 新增简化导入接口
 api_router.include_router(simple_import.router, prefix="/simple-import", tags=["simple-import"])

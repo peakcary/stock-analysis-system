@@ -10,29 +10,7 @@ from pydantic import BaseModel, Field, validator, field_serializer
 from enum import Enum
 
 
-class PaymentStatusEnum(str, Enum):
-    """支付状态枚举"""
-    PENDING = "pending"
-    PAID = "paid"
-    FAILED = "failed"
-    CANCELLED = "cancelled"
-    REFUNDED = "refunded"
-    EXPIRED = "expired"
-
-
-class PaymentMethodEnum(str, Enum):
-    """支付方式枚举"""
-    WECHAT_NATIVE = "wechat_native"
-    WECHAT_H5 = "wechat_h5"
-    WECHAT_MINIPROGRAM = "wechat_miniprogram"
-    ALIPAY = "alipay"
-
-
-class MembershipTypeEnum(str, Enum):
-    """会员类型枚举"""
-    FREE = "FREE"
-    PRO = "PRO"
-    PREMIUM = "PREMIUM"
+# Enum定义已移除，使用字符串常量替代
 
 
 # ============ 支付套餐相关 Schema ============
@@ -44,7 +22,7 @@ class PaymentPackageBase(BaseModel):
     price: Decimal = Field(..., description="价格")
     queries_count: int = Field(default=0, description="查询次数")
     validity_days: int = Field(default=0, description="有效天数")
-    membership_type: MembershipTypeEnum = Field(default=MembershipTypeEnum.FREE, description="会员类型")
+    membership_type: str = Field(default="free", description="会员类型")
     description: Optional[str] = Field(None, description="套餐描述")
     is_active: bool = Field(default=True, description="是否启用")
     sort_order: int = Field(default=0, description="排序")
@@ -65,7 +43,7 @@ class PaymentPackage(PaymentPackageBase):
 class PaymentOrderCreate(BaseModel):
     """创建支付订单请求"""
     package_type: str = Field(..., description="套餐类型")
-    payment_method: PaymentMethodEnum = Field(default=PaymentMethodEnum.WECHAT_NATIVE, description="支付方式")
+    payment_method: str = Field(default="wechat_native", description="支付方式")
     client_ip: Optional[str] = Field(None, description="客户端IP")
     user_agent: Optional[str] = Field(None, description="用户代理")
 
@@ -75,7 +53,7 @@ class PaymentOrderResponse(BaseModel):
     id: int
     out_trade_no: str = Field(..., description="商户订单号")
     package_name: str = Field(..., description="套餐名称")
-    amount: str = Field(..., description="支付金额")
+    amount: Decimal = Field(..., description="支付金额")
     status: str
     payment_method: str
     code_url: Optional[str] = Field(None, description="扫码支付链接")
@@ -108,8 +86,8 @@ class PaymentNotifyResponse(BaseModel):
 
 class PaymentOrderQuery(BaseModel):
     """支付订单查询参数"""
-    status: Optional[PaymentStatusEnum] = None
-    payment_method: Optional[PaymentMethodEnum] = None
+    status: Optional[str] = None
+    payment_method: Optional[str] = None
     start_date: Optional[datetime] = None
     end_date: Optional[datetime] = None
     page: int = Field(default=1, ge=1)
