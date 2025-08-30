@@ -32,8 +32,24 @@ export class UnifiedAuthManager {
   private apiClient: AxiosInstance;
 
   private constructor() {
+    // 获取API基础URL，支持不同环境
+    const getApiBaseUrl = () => {
+      // 尝试从不同的环境变量源获取
+      if (typeof window !== 'undefined') {
+        // 浏览器环境：优先使用 Vite 的环境变量
+        return (import.meta as any)?.env?.VITE_API_URL || 
+               (window as any).REACT_APP_API_URL || 
+               'http://localhost:3007';
+      } else {
+        // Node.js 环境
+        return process.env.REACT_APP_API_URL || 
+               process.env.VITE_API_URL || 
+               'http://localhost:3007';
+      }
+    };
+
     this.apiClient = axios.create({
-      baseURL: process.env.REACT_APP_API_URL || 'http://localhost:3007',
+      baseURL: getApiBaseUrl(),
       headers: {
         'Content-Type': 'application/json'
       }

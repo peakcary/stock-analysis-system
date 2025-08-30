@@ -37,9 +37,14 @@ check_port() {
 
 # 检查MySQL服务状态
 check_mysql() {
-    if ! brew services list | grep mysql@8.0 | grep started &> /dev/null; then
+    if ! brew services list | grep mysql | grep started &> /dev/null; then
         log_warn "MySQL服务未启动，正在启动..."
-        brew services start mysql@8.0
+        # 尝试不同的MySQL服务名
+        if brew services list | grep mysql@8.0 &> /dev/null; then
+            brew services start mysql@8.0
+        else
+            brew services start mysql
+        fi
         sleep 3
     fi
     log_info "✅ MySQL服务正常"

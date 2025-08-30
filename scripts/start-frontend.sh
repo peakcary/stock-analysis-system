@@ -31,13 +31,13 @@ if [ ! -f "../.env" ]; then
 fi
 
 # 设置前端环境变量
-export REACT_APP_API_URL=http://localhost:8000/api/v1
+export REACT_APP_API_URL=http://localhost:3007/api/v1
 export REACT_APP_ENVIRONMENT=development
 export PORT=3000
 
 echo "🚀 启动 React 开发服务器..."
 echo "📍 前端地址: http://localhost:3000"
-echo "🔗 API地址: http://localhost:8000/api/v1"
+echo "🔗 API地址: http://localhost:3007/api/v1"
 echo "🛑 停止服务: Ctrl+C"
 echo ""
 

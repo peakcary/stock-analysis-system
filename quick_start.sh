@@ -197,16 +197,19 @@ wait_for_services() {
         fi
     done
     
-    # 等待前端
+    # 等待前端 (检查8007端口，当前运行端口)
     print_message $YELLOW "   🔄 等待前端服务..."
-    sleep 10  # 前端编译需要时间
-    for i in {1..20}; do
-        if curl -s http://localhost:3000 >/dev/null 2>&1; then
-            print_message $GREEN "   ✅ 前端服务已就绪"
+    sleep 5  # 前端编译需要时间
+    for i in {1..15}; do
+        if curl -s http://localhost:8007 >/dev/null 2>&1; then
+            print_message $GREEN "   ✅ 前端服务已就绪 (端口8007)"
+            break
+        elif curl -s http://localhost:8006 >/dev/null 2>&1; then
+            print_message $GREEN "   ✅ 前端服务已就绪 (端口8006)"
             break
         fi
-        sleep 3
-        if [ $i -eq 20 ]; then
+        sleep 2
+        if [ $i -eq 15 ]; then
             print_message $YELLOW "   ⚠️  前端服务启动较慢，请稍后手动检查"
         fi
     done
@@ -226,17 +229,17 @@ show_access_info() {
     print_message $CYAN "╚════════════════════════════════════════════════════════════════╝"
     echo
     
-    print_message $PURPLE "📱 客户端页面 (普通用户使用):"
-    print_message $WHITE "   🌐 本地访问: http://localhost:3000"
+    print_message $PURPLE "🛠  管理前端 (管理员使用):"
+    print_message $WHITE "   🌐 本地访问: http://localhost:8007"
     if [ -n "$IP" ]; then
-        print_message $WHITE "   📱 手机访问: http://$IP:3000"
+        print_message $WHITE "   📱 手机访问: http://$IP:8007"
     fi
-    print_message $WHITE "   👤 功能: 注册登录、会员购买、数据分析、图表查看"
+    print_message $WHITE "   ⚙️  功能: 数据导入、股票查询、概念分析、系统管理"
     echo
     
-    print_message $PURPLE "🛠  管理后台 (当前就是管理页面):"
-    print_message $WHITE "   🌐 本地访问: http://localhost:3000"
-    print_message $WHITE "   ⚙️  功能: 数据导入、股票查询、概念分析、系统管理"
+    print_message $PURPLE "📱 用户前端 (需要单独启动):"
+    print_message $WHITE "   🌐 本地访问: http://localhost:8005 (如已启动)"
+    print_message $WHITE "   👤 功能: 用户注册登录、会员购买、数据分析、图表查看"
     echo
     
     print_message $PURPLE "🔗 后端API服务:"
