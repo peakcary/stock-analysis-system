@@ -24,7 +24,6 @@ class Stock(Base):
     # 关联关系
     stock_concepts = relationship("StockConcept", back_populates="stock", cascade="all, delete-orphan")
     daily_data = relationship("DailyStockData", back_populates="stock", cascade="all, delete-orphan")
-    concept_rankings = relationship("DailyConceptRanking", back_populates="stock", cascade="all, delete-orphan")
 
 
 class DailyStockData(Base):

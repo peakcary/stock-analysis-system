@@ -20,7 +20,6 @@ class Concept(Base):
     # 关联关系
     stock_concepts = relationship("StockConcept", back_populates="concept", cascade="all, delete-orphan")
     concept_sums = relationship("DailyConceptSum", back_populates="concept", cascade="all, delete-orphan")
-    concept_rankings = relationship("DailyConceptRanking", back_populates="concept", cascade="all, delete-orphan")
 
 
 class StockConcept(Base):
@@ -35,23 +34,6 @@ class StockConcept(Base):
     # 关联关系
     stock = relationship("Stock", back_populates="stock_concepts")
     concept = relationship("Concept", back_populates="stock_concepts")
-
-
-class DailyConceptRanking(Base):
-    """每日概念排名表"""
-    __tablename__ = "daily_concept_rankings"
-    
-    id = Column(Integer, primary_key=True, index=True, comment="主键ID")
-    concept_id = Column(Integer, ForeignKey("concepts.id", ondelete="CASCADE"), nullable=False, index=True, comment="概念ID")
-    stock_id = Column(Integer, ForeignKey("stocks.id", ondelete="CASCADE"), nullable=False, index=True, comment="股票ID")
-    trade_date = Column(Date, nullable=False, index=True, comment="交易日期")
-    rank_in_concept = Column(Integer, nullable=False, index=True, comment="在概念中的排名")
-    heat_value = Column(DECIMAL(15, 2), default=0, comment="热度值")
-    created_at = Column(DateTime, default=func.now(), comment="创建时间")
-    
-    # 关联关系
-    concept = relationship("Concept", back_populates="concept_rankings")
-    stock = relationship("Stock", back_populates="concept_rankings")
 
 
 class DailyConceptSum(Base):

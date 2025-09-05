@@ -25,7 +25,7 @@ class StockConceptData(Base):
     """股票概念数据表"""
     __tablename__ = "stock_concept_data"
     
-    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    id = Column(Integer, primary_key=True, autoincrement=True)
     stock_code = Column(String(20), nullable=False, comment='股票代码')
     stock_name = Column(String(100), nullable=False, comment='股票名称')
     page_count = Column(Integer, default=0, comment='全部页数')
@@ -43,7 +43,7 @@ class StockTimeseriesData(Base):
     """股票时间序列数据表"""
     __tablename__ = "stock_timeseries_data"
     
-    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    id = Column(Integer, primary_key=True, autoincrement=True)
     stock_code = Column(String(20), nullable=False, comment='股票代码')
     trade_date = Column(Date, nullable=False, comment='交易日期')
     value = Column(DECIMAL(15, 2), nullable=False, comment='数值')
@@ -55,7 +55,7 @@ class ImportTask(Base):
     """导入任务记录表"""
     __tablename__ = "import_tasks"
     
-    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    id = Column(Integer, primary_key=True, autoincrement=True)
     file_name = Column(String(255), nullable=False, comment='文件名')
     file_type = Column(String(10), nullable=False, comment='文件类型')
     file_size = Column(BigInteger, nullable=False, comment='文件大小(字节)')

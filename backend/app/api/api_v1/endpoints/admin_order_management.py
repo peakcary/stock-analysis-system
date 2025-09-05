@@ -34,7 +34,7 @@ def get_admin_user(current_user: User = Depends(get_current_active_user)) -> Use
 async def get_all_orders(
     page: int = Query(default=1, ge=1, description="页码"),
     size: int = Query(default=20, ge=1, le=100, description="每页数量"),
-    status: Optional[str] = Query(default=None, description="订单状态"),
+    order_status: Optional[str] = Query(default=None, description="订单状态"),
     start_date: Optional[str] = Query(default=None, description="开始日期(YYYY-MM-DD)"),
     end_date: Optional[str] = Query(default=None, description="结束日期(YYYY-MM-DD)"),
     user_id: Optional[int] = Query(default=None, description="用户ID"),
@@ -48,14 +48,14 @@ async def get_all_orders(
         query = db.query(PaymentOrder).join(PaymentPackage).join(User)
         
         # 状态过滤
-        if status:
-            try:
-                status_enum = PaymentStatus(status.upper())
-                query = query.filter(PaymentOrder.status == status_enum)
-            except ValueError:
+        if order_status:
+            status_value = order_status.lower()
+            if PaymentStatus.is_valid(status_value):
+                query = query.filter(PaymentOrder.status == status_value)
+            else:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"无效的订单状态: {status}"
+                    detail=f"无效的订单状态: {order_status}"
                 )
         
         # 日期过滤
@@ -107,8 +107,8 @@ async def get_all_orders(
                     "price": float(order.payment_package.price)
                 },
                 "amount": float(order.amount),
-                "status": order.status.value.lower(),
-                "payment_method": order.payment_method.value.lower(),
+                "status": order.status,
+                "payment_method": order.payment_method,
                 "created_at": order.created_at.isoformat(),
                 "paid_at": order.paid_at.isoformat() if order.paid_at else None,
                 "expire_time": order.expire_time.isoformat() if order.expire_time else None,

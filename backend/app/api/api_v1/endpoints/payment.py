@@ -23,6 +23,7 @@ from app.schemas.payment import (
 from app.services.wechat_pay import wechat_pay_service, WechatPayException
 from app.core.config import settings
 from app.services.user_membership import user_membership_service
+from app.services.mock_payment import mock_payment_service
 
 router = APIRouter()
 
@@ -277,7 +278,9 @@ async def check_payment_status(
                     order.paid_at = datetime.now()
                     
                     # 处理会员权益
-                    await membership_service.process_payment_success(db, order)
+                    result = await user_membership_service.activate_package_for_user(db, order.user_id, order.id)
+                    if not result.get('success', False):
+                        logger.warning(f"Package activation failed for order {order.id}: {result.get('message', 'Unknown error')}")
                     
                     db.commit()
                 elif trade_state in ["CLOSED", "REVOKED", "PAYERROR"]:
@@ -489,7 +492,9 @@ async def simulate_payment_success(
             order.paid_at = datetime.now()
             
             # 处理会员权益
-            await membership_service.process_payment_success(db, order)
+            result = await user_membership_service.activate_package_for_user(db, order.user_id, order.id)
+            if not result.get('success', False):
+                logger.warning(f"Package activation failed for order {order.id}: {result.get('message', 'Unknown error')}")
             
             db.commit()
             

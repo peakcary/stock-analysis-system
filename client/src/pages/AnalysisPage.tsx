@@ -2,18 +2,22 @@ import React, { useState, useEffect } from 'react';
 import { 
   Card, Row, Col, Statistic, Select, DatePicker, Space, Typography, 
   Badge, Tooltip, Button, Drawer, Table, Tag, Segmented, Empty,
-  Input, Tabs, Progress, Alert, Spin, List, Avatar
+  Input, Tabs, Progress, Alert, Spin, List, Avatar, message
 } from 'antd';
 import { 
   ArrowUpOutlined, ArrowDownOutlined, FireOutlined,
   SearchOutlined, BulbOutlined, DollarOutlined, BarChartOutlined,
   LineChartOutlined, PieChartOutlined, FundOutlined, StockOutlined,
   FilterOutlined, FullscreenOutlined, StarOutlined, EyeOutlined,
-  ThunderboltOutlined, CaretUpOutlined, CaretDownOutlined, CrownOutlined
+  ThunderboltOutlined, CaretUpOutlined, CaretDownOutlined, CrownOutlined,
+  ReloadOutlined, SyncOutlined
 } from '@ant-design/icons';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactECharts from 'echarts-for-react';
 import dayjs from 'dayjs';
+import { DailyAnalysisApi, ConceptSummary, ConceptRanking, TopConcept, analysisUtils } from '../services/dailyAnalysisApi';
+import ConceptDetailPage from '../components/ConceptDetailPage';
+import StockRankingPage from '../components/StockRankingPage';
 
 const { Title, Text, Paragraph } = Typography;
 const { RangePicker } = DatePicker;
@@ -64,6 +68,20 @@ export const AnalysisPage: React.FC<AnalysisPageProps> = ({ user }) => {
   const [selectedStock, setSelectedStock] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [searchText, setSearchText] = useState('');
+  const [selectedDate, setSelectedDate] = useState<string>(dayjs().format('YYYY-MM-DD'));
+  
+  // 真实数据状态
+  const [conceptSummaries, setConceptSummaries] = useState<ConceptSummary[]>([]);
+  const [topConcepts, setTopConcepts] = useState<TopConcept[]>([]);
+  const [conceptRankings, setConceptRankings] = useState<ConceptRanking[]>([]);
+  const [analysisStatus, setAnalysisStatus] = useState<string>('not_started');
+  const [overviewStats, setOverviewStats] = useState({
+    totalConcepts: 0,
+    totalStocks: 0,
+    totalNetInflow: 0,
+    topGainer: { name: '', value: '', color: '#10b981' },
+    topDecliner: { name: '', value: '', color: '#ef4444' }
+  });
 
   // 根据用户会员等级限制功能
   const isMember = user?.memberType !== 'free';
@@ -85,6 +103,98 @@ export const AnalysisPage: React.FC<AnalysisPageProps> = ({ user }) => {
     setSelectedStock(stock);
     setDetailVisible(true);
   };
+  
+  // 处理概念点击
+  const handleConceptClick = (conceptName: string) => {
+    if (!isMember) return;
+    setSelectedView('concept');
+    // 设置选中的概念，用于概念详情页面
+    setSelectedConcept(conceptName);
+  };
+  
+  const [selectedConcept, setSelectedConcept] = useState<string>('');
+
+  // 加载数据的函数
+  const loadAnalysisData = async (date: string) => {
+    setLoading(true);
+    try {
+      // 检查分析状态
+      const statusRes = await DailyAnalysisApi.getAnalysisStatus(date);
+      setAnalysisStatus(statusRes.data.overall_status);
+      
+      if (statusRes.data.overall_status === 'completed') {
+        // 并行加载所有数据
+        const [summariesRes, topConceptsRes, rankingsRes] = await Promise.all([
+          DailyAnalysisApi.getConceptSummaries(date, 50),
+          DailyAnalysisApi.getTopConcepts(date, 10),
+          DailyAnalysisApi.getConceptRankings(date, undefined, 100)
+        ]);
+        
+        setConceptSummaries(summariesRes.data.summaries);
+        setTopConcepts(topConceptsRes.data.top_concepts);
+        setConceptRankings(rankingsRes.data.rankings);
+        
+        // 计算总览统计
+        const summaries = summariesRes.data.summaries;
+        if (summaries.length > 0) {
+          const totalNetInflow = summaries.reduce((sum, s) => sum + s.total_net_inflow, 0);
+          const totalStocks = summaries.reduce((sum, s) => sum + s.stock_count, 0);
+          const topGainer = summaries[0];
+          const topDecliner = summaries[summaries.length - 1];
+          
+          setOverviewStats({
+            totalConcepts: summaries.length,
+            totalStocks,
+            totalNetInflow: totalNetInflow / 100000000, // 转换为亿
+            topGainer: {
+              name: topGainer?.concept || '',
+              value: analysisUtils.formatNetInflow(topGainer?.total_net_inflow || 0),
+              color: '#10b981'
+            },
+            topDecliner: {
+              name: topDecliner?.concept || '',
+              value: analysisUtils.formatNetInflow(topDecliner?.total_net_inflow || 0),
+              color: '#ef4444'
+            }
+          });
+        }
+      }
+    } catch (error) {
+      message.error('加载分析数据失败');
+      console.error('Load analysis data error:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  // 生成分析报告
+  const generateAnalysis = async () => {
+    setLoading(true);
+    try {
+      await DailyAnalysisApi.generateAnalysis(selectedDate);
+      message.success('分析报告生成完成');
+      await loadAnalysisData(selectedDate);
+    } catch (error) {
+      message.error('生成分析报告失败');
+      console.error('Generate analysis error:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  // 处理日期变化
+  const handleDateChange = (date: any) => {
+    if (date) {
+      const dateStr = dayjs(date).format('YYYY-MM-DD');
+      setSelectedDate(dateStr);
+      loadAnalysisData(dateStr);
+    }
+  };
+  
+  // 组件挂载时加载数据
+  useEffect(() => {
+    loadAnalysisData(selectedDate);
+  }, []);
 
   // 总览页面
   const OverviewPage = () => (
@@ -93,15 +203,42 @@ export const AnalysisPage: React.FC<AnalysisPageProps> = ({ user }) => {
       animate={{ opacity: 1 }}
       transition={{ duration: 0.5 }}
     >
+      {/* 分析状态提示 */}
+      {analysisStatus !== 'completed' && (
+        <Alert
+          message={
+            analysisStatus === 'not_started' ? '今日分析报告尚未生成' :
+            analysisStatus === 'processing' ? '正在生成分析报告...' :
+            analysisStatus === 'failed' ? '分析报告生成失败' : '未知状态'
+          }
+          type={analysisStatus === 'failed' ? 'error' : 'info'}
+          showIcon
+          action={
+            analysisStatus === 'not_started' || analysisStatus === 'failed' ? (
+              <Button 
+                size="small" 
+                type="primary" 
+                icon={<SyncOutlined />}
+                loading={loading}
+                onClick={generateAnalysis}
+              >
+                生成分析报告
+              </Button>
+            ) : undefined
+          }
+          style={{ marginBottom: 16 }}
+        />
+      )}
+      
       {/* 核心指标 */}
       <Row gutter={[16, 16]} style={{ marginBottom: 32 }}>
         <Col xs={12} sm={6}>
           <Card style={{ borderRadius: '16px', textAlign: 'center' }}>
             <Statistic
-              title="今日活跃股票"
-              value={mockData.overview.activeStocks}
-              suffix={`/ ${mockData.overview.totalStocks}`}
-              prefix={<StockOutlined style={{ color: '#3b82f6' }} />}
+              title="活跃概念"
+              value={overviewStats.totalConcepts}
+              suffix={`个`}
+              prefix={<BulbOutlined style={{ color: '#3b82f6' }} />}
               valueStyle={{ color: '#3b82f6', fontSize: '20px' }}
             />
           </Card>
@@ -111,16 +248,16 @@ export const AnalysisPage: React.FC<AnalysisPageProps> = ({ user }) => {
           <Card style={{ borderRadius: '16px', textAlign: 'center' }}>
             <Statistic
               title="净流入总额"
-              value={mockData.overview.totalNetInflow}
+              value={overviewStats.totalNetInflow.toFixed(2)}
               suffix="亿"
               prefix={<DollarOutlined style={{ color: '#10b981' }} />}
               valueStyle={{ 
-                color: mockData.overview.totalNetInflow > 0 ? '#10b981' : '#ef4444',
+                color: overviewStats.totalNetInflow > 0 ? '#10b981' : '#ef4444',
                 fontSize: '20px'
               }}
             />
             <Progress 
-              percent={Math.min(Math.abs(mockData.overview.totalNetInflow) / 200 * 100, 100)}
+              percent={Math.min(Math.abs(overviewStats.totalNetInflow) / 200 * 100, 100)}
               strokeColor="#10b981"
               showInfo={false}
               size="small"
@@ -132,14 +269,14 @@ export const AnalysisPage: React.FC<AnalysisPageProps> = ({ user }) => {
         <Col xs={12} sm={6}>
           <Card style={{ borderRadius: '16px', textAlign: 'center' }}>
             <Statistic
-              title="市场热度"
-              value={mockData.overview.averageHeat}
-              suffix="分"
-              prefix={<FireOutlined style={{ color: '#f59e0b' }} />}
+              title="涉及个股"
+              value={overviewStats.totalStocks}
+              suffix="只"
+              prefix={<StockOutlined style={{ color: '#f59e0b' }} />}
               valueStyle={{ color: '#f59e0b', fontSize: '20px' }}
             />
             <div style={{ marginTop: '8px', fontSize: '12px', color: '#6b7280' }}>
-              较昨日 <span style={{ color: '#10b981' }}>+5.2%</span>
+              分析日期: {analysisUtils.formatAnalysisDate(selectedDate)}
             </div>
           </Card>
         </Col>
@@ -147,155 +284,180 @@ export const AnalysisPage: React.FC<AnalysisPageProps> = ({ user }) => {
         <Col xs={12} sm={6}>
           <Card style={{ borderRadius: '16px', textAlign: 'center' }}>
             <div style={{ marginBottom: '8px' }}>
-              <Text type="secondary" style={{ fontSize: '12px' }}>涨幅领先</Text>
+              <Text type="secondary" style={{ fontSize: '12px' }}>净流入最高</Text>
               <div style={{ 
-                color: mockData.overview.topGainer.color, 
+                color: overviewStats.topGainer.color, 
                 fontWeight: '600',
                 fontSize: '16px'
               }}>
-                <CaretUpOutlined /> {mockData.overview.topGainer.name}
+                <CaretUpOutlined /> {overviewStats.topGainer.name || '暂无'}
               </div>
-              <Text style={{ color: mockData.overview.topGainer.color, fontSize: '14px' }}>
-                {mockData.overview.topGainer.value}
+              <Text style={{ color: overviewStats.topGainer.color, fontSize: '14px' }}>
+                {overviewStats.topGainer.value || '--'}
               </Text>
             </div>
             <div>
-              <Text type="secondary" style={{ fontSize: '12px' }}>跌幅领先</Text>
+              <Text type="secondary" style={{ fontSize: '12px' }}>净流入最低</Text>
               <div style={{ 
-                color: mockData.overview.topDecliner.color, 
+                color: overviewStats.topDecliner.color, 
                 fontWeight: '600',
                 fontSize: '16px'
               }}>
-                <CaretDownOutlined /> {mockData.overview.topDecliner.name}
+                <CaretDownOutlined /> {overviewStats.topDecliner.name || '暂无'}
               </div>
-              <Text style={{ color: mockData.overview.topDecliner.color, fontSize: '14px' }}>
-                {mockData.overview.topDecliner.value}
+              <Text style={{ color: overviewStats.topDecliner.color, fontSize: '14px' }}>
+                {overviewStats.topDecliner.value || '--'}
               </Text>
             </div>
           </Card>
         </Col>
       </Row>
 
-      {/* 热门股票 */}
+      {/* 热门概念 */}
       <Card 
         title={
           <Space>
             <FireOutlined style={{ color: '#ef4444' }} />
-            <span>热门股票</span>
-            <Badge count={5} style={{ backgroundColor: '#ef4444' }} />
+            <span>热门概念</span>
+            <Badge count={topConcepts.length} style={{ backgroundColor: '#ef4444' }} />
           </Space>
         }
-        extra={isMember && <Button type="link">查看更多</Button>}
+        extra={
+          <Space>
+            {isMember && <Button type="link" onClick={() => setSelectedView('concept')}>查看更多</Button>}
+            <Button 
+              size="small" 
+              icon={<ReloadOutlined />} 
+              loading={loading}
+              onClick={() => loadAnalysisData(selectedDate)}
+            >
+              刷新
+            </Button>
+          </Space>
+        }
         style={{ borderRadius: '16px', marginBottom: 24 }}
       >
-        <div style={{ overflowX: 'auto' }}>
-          {mockData.hotStocks.map((stock, index) => (
-            <motion.div
-              key={stock.code}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.1 }}
-              onClick={() => handleStockClick(stock)}
-              style={{
-                padding: '16px',
-                borderRadius: '12px',
-                marginBottom: '12px',
-                background: index % 2 === 0 ? '#fafafa' : 'white',
-                border: '1px solid #f0f0f0',
-                cursor: isMember ? 'pointer' : 'not-allowed',
-                opacity: !isMember ? 0.6 : 1,
-                position: 'relative'
-              }}
-              whileHover={isMember ? { scale: 1.02, backgroundColor: '#f8fafc' } : {}}
-            >
-              {!isMember && (
-                <div style={{
-                  position: 'absolute',
-                  top: '8px',
-                  right: '8px',
-                  background: '#f59e0b',
-                  color: 'white',
-                  padding: '2px 8px',
-                  borderRadius: '8px',
-                  fontSize: '10px'
-                }}>
-                  会员专享
-                </div>
-              )}
-              
-              <Row align="middle">
-                <Col xs={24} sm={6}>
-                  <div>
-                    <Text strong style={{ fontSize: '16px' }}>{stock.name}</Text>
-                    <br />
-                    <Text type="secondary" style={{ fontSize: '12px' }}>{stock.code}</Text>
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: '40px' }}>
+            <Spin size="large" tip="加载中..."/>
+          </div>
+        ) : topConcepts.length > 0 ? (
+          <div style={{ overflowX: 'auto' }}>
+            {topConcepts.slice(0, 5).map((concept, index) => (
+              <motion.div
+                key={concept.concept}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.1 }}
+                onClick={() => isMember && handleConceptClick(concept.concept)}
+                style={{
+                  padding: '16px',
+                  borderRadius: '12px',
+                  marginBottom: '12px',
+                  background: index % 2 === 0 ? '#fafafa' : 'white',
+                  border: '1px solid #f0f0f0',
+                  cursor: isMember ? 'pointer' : 'not-allowed',
+                  opacity: !isMember ? 0.6 : 1,
+                  position: 'relative'
+                }}
+                whileHover={isMember ? { scale: 1.02, backgroundColor: '#f8fafc' } : {}}
+              >
+                {!isMember && (
+                  <div style={{
+                    position: 'absolute',
+                    top: '8px',
+                    right: '8px',
+                    background: '#f59e0b',
+                    color: 'white',
+                    padding: '2px 8px',
+                    borderRadius: '8px',
+                    fontSize: '10px'
+                  }}>
+                    会员专享
                   </div>
-                </Col>
+                )}
                 
-                <Col xs={12} sm={4}>
-                  <div>
-                    <div style={{ fontSize: '18px', fontWeight: '600' }}>
-                      ¥{stock.price.toFixed(2)}
-                    </div>
-                    <div style={{
-                      fontSize: '12px',
-                      color: stock.change >= 0 ? '#10b981' : '#ef4444',
-                      display: 'flex',
-                      alignItems: 'center'
-                    }}>
-                      {stock.change >= 0 ? <ArrowUpOutlined /> : <ArrowDownOutlined />}
-                      <span style={{ marginLeft: '2px' }}>
-                        {stock.change >= 0 ? '+' : ''}{stock.change.toFixed(2)}%
-                      </span>
-                    </div>
-                  </div>
-                </Col>
-                
-                <Col xs={12} sm={4}>
-                  <div>
-                    <Text type="secondary" style={{ fontSize: '12px' }}>热度</Text>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <Progress
-                        percent={stock.heat}
-                        strokeColor="#f59e0b"
-                        size="small"
-                        style={{ flex: 1 }}
-                        showInfo={false}
-                      />
-                      <Text style={{ fontSize: '12px', color: '#f59e0b', fontWeight: '600' }}>
-                        {stock.heat}
+                <Row align="middle">
+                  <Col xs={24} sm={8}>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div style={{
+                          width: '24px',
+                          height: '24px',
+                          borderRadius: '50%',
+                          background: '#f59e0b',
+                          color: 'white',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: '12px',
+                          fontWeight: '600'
+                        }}>
+                          {concept.rank}
+                        </div>
+                        <Text strong style={{ fontSize: '16px' }}>{concept.concept}</Text>
+                      </div>
+                      <Text type="secondary" style={{ fontSize: '12px' }}>
+                        {concept.stock_count}只股票
                       </Text>
                     </div>
-                  </div>
-                </Col>
-                
-                <Col xs={24} sm={6}>
-                  <div>
-                    <Text type="secondary" style={{ fontSize: '12px' }}>成交量</Text>
-                    <div style={{ fontSize: '14px', fontWeight: '500' }}>
-                      {(stock.volume / 10000).toFixed(1)}万手
+                  </Col>
+                  
+                  <Col xs={12} sm={6}>
+                    <div>
+                      <div style={{ fontSize: '18px', fontWeight: '600', color: analysisUtils.getChangeColor(concept.total_net_inflow) }}>
+                        {analysisUtils.formatNetInflow(concept.total_net_inflow)}
+                      </div>
+                      <Text type="secondary" style={{ fontSize: '12px' }}>总净流入</Text>
                     </div>
-                  </div>
-                </Col>
-                
-                <Col xs={24} sm={4}>
-                  <Space wrap size={[4, 4]}>
-                    {stock.concepts.slice(0, 2).map(concept => (
-                      <Tag key={concept} style={{ fontSize: '10px' }}>
-                        {concept}
-                      </Tag>
-                    ))}
-                  </Space>
-                </Col>
-              </Row>
-            </motion.div>
-          ))}
-        </div>
+                  </Col>
+                  
+                  <Col xs={12} sm={6}>
+                    <div>
+                      <div style={{ fontSize: '14px', fontWeight: '500', color: analysisUtils.getChangeColor(concept.avg_net_inflow) }}>
+                        {analysisUtils.formatNetInflow(concept.avg_net_inflow)}
+                      </div>
+                      <Text type="secondary" style={{ fontSize: '12px' }}>平均净流入</Text>
+                    </div>
+                  </Col>
+                  
+                  <Col xs={24} sm={4}>
+                    <div>
+                      <Progress
+                        percent={Math.min(analysisUtils.calculateHeatScore({ 
+                          concept: concept.concept,
+                          concept_rank: concept.rank,
+                          stock_count: concept.stock_count,
+                          total_net_inflow: concept.total_net_inflow,
+                          avg_net_inflow: concept.avg_net_inflow,
+                          avg_price: 0,
+                          avg_turnover_rate: 0,
+                          total_reads: 0,
+                          total_pages: 0
+                        }), 100)}
+                        strokeColor="#f59e0b"
+                        size="small"
+                        showInfo={false}
+                      />
+                      <Text style={{ fontSize: '10px', color: '#9ca3af' }}>热度评分</Text>
+                    </div>
+                  </Col>
+                </Row>
+              </motion.div>
+            ))}
+          </div>
+        ) : (
+          <Empty 
+            description="暂无概念数据" 
+            style={{ padding: '40px' }}
+            image={Empty.PRESENTED_IMAGE_SIMPLE}
+          />
+        )}
 
         {!isMember && (
           <Alert
             message="升级会员解锁完整功能"
-            description="升级为专业版会员，查看详细的股票分析、实时数据和专业报告"
+            description="升级为专业版会员，查看详细的概念分析、个股排名和专业报告"
             type="warning"
             action={
               <Button type="primary" size="small">
@@ -325,7 +487,7 @@ export const AnalysisPage: React.FC<AnalysisPageProps> = ({ user }) => {
             extra={isMember && <Button type="link">查看全部</Button>}
             style={{ borderRadius: '16px' }}
           >
-            <ConceptTracking concepts={mockData.concepts} isMember={isMember} />
+            <ConceptTracking concepts={conceptSummaries.slice(0, 5)} isMember={isMember} />
           </Card>
         </Col>
       </Row>
@@ -419,25 +581,37 @@ export const AnalysisPage: React.FC<AnalysisPageProps> = ({ user }) => {
               ]}
             />
             
-            {isMember && (
-              <>
-                <RangePicker 
-                  size="middle"
-                  style={{ borderRadius: '8px' }}
-                  presets={[
-                    { label: '今日', value: [dayjs().startOf('day'), dayjs().endOf('day')] },
-                    { label: '本周', value: [dayjs().startOf('week'), dayjs().endOf('week')] },
-                    { label: '本月', value: [dayjs().startOf('month'), dayjs().endOf('month')] }
-                  ]}
-                />
-                
-                <Button 
-                  icon={<FilterOutlined />} 
-                  style={{ borderRadius: '8px' }}
-                >
-                  筛选
-                </Button>
-              </>
+            <DatePicker 
+              value={dayjs(selectedDate)}
+              onChange={handleDateChange}
+              size="middle"
+              style={{ borderRadius: '8px' }}
+              format="YYYY-MM-DD"
+              placeholder="选择日期"
+              allowClear={false}
+            />
+            
+            {analysisStatus === 'completed' && (
+              <Button 
+                icon={<ReloadOutlined />}
+                loading={loading}
+                onClick={() => loadAnalysisData(selectedDate)}
+                style={{ borderRadius: '8px' }}
+              >
+                刷新数据
+              </Button>
+            )}
+            
+            {(analysisStatus === 'not_started' || analysisStatus === 'failed') && (
+              <Button 
+                type="primary"
+                icon={<SyncOutlined />}
+                loading={loading}
+                onClick={generateAnalysis}
+                style={{ borderRadius: '8px' }}
+              >
+                生成分析
+              </Button>
             )}
           </Space>
         </motion.div>
@@ -554,12 +728,12 @@ const IndustryRanking: React.FC<{ industries: any[], isMember: boolean }> = ({ i
 };
 
 // 概念追踪组件
-const ConceptTracking: React.FC<{ concepts: any[], isMember: boolean }> = ({ concepts, isMember }) => {
+const ConceptTracking: React.FC<{ concepts: ConceptSummary[], isMember: boolean }> = ({ concepts, isMember }) => {
   return (
     <div>
-      {concepts.map((concept, index) => (
+      {concepts.length > 0 ? concepts.map((concept, index) => (
         <motion.div 
-          key={index}
+          key={concept.concept}
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: index * 0.1 }}
@@ -576,43 +750,49 @@ const ConceptTracking: React.FC<{ concepts: any[], isMember: boolean }> = ({ con
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div style={{ flex: 1 }}>
               <div style={{ fontWeight: '600', fontSize: '14px', marginBottom: '4px' }}>
-                {concept.name}
+                {concept.concept}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
                 <Progress
-                  percent={concept.heat}
+                  percent={Math.min(analysisUtils.calculateHeatScore(concept), 100)}
                   size="small"
                   strokeColor="#f59e0b"
                   showInfo={false}
                   style={{ width: '60px' }}
                 />
                 <Text style={{ fontSize: '10px', color: '#f59e0b', fontWeight: '600' }}>
-                  {concept.heat}
+                  {Math.min(analysisUtils.calculateHeatScore(concept), 100)}
                 </Text>
               </div>
               <Text type="secondary" style={{ fontSize: '11px' }}>
-                {concept.reason}
+                平均价格: {concept.avg_price.toFixed(2)} 元 • 平均换手: {(concept.avg_turnover_rate * 100).toFixed(2)}%
               </Text>
             </div>
             <div style={{ textAlign: 'right', marginLeft: '12px' }}>
               <div style={{
-                color: concept.change >= 0 ? '#10b981' : '#ef4444',
+                color: analysisUtils.getChangeColor(concept.total_net_inflow),
                 fontWeight: '600',
                 fontSize: '14px',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '2px'
               }}>
-                {concept.change >= 0 ? <CaretUpOutlined /> : <CaretDownOutlined />}
-                {concept.change >= 0 ? '+' : ''}{concept.change}%
+                {concept.total_net_inflow >= 0 ? <CaretUpOutlined /> : <CaretDownOutlined />}
+                {analysisUtils.formatNetInflow(concept.total_net_inflow)}
               </div>
               <Text type="secondary" style={{ fontSize: '10px' }}>
-                {concept.stocks}只股票
+                {concept.stock_count}只股票
               </Text>
             </div>
           </div>
         </motion.div>
-      ))}
+      )) : (
+        <Empty 
+          description="暂无概念数据" 
+          style={{ padding: '20px' }}
+          image={Empty.PRESENTED_IMAGE_SIMPLE}
+        />
+      )}
       
       {!isMember && (
         <div style={{
@@ -634,25 +814,52 @@ const ConceptTracking: React.FC<{ concepts: any[], isMember: boolean }> = ({ con
 
 // 其他页面组件（占位符）
 const StocksPage = () => (
-  <Card style={{ textAlign: 'center', padding: '60px', borderRadius: '16px' }}>
-    <Title level={3}>🔍 个股分析</Title>
-    <Paragraph>专业的个股分析工具，提供详细的技术分析和基本面分析</Paragraph>
-  </Card>
+  <StockRankingPage 
+    analysisDate={selectedDate}
+    user={user}
+  />
 );
 
 const IndustryPage = () => (
   <Card style={{ textAlign: 'center', padding: '60px', borderRadius: '16px' }}>
     <Title level={3}>🏭 行业分析</Title>
     <Paragraph>全面的行业对比分析，把握行业轮动机会</Paragraph>
+    <Alert 
+      message="功能开发中" 
+      description="行业分析功能正在开发中，敬请期待。" 
+      type="info" 
+      showIcon 
+      style={{ marginTop: '20px' }}
+    />
   </Card>
 );
 
-const ConceptPage = () => (
-  <Card style={{ textAlign: 'center', padding: '60px', borderRadius: '16px' }}>
-    <Title level={3}>💡 概念追踪</Title>
-    <Paragraph>智能概念热点追踪，捕捉市场热点变化</Paragraph>
-  </Card>
-);
+const ConceptPage = () => {
+  if (selectedConcept) {
+    return (
+      <ConceptDetailPage 
+        conceptName={selectedConcept}
+        analysisDate={selectedDate}
+        onClose={() => setSelectedConcept('')}
+        user={user}
+      />
+    );
+  }
+  
+  return (
+    <Card style={{ textAlign: 'center', padding: '60px', borderRadius: '16px' }}>
+      <Title level={3}>💡 概念分析</Title>
+      <Paragraph>点击任意概念查看详细分析，或在总览页面点击概念名称。</Paragraph>
+      <Alert 
+        message="提示" 
+        description="请从总览页面点击具体概念查看详情。" 
+        type="info" 
+        showIcon 
+        style={{ marginTop: '20px' }}
+      />
+    </Card>
+  );
+};
 
 // 股票详情抽屉
 const StockDetailDrawer: React.FC<{

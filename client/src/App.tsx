@@ -149,7 +149,7 @@ const App: React.FC = () => {
 
   // 渲染当前页面
   const renderCurrentPage = () => {
-    if (!user && activeTab !== 'auth' && activeTab !== 'home') {
+    if (!user && activeTab !== 'auth' && activeTab !== 'home' && activeTab !== 'membership') {
       return (
         <AuthPage onLoginSuccess={handleLoginSuccess} />
       );
