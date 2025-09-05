@@ -1,328 +1,250 @@
 #!/bin/bash
 
-# 股票分析系统自动部署脚本
-# ⚠️ 警告：此脚本包含敏感操作，仅用于开发环境
-# 🔐 生产环境请使用 deploy-secure.sh
+# 股票分析系统 - 一键部署脚本
+echo "🚀 股票分析系统 - 一键部署"
+echo "=========================="
 
-set -e
+# 颜色定义
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m'
 
-echo "⚠️ 此脚本仅用于开发和测试环境"
-echo "🔐 生产部署请使用 deploy-secure.sh 脚本"
+log_info() { echo -e "${BLUE}[INFO]${NC} $1"; }
+log_success() { echo -e "${GREEN}[✅]${NC} $1"; }
+log_warn() { echo -e "${YELLOW}[⚠️]${NC} $1"; }
+log_error() { echo -e "${RED}[❌]${NC} $1"; }
+
+# 固定端口配置
+BACKEND_PORT=3007
+CLIENT_PORT=8005
+FRONTEND_PORT=8006
+
+echo "📊 固定端口配置: API($BACKEND_PORT) | 客户端($CLIENT_PORT) | 管理端($FRONTEND_PORT)"
 echo ""
 
-# 检查是否为生产环境部署
-read -p "确认这是开发/测试环境部署? (输入 'dev' 确认): " env_confirm
-if [ "$env_confirm" != "dev" ]; then
-    echo "❌ 请使用 deploy-secure.sh 进行生产部署"
+# ==================== 1. 环境检测 ====================
+log_info "🔍 环境依赖检测..."
+
+# 检查 Node.js
+if ! command -v node &> /dev/null; then
+    log_error "Node.js 未安装"
+    echo "请安装 Node.js (推荐 v18+):"
+    echo "  macOS: brew install node"
+    echo "  或访问: https://nodejs.org/"
     exit 1
+else
+    NODE_VERSION=$(node --version)
+    log_success "Node.js 已安装: $NODE_VERSION"
 fi
 
-# 配置变量 - 从环境变量读取
-SERVER_IP="${DEPLOY_SERVER_IP:-}"
-SERVER_USER="${DEPLOY_SERVER_USER:-}"
-SERVER_PASS="${DEPLOY_SERVER_PASS:-}"
-
-# 检查必需的环境变量
-if [ -z "$SERVER_IP" ] || [ -z "$SERVER_USER" ] || [ -z "$SERVER_PASS" ]; then
-    echo "❌ 请设置以下环境变量："
-    echo "   DEPLOY_SERVER_IP - 服务器IP地址"
-    echo "   DEPLOY_SERVER_USER - 服务器用户名" 
-    echo "   DEPLOY_SERVER_PASS - 服务器密码"
-    echo ""
-    echo "或者使用安全的部署方式："
-    echo "   ./deploy-secure.sh"
+# 检查 Python3
+if ! command -v python3 &> /dev/null; then
+    log_error "Python3 未安装"
+    echo "请安装 Python3 (推荐 v3.11+):"
+    echo "  macOS: brew install python"
+    echo "  或访问: https://python.org/"
     exit 1
+else
+    PYTHON_VERSION=$(python3 --version)
+    log_success "Python3 已安装: $PYTHON_VERSION"
 fi
 
-echo "🚀 开始部署股票分析系统到 $SERVER_IP..."
+# 检查 MySQL
+if ! command -v mysql &> /dev/null; then
+    log_error "MySQL 未安装"
+    echo "请安装 MySQL (推荐 v8.0+):"
+    echo "  macOS: brew install mysql"
+    echo "  或访问: https://dev.mysql.com/downloads/"
+    exit 1
+else
+    MYSQL_VERSION=$(mysql --version | cut -d' ' -f3 | cut -d',' -f1)
+    log_success "MySQL 已安装: $MYSQL_VERSION"
+fi
 
-# 检查sshpass是否安装
-if ! command -v sshpass &> /dev/null; then
-    echo "安装sshpass..."
+# 检查 MySQL 服务状态
+log_info "检查 MySQL 服务状态..."
+if ! mysqladmin ping -h127.0.0.1 --silent 2>/dev/null; then
+    log_warn "MySQL 服务未启动，正在尝试启动..."
+    
     if [[ "$OSTYPE" == "darwin"* ]]; then
-        brew install sshpass
+        brew services start mysql 2>/dev/null || {
+            log_error "MySQL 服务启动失败"
+            echo "请手动启动 MySQL 服务:"
+            echo "  brew services start mysql"
+            exit 1
+        }
     else
-        sudo apt-get install -y sshpass
+        log_error "请手动启动 MySQL 服务"
+        exit 1
+    fi
+    
+    sleep 3
+    if ! mysqladmin ping -h127.0.0.1 --silent 2>/dev/null; then
+        log_error "MySQL 服务启动失败，请检查配置"
+        exit 1
     fi
 fi
 
-# 1. 初始化服务器环境
-echo "📦 初始化服务器环境..."
-sshpass -p "$SERVER_PASS" ssh -o StrictHostKeyChecking=no "$SERVER_USER@$SERVER_IP" << 'EOF'
-# 更新系统
-apt update && apt upgrade -y
+log_success "MySQL 服务运行正常"
 
-# 安装基础软件
-apt install -y nginx mysql-server python3 python3-pip python3-venv nodejs npm git curl wget unzip
+# ==================== 2. 数据库检查 ====================
+log_info "🗄️ 检查数据库..."
 
-# 配置防火墙
-ufw allow ssh
-ufw allow http
-ufw allow https  
-ufw allow 3007/tcp
-ufw --force enable
+log_success "数据库配置已在程序中预设"
 
-# 创建应用目录
-mkdir -p /opt/stock-analysis
-mkdir -p /var/log/stock-analysis
+# ==================== 3. 后端环境配置 ====================
+log_info "🔧 配置后端环境..."
 
-echo "✅ 服务器环境初始化完成"
-EOF
-
-# 2. 打包并上传代码
-echo "📤 打包并上传应用代码..."
-
-# 打包本地代码
-tar -czf stock-analysis.tar.gz \
-    --exclude=node_modules \
-    --exclude=venv \
-    --exclude=.git \
-    --exclude=__pycache__ \
-    --exclude=*.pyc \
-    --exclude=.DS_Store \
-    --exclude=dist \
-    backend/ frontend/ 
-
-# 上传到服务器
-sshpass -p "$SERVER_PASS" scp stock-analysis.tar.gz "$SERVER_USER@$SERVER_IP:/opt/stock-analysis/"
-
-# 解压代码
-sshpass -p "$SERVER_PASS" ssh -o StrictHostKeyChecking=no "$SERVER_USER@$SERVER_IP" << 'EOF'
-cd /opt/stock-analysis
-tar -xzf stock-analysis.tar.gz
-rm stock-analysis.tar.gz
-echo "✅ 代码上传完成"
-EOF
-
-# 3. 配置MySQL
-echo "🗄️ 配置MySQL数据库..."
-echo "⚠️ 警告：使用默认测试密码，生产环境请修改"
-
-sshpass -p "$SERVER_PASS" ssh -o StrictHostKeyChecking=no "$SERVER_USER@$SERVER_IP" << 'EOF'
-# 设置默认密码变量（仅用于开发环境）
-DB_ROOT_PASS="DevTestDB2024"
-DB_APP_PASS="DevTestApp2024"
-
-# MySQL安全配置
-mysql -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '${DB_ROOT_PASS}';"
-mysql -e "FLUSH PRIVILEGES;"
-
-# 创建数据库和用户
-mysql -u root -p${DB_ROOT_PASS} -e "CREATE DATABASE IF NOT EXISTS stock_analysis CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
-mysql -u root -p${DB_ROOT_PASS} -e "CREATE USER IF NOT EXISTS 'stockapp'@'localhost' IDENTIFIED BY '${DB_APP_PASS}';"
-mysql -u root -p${DB_ROOT_PASS} -e "GRANT ALL PRIVILEGES ON stock_analysis.* TO 'stockapp'@'localhost';"
-mysql -u root -p${DB_ROOT_PASS} -e "FLUSH PRIVILEGES;"
-
-echo "✅ MySQL配置完成 (使用开发测试密码)"
-echo "🔐 生产环境请立即修改数据库密码！"
-EOF
-
-# 4. 配置后端
-echo "⚙️ 配置Python后端..."
-sshpass -p "$SERVER_PASS" ssh -o StrictHostKeyChecking=no "$SERVER_USER@$SERVER_IP" << 'EOF'
-cd /opt/stock-analysis/backend
+cd backend
 
 # 创建虚拟环境
-python3 -m venv venv
-source venv/bin/activate
-pip install --upgrade pip
-pip install -r requirements.txt
-
-# 更新配置文件以使用生产数据库
-sed -i 's/DATABASE_URL = "sqlite:\/\/\/\.\/stock_analysis\.db"/DATABASE_URL = "mysql+pymysql:\/\/stockapp:StockApp2024!@localhost\/stock_analysis"/' app/core/config.py
-
-# 初始化数据库
-python -c "
-from app.core.database import engine, Base
-from app.models import user, payment
-Base.metadata.create_all(bind=engine)
-print('数据库表创建完成')
-"
-
-# 创建管理员用户
-python -c "
-from sqlalchemy.orm import sessionmaker
-from app.core.database import engine
-from app.models.user import User
-from app.core.security import get_password_hash
-from datetime import datetime
-
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-db = SessionLocal()
-
-admin_user = db.query(User).filter(User.username == 'admin').first()
-if not admin_user:
-    admin_user = User(
-        username='admin',
-        email='admin@stockanalysis.com',
-        hashed_password=get_password_hash('DevAdmin2024!'),
-        is_active=True,
-        membership_type='free',
-        queries_remaining=9999,
-        created_at=datetime.now(),
-        updated_at=datetime.now()
-    )
-    db.add(admin_user)
-    db.commit()
-    print('管理员用户创建完成: admin/DevAdmin2024!')
-else:
-    print('管理员用户已存在')
-db.close()
-"
-
-echo "✅ 后端配置完成"
-EOF
-
-# 5. 构建前端
-echo "🎨 构建前端..."
-cd frontend
-
-# 更新API地址为服务器地址
-find src -name "*.ts" -o -name "*.tsx" | xargs sed -i.bak "s/localhost:3007/$SERVER_IP:3007/g"
-
-npm install
-npm run build
-
-# 上传前端构建文件
-tar -czf frontend-dist.tar.gz dist/
-sshpass -p "$SERVER_PASS" scp frontend-dist.tar.gz "$SERVER_USER@$SERVER_IP:/opt/stock-analysis/"
-
-sshpass -p "$SERVER_PASS" ssh -o StrictHostKeyChecking=no "$SERVER_USER@$SERVER_IP" << 'EOF'
-cd /opt/stock-analysis
-tar -xzf frontend-dist.tar.gz
-rm frontend-dist.tar.gz
-echo "✅ 前端构建完成"
-EOF
-
-# 6. 配置Nginx
-echo "🌐 配置Nginx..."
-sshpass -p "$SERVER_PASS" ssh -o StrictHostKeyChecking=no "$SERVER_USER@$SERVER_IP" << 'EOF'
-# 删除默认配置
-rm -f /etc/nginx/sites-enabled/default
-
-# 创建应用配置
-cat > /etc/nginx/sites-available/stock-analysis << 'NGINX_EOF'
-server {
-    listen 80;
-    server_name 47.92.236.28;
-    
-    # 前端静态文件
-    location / {
-        root /opt/stock-analysis/dist;
-        index index.html;
-        try_files $uri $uri/ /index.html;
-    }
-    
-    # API代理
-    location /api/ {
-        proxy_pass http://127.0.0.1:3007;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-    
-    # 简化导入API
-    location /simple-import/ {
-        proxy_pass http://127.0.0.1:3007;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        client_max_body_size 100M;
-    }
-}
-NGINX_EOF
-
-# 启用站点
-ln -sf /etc/nginx/sites-available/stock-analysis /etc/nginx/sites-enabled/
-nginx -t
-systemctl restart nginx
-systemctl enable nginx
-
-echo "✅ Nginx配置完成"
-EOF
-
-# 7. 创建系统服务
-echo "🔧 创建后端服务..."
-sshpass -p "$SERVER_PASS" ssh -o StrictHostKeyChecking=no "$SERVER_USER@$SERVER_IP" << 'EOF'
-cat > /etc/systemd/system/stock-analysis-backend.service << 'SERVICE_EOF'
-[Unit]
-Description=Stock Analysis Backend API
-After=network.target mysql.service
-
-[Service]
-Type=simple
-User=root
-WorkingDirectory=/opt/stock-analysis/backend
-Environment=PYTHONPATH=/opt/stock-analysis/backend
-ExecStart=/opt/stock-analysis/backend/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 3007 --workers 1
-Restart=always
-RestartSec=10
-
-[Install]
-WantedBy=multi-user.target
-SERVICE_EOF
-
-# 启动服务
-systemctl daemon-reload
-systemctl enable stock-analysis-backend
-systemctl start stock-analysis-backend
-
-echo "✅ 后端服务配置完成"
-EOF
-
-# 8. 优化系统性能
-echo "⚡ 系统性能优化..."
-sshpass -p "$SERVER_PASS" ssh -o StrictHostKeyChecking=no "$SERVER_USER@$SERVER_IP" << 'EOF'
-# 创建swap分区
-if [ ! -f /swapfile ]; then
-    fallocate -l 1G /swapfile
-    chmod 600 /swapfile  
-    mkswap /swapfile
-    swapon /swapfile
-    echo '/swapfile none swap sw 0 0' >> /etc/fstab
+if [ ! -d "venv" ]; then
+    log_info "创建 Python 虚拟环境..."
+    python3 -m venv venv
 fi
 
-# MySQL优化
-cat > /etc/mysql/mysql.conf.d/performance.cnf << 'MYSQL_CONF_EOF'
-[mysqld]
-innodb_buffer_pool_size = 256M
-max_connections = 50
-query_cache_size = 32M
-query_cache_type = 1
-MYSQL_CONF_EOF
+# 激活虚拟环境并安装依赖
+log_info "安装后端依赖..."
+source venv/bin/activate
+pip install -r requirements.txt > /dev/null 2>&1
 
-systemctl restart mysql
+if [ $? -ne 0 ]; then
+    log_error "后端依赖安装失败"
+    echo "请检查网络连接或手动执行:"
+    echo "  cd backend && source venv/bin/activate && pip install -r requirements.txt"
+    exit 1
+fi
 
-echo "✅ 性能优化完成"
+log_success "后端依赖安装完成"
+
+# 创建环境配置文件
+log_info "创建后端环境配置..."
+cat > .env << EOF
+# JWT 配置
+SECRET_KEY=your-secret-key-here-please-change-in-production
+ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=30
+
+# CORS 配置
+ALLOWED_ORIGINS=["http://localhost:$CLIENT_PORT","http://127.0.0.1:$CLIENT_PORT","http://localhost:$FRONTEND_PORT","http://127.0.0.1:$FRONTEND_PORT"]
+
+# 支付配置
+PAYMENT_ENABLED=true
+PAYMENT_MOCK_MODE=true
 EOF
 
-# 9. 最终检查
-echo "🔍 检查服务状态..."
-sshpass -p "$SERVER_PASS" ssh -o StrictHostKeyChecking=no "$SERVER_USER@$SERVER_IP" << 'EOF'
-echo "服务状态检查:"
-systemctl is-active stock-analysis-backend && echo "✅ 后端服务正常" || echo "❌ 后端服务异常"
-systemctl is-active nginx && echo "✅ Nginx服务正常" || echo "❌ Nginx服务异常"  
-systemctl is-active mysql && echo "✅ MySQL服务正常" || echo "❌ MySQL服务异常"
+log_success "后端环境配置完成 (数据库配置已内置在程序中)"
 
-echo "端口监听检查:"
-netstat -tlnp | grep -E ':80|:3007|:3306' || echo "检查端口监听状态"
+# 数据库初始化
+log_info "初始化数据库..."
+cd ..
+./init-database.sh
+cd backend
 
-echo "内存使用情况:"
-free -h
+cd ..
+
+# ==================== 4. 前端环境配置 ====================
+log_info "🎨 配置前端环境..."
+
+# 安装客户端依赖
+if [ ! -d "client/node_modules" ]; then
+    log_info "安装客户端依赖..."
+    cd client
+    npm install > /dev/null 2>&1
+    if [ $? -ne 0 ]; then
+        log_error "客户端依赖安装失败"
+        echo "请手动执行: cd client && npm install"
+        exit 1
+    fi
+    cd ..
+    log_success "客户端依赖安装完成"
+fi
+
+# 安装管理端依赖
+if [ ! -d "frontend/node_modules" ]; then
+    log_info "安装管理端依赖..."
+    cd frontend
+    npm install > /dev/null 2>&1
+    if [ $? -ne 0 ]; then
+        log_error "管理端依赖安装失败"
+        echo "请手动执行: cd frontend && npm install"
+        exit 1
+    fi
+    cd ..
+    log_success "管理端依赖安装完成"
+fi
+
+# ==================== 5. 配置文件生成 ====================
+log_info "⚙️ 生成配置文件..."
+
+# 客户端 Vite 配置
+cat > client/vite.config.ts << EOF
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+
+export default defineConfig({
+  plugins: [react()],
+  server: {
+    port: $CLIENT_PORT,
+    host: true,
+    proxy: {
+      '/api': {
+        target: 'http://127.0.0.1:$BACKEND_PORT',
+        changeOrigin: true,
+        secure: false
+      }
+    }
+  }
+})
 EOF
 
-# 清理本地文件
-rm -f stock-analysis.tar.gz frontend-dist.tar.gz
+# 管理端 Vite 配置
+cat > frontend/vite.config.ts << EOF
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
 
+export default defineConfig({
+  plugins: [react()],
+  server: {
+    port: $FRONTEND_PORT,
+    host: true,
+    proxy: {
+      '/api': {
+        target: 'http://127.0.0.1:$BACKEND_PORT',
+        changeOrigin: true,
+        secure: false
+      }
+    }
+  }
+})
+EOF
+
+# 端口配置文件
+cat > ports.env << EOF
+BACKEND_PORT=$BACKEND_PORT
+CLIENT_PORT=$CLIENT_PORT
+FRONTEND_PORT=$FRONTEND_PORT
+EOF
+
+# 创建日志目录
+mkdir -p logs
+
+log_success "配置文件生成完成"
+
+# ==================== 6. 完成提示 ====================
 echo ""
 echo "🎉 部署完成！"
-echo "🌐 访问地址: http://47.92.236.28"
-echo "👤 管理员账号: admin"
-echo "🔑 管理员密码: DevAdmin2024! (开发环境密码)"
+echo "=============="
 echo ""
-echo "⚠️ 安全提醒："
-echo "1. 请立即登录系统修改默认密码"
-echo "2. 建议配置SSH密钥认证"
-echo "3. 定期监控服务器资源使用情况"
+echo "📊 服务配置:"
+echo "  🔗 API服务:  http://localhost:$BACKEND_PORT"
+echo "  📱 客户端:   http://localhost:$CLIENT_PORT"
+echo "  🖥️ 管理端:   http://localhost:$FRONTEND_PORT"
+echo ""
+echo "📋 下一步:"
+echo "  ▶️  启动系统: ./start.sh"
+echo "  🛑 停止系统: ./stop.sh"
+echo ""
+log_success "系统部署完成，可以开始使用了！"

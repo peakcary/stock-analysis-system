@@ -5,6 +5,7 @@ Application Configuration Management
 
 from pydantic_settings import BaseSettings
 from typing import Optional
+import os
 
 
 class Settings(BaseSettings):
@@ -23,12 +24,23 @@ class Settings(BaseSettings):
     DATABASE_HOST: str = "127.0.0.1"
     DATABASE_PORT: int = 3306
     DATABASE_USER: str = "root"
-    DATABASE_PASSWORD: str = ""
+    DATABASE_PASSWORD: str = "Pp123456"  # 实际配置的MySQL密码
     DATABASE_NAME: str = "stock_analysis_dev"
     
     @property
     def DATABASE_URL(self) -> str:
-        return f"mysql+pymysql://{self.DATABASE_USER}:{self.DATABASE_PASSWORD}@{self.DATABASE_HOST}:{self.DATABASE_PORT}/{self.DATABASE_NAME}"
+        # 优先使用环境变量中的DATABASE_URL，如果没有则使用配置构建
+        database_url = os.getenv("DATABASE_URL")
+        if database_url:
+            return database_url
+        
+        # 根据环境选择数据库类型
+        if self.DEBUG:
+            # 开发环境使用MySQL（Docker环境）
+            return f"mysql+pymysql://{self.DATABASE_USER}:{self.DATABASE_PASSWORD}@{self.DATABASE_HOST}:{self.DATABASE_PORT}/{self.DATABASE_NAME}"
+        else:
+            # 生产环境使用MySQL
+            return f"mysql+pymysql://{self.DATABASE_USER}:{self.DATABASE_PASSWORD}@{self.DATABASE_HOST}:{self.DATABASE_PORT}/{self.DATABASE_NAME}"
     
     # JWT 配置 - 使用环境变量
     SECRET_KEY: str = ""
@@ -89,4 +101,4 @@ settings = Settings()
 # 数据库 URL 构建函数
 def get_database_url() -> str:
     """构建数据库连接 URL"""
-    return f"mysql+pymysql://{settings.DATABASE_USER}:{settings.DATABASE_PASSWORD}@{settings.DATABASE_HOST}:{settings.DATABASE_PORT}/{settings.DATABASE_NAME}"
+    return settings.DATABASE_URL
