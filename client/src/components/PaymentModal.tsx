@@ -209,6 +209,34 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
     }
   };
 
+  // 模拟支付成功
+  const simulatePayment = async () => {
+    if (!orderData) return;
+    
+    try {
+      setLoading(true);
+      const response = await apiClient.post(`/api/v1/mock/simulate-payment/${orderData.out_trade_no}`);
+      
+      if (response.data.status === 'success') {
+        setPaymentStatus('paid');
+        setPolling(false);
+        message.success('模拟支付成功！');
+        
+        // 延迟关闭弹窗
+        setTimeout(() => {
+          onSuccess();
+          onCancel();
+        }, 2000);
+      }
+    } catch (error: any) {
+      console.error('模拟支付失败:', error);
+      const errorMsg = error.response?.data?.detail || '模拟支付失败';
+      message.error(errorMsg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // 初始化
   useEffect(() => {
     if (visible && packageType) {

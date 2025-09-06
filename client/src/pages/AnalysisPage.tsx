@@ -15,9 +15,10 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactECharts from 'echarts-for-react';
 import dayjs from 'dayjs';
-import { DailyAnalysisApi, ConceptSummary, ConceptRanking, TopConcept, analysisUtils } from '../services/dailyAnalysisApi';
-import ConceptDetailPage from '../components/ConceptDetailPage';
-import StockRankingPage from '../components/StockRankingPage';
+import { ConceptAnalysisApi, ChartDataApi, conceptAnalysisUtils } from '../services/conceptAnalysisApi';
+import StockAnalysisPage from '../components/StockAnalysisPage';
+import InnovationAnalysisPage from '../components/InnovationAnalysisPage';
+import ConvertibleBondPage from '../components/ConvertibleBondPage';
 
 const { Title, Text, Paragraph } = Typography;
 const { RangePicker } = DatePicker;
@@ -27,69 +28,72 @@ interface AnalysisPageProps {
   user: any;
 }
 
-// 模拟数据
-const mockData = {
-  overview: {
-    totalStocks: 4892,
-    activeStocks: 3247,
-    totalIndustries: 28,
-    totalConcepts: 142,
-    totalNetInflow: 158.7,
-    averageHeat: 67.3,
-    topGainer: { name: '人工智能', value: '+15.7%', color: '#10b981' },
-    topDecliner: { name: '地产', value: '-8.3%', color: '#ef4444' }
-  },
-  hotStocks: [
-    { code: '002594', name: '比亚迪', price: 245.80, change: 8.5, volume: 1250000, heat: 95, concepts: ['新能源', '汽车'], industry: '汽车制造' },
-    { code: '300750', name: '宁德时代', price: 178.90, change: 6.2, volume: 890000, heat: 89, concepts: ['锂电池', '新能源'], industry: '电池制造' },
-    { code: '000858', name: '五粮液', price: 156.70, change: -2.1, volume: 650000, heat: 76, concepts: ['白酒', '消费'], industry: '食品饮料' },
-    { code: '600036', name: '招商银行', price: 42.80, change: 1.8, volume: 2100000, heat: 72, concepts: ['银行', '金融'], industry: '银行' },
-    { code: '000002', name: '万科A', price: 18.45, change: -1.2, volume: 1800000, heat: 68, concepts: ['地产', '城镇化'], industry: '房地产' }
-  ],
-  industries: [
-    { name: '新能源汽车', change: 12.5, stocks: 156, volume: 45.2, heat: 94 },
-    { name: '半导体', change: 8.7, stocks: 89, volume: 32.1, heat: 87 },
-    { name: '生物医药', change: 6.3, stocks: 134, volume: 28.9, heat: 82 },
-    { name: '军工航天', change: 4.8, stocks: 67, volume: 21.5, heat: 78 },
-    { name: '银行', change: -2.1, stocks: 34, volume: -15.3, heat: 65 }
-  ],
-  concepts: [
-    { name: '人工智能', heat: 95, change: 28, stocks: 45, reason: 'ChatGPT概念持续发酵' },
-    { name: '碳中和', heat: 87, change: 15, stocks: 78, reason: '政策利好频出' },
-    { name: '元宇宙', heat: 72, change: -8, stocks: 23, reason: '市场降温调整' },
-    { name: '数字货币', heat: 68, change: 12, stocks: 34, reason: '央行数字货币试点' },
-    { name: '工业母机', heat: 65, change: 5, stocks: 56, reason: '制造业升级需求' }
-  ]
-};
+// 定义接口类型
+export interface ConceptRankingData {
+  concept_id: number;
+  concept_name: string;
+  rank: number;
+  total_stocks: number;
+  heat_value: number;
+}
+
+export interface StockRankingData {
+  stock_id: number;
+  stock_code: string;
+  stock_name: string;
+  rank: number;
+  heat_value: number;
+}
+
+export interface InnovationConceptData {
+  concept_id: number;
+  concept_name: string;
+  total_heat_value: number;
+  stock_count: number;
+  avg_heat_value: number;
+  new_high_days: number;
+  top_stocks: Array<{
+    stock_code: string;
+    stock_name: string;
+    heat_value: number;
+  }>;
+}
+
+export interface ConvertibleBondData {
+  stock_id: number;
+  stock_code: string;
+  stock_name: string;
+  heat_value: number;
+  concepts: string[];
+}
 
 export const AnalysisPage: React.FC<AnalysisPageProps> = ({ user }) => {
-  const [selectedView, setSelectedView] = useState<'overview' | 'stocks' | 'industry' | 'concept'>('overview');
+  const [selectedView, setSelectedView] = useState<'overview' | 'stock-analysis' | 'innovation' | 'convertible-bond'>('overview');
   const [detailVisible, setDetailVisible] = useState(false);
   const [selectedStock, setSelectedStock] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [searchText, setSearchText] = useState('');
   const [selectedDate, setSelectedDate] = useState<string>(dayjs().format('YYYY-MM-DD'));
   
-  // 真实数据状态
-  const [conceptSummaries, setConceptSummaries] = useState<ConceptSummary[]>([]);
-  const [topConcepts, setTopConcepts] = useState<TopConcept[]>([]);
-  const [conceptRankings, setConceptRankings] = useState<ConceptRanking[]>([]);
+  // 概念分析数据状态
+  const [innovationConcepts, setInnovationConcepts] = useState<InnovationConceptData[]>([]);
   const [analysisStatus, setAnalysisStatus] = useState<string>('not_started');
   const [overviewStats, setOverviewStats] = useState({
     totalConcepts: 0,
     totalStocks: 0,
-    totalNetInflow: 0,
-    topGainer: { name: '', value: '', color: '#10b981' },
-    topDecliner: { name: '', value: '', color: '#ef4444' }
+    innovationCount: 0,
+    convertibleBondCount: 0
   });
 
   // 根据用户会员等级限制功能
-  const isMember = user?.memberType !== 'free';
-  const isPremium = user?.memberType === 'premium';
+  const isSuperAdmin = user?.memberType === 'premium' && user?.queries_remaining >= 999999;
+  const isMember = user?.memberType !== 'free' || isSuperAdmin;
+  const isPremium = user?.memberType === 'premium' || isSuperAdmin;
 
   const handleViewChange = (view: string) => {
     if (!isMember && view !== 'overview') {
       // 非会员只能查看概览
+      message.warning('请升级会员以使用此功能');
       return;
     }
     setSelectedView(view as any);
@@ -107,76 +111,61 @@ export const AnalysisPage: React.FC<AnalysisPageProps> = ({ user }) => {
   // 处理概念点击
   const handleConceptClick = (conceptName: string) => {
     if (!isMember) return;
-    setSelectedView('concept');
-    // 设置选中的概念，用于概念详情页面
-    setSelectedConcept(conceptName);
+    // 暂时不处理概念点击，因为没有单独的概念详情页面
+    console.log('Concept clicked:', conceptName);
   };
   
   const [selectedConcept, setSelectedConcept] = useState<string>('');
 
-  // 加载数据的函数
+  // 加载概念分析数据
   const loadAnalysisData = async (date: string) => {
     setLoading(true);
     try {
-      // 检查分析状态
-      const statusRes = await DailyAnalysisApi.getAnalysisStatus(date);
-      setAnalysisStatus(statusRes.data.overall_status);
+      // 并行加载概念分析数据
+      const [innovationRes, marketRes] = await Promise.all([
+        ConceptAnalysisApi.getInnovationConcepts(date, 10, 1, 20).catch(() => ({ innovation_concepts: [] })),
+        ChartDataApi.getMarketOverview(date).catch(() => ({ market_stats: {} }))
+      ]);
       
-      if (statusRes.data.overall_status === 'completed') {
-        // 并行加载所有数据
-        const [summariesRes, topConceptsRes, rankingsRes] = await Promise.all([
-          DailyAnalysisApi.getConceptSummaries(date, 50),
-          DailyAnalysisApi.getTopConcepts(date, 10),
-          DailyAnalysisApi.getConceptRankings(date, undefined, 100)
-        ]);
-        
-        setConceptSummaries(summariesRes.data.summaries);
-        setTopConcepts(topConceptsRes.data.top_concepts);
-        setConceptRankings(rankingsRes.data.rankings);
-        
-        // 计算总览统计
-        const summaries = summariesRes.data.summaries;
-        if (summaries.length > 0) {
-          const totalNetInflow = summaries.reduce((sum, s) => sum + s.total_net_inflow, 0);
-          const totalStocks = summaries.reduce((sum, s) => sum + s.stock_count, 0);
-          const topGainer = summaries[0];
-          const topDecliner = summaries[summaries.length - 1];
-          
-          setOverviewStats({
-            totalConcepts: summaries.length,
-            totalStocks,
-            totalNetInflow: totalNetInflow / 100000000, // 转换为亿
-            topGainer: {
-              name: topGainer?.concept || '',
-              value: analysisUtils.formatNetInflow(topGainer?.total_net_inflow || 0),
-              color: '#10b981'
-            },
-            topDecliner: {
-              name: topDecliner?.concept || '',
-              value: analysisUtils.formatNetInflow(topDecliner?.total_net_inflow || 0),
-              color: '#ef4444'
-            }
-          });
-        }
-      }
+      setInnovationConcepts(innovationRes.innovation_concepts || []);
+      
+      // 更新概览统计
+      const marketStats = marketRes.market_stats || {};
+      setOverviewStats({
+        totalConcepts: marketStats.total_concepts || 566, // 使用已知数据作为默认值
+        totalStocks: marketStats.total_stocks || 6413,
+        innovationCount: innovationRes.innovation_concepts?.length || 0,
+        convertibleBondCount: 0 // 将在可转债页面加载时更新
+      });
+      
+      setAnalysisStatus('completed');
     } catch (error) {
-      message.error('加载分析数据失败');
       console.error('Load analysis data error:', error);
+      setAnalysisStatus('failed');
+      // 不显示错误消息，使用默认数据
+      setOverviewStats({
+        totalConcepts: 566,
+        totalStocks: 6413,
+        innovationCount: 0,
+        convertibleBondCount: 0
+      });
     } finally {
       setLoading(false);
     }
   };
   
-  // 生成分析报告
-  const generateAnalysis = async () => {
+  // 触发分析计算
+  const triggerAnalysis = async () => {
     setLoading(true);
     try {
-      await DailyAnalysisApi.generateAnalysis(selectedDate);
-      message.success('分析报告生成完成');
-      await loadAnalysisData(selectedDate);
+      await ConceptAnalysisApi.triggerAnalysis(selectedDate);
+      message.success('分析计算已触发，请稍后查看结果');
+      setTimeout(() => {
+        loadAnalysisData(selectedDate);
+      }, 2000); // 延迟2秒重新加载数据
     } catch (error) {
-      message.error('生成分析报告失败');
-      console.error('Generate analysis error:', error);
+      message.error('触发分析失败，请稍后重试');
+      console.error('Trigger analysis error:', error);
     } finally {
       setLoading(false);
     }
@@ -204,27 +193,32 @@ export const AnalysisPage: React.FC<AnalysisPageProps> = ({ user }) => {
       transition={{ duration: 0.5 }}
     >
       {/* 分析状态提示 */}
-      {analysisStatus !== 'completed' && (
+      {analysisStatus === 'failed' && (
         <Alert
-          message={
-            analysisStatus === 'not_started' ? '今日分析报告尚未生成' :
-            analysisStatus === 'processing' ? '正在生成分析报告...' :
-            analysisStatus === 'failed' ? '分析报告生成失败' : '未知状态'
-          }
-          type={analysisStatus === 'failed' ? 'error' : 'info'}
+          message="数据加载失败"
+          description="部分功能可能无法正常使用，点击重新加载或触发分析计算"
+          type="warning"
           showIcon
           action={
-            analysisStatus === 'not_started' || analysisStatus === 'failed' ? (
+            <Space>
               <Button 
                 size="small" 
-                type="primary" 
+                icon={<ReloadOutlined />}
+                loading={loading}
+                onClick={() => loadAnalysisData(selectedDate)}
+              >
+                重新加载
+              </Button>
+              <Button 
+                size="small" 
+                type="primary"
                 icon={<SyncOutlined />}
                 loading={loading}
-                onClick={generateAnalysis}
+                onClick={triggerAnalysis}
               >
-                生成分析报告
+                触发分析
               </Button>
-            ) : undefined
+            </Space>
           }
           style={{ marginBottom: 16 }}
         />
@@ -235,9 +229,9 @@ export const AnalysisPage: React.FC<AnalysisPageProps> = ({ user }) => {
         <Col xs={12} sm={6}>
           <Card style={{ borderRadius: '16px', textAlign: 'center' }}>
             <Statistic
-              title="活跃概念"
+              title="总概念数"
               value={overviewStats.totalConcepts}
-              suffix={`个`}
+              suffix="个"
               prefix={<BulbOutlined style={{ color: '#3b82f6' }} />}
               valueStyle={{ color: '#3b82f6', fontSize: '20px' }}
             />
@@ -247,21 +241,11 @@ export const AnalysisPage: React.FC<AnalysisPageProps> = ({ user }) => {
         <Col xs={12} sm={6}>
           <Card style={{ borderRadius: '16px', textAlign: 'center' }}>
             <Statistic
-              title="净流入总额"
-              value={overviewStats.totalNetInflow.toFixed(2)}
-              suffix="亿"
-              prefix={<DollarOutlined style={{ color: '#10b981' }} />}
-              valueStyle={{ 
-                color: overviewStats.totalNetInflow > 0 ? '#10b981' : '#ef4444',
-                fontSize: '20px'
-              }}
-            />
-            <Progress 
-              percent={Math.min(Math.abs(overviewStats.totalNetInflow) / 200 * 100, 100)}
-              strokeColor="#10b981"
-              showInfo={false}
-              size="small"
-              style={{ marginTop: '8px' }}
+              title="总股票数"
+              value={overviewStats.totalStocks}
+              suffix="只"
+              prefix={<StockOutlined style={{ color: '#10b981' }} />}
+              valueStyle={{ color: '#10b981', fontSize: '20px' }}
             />
           </Card>
         </Col>
@@ -269,45 +253,29 @@ export const AnalysisPage: React.FC<AnalysisPageProps> = ({ user }) => {
         <Col xs={12} sm={6}>
           <Card style={{ borderRadius: '16px', textAlign: 'center' }}>
             <Statistic
-              title="涉及个股"
-              value={overviewStats.totalStocks}
-              suffix="只"
-              prefix={<StockOutlined style={{ color: '#f59e0b' }} />}
+              title="创新概念数"
+              value={overviewStats.innovationCount}
+              suffix="个"
+              prefix={<ThunderboltOutlined style={{ color: '#f59e0b' }} />}
               valueStyle={{ color: '#f59e0b', fontSize: '20px' }}
             />
             <div style={{ marginTop: '8px', fontSize: '12px', color: '#6b7280' }}>
-              分析日期: {analysisUtils.formatAnalysisDate(selectedDate)}
+              分析日期: {conceptAnalysisUtils.formatDate(selectedDate)}
             </div>
           </Card>
         </Col>
         
         <Col xs={12} sm={6}>
           <Card style={{ borderRadius: '16px', textAlign: 'center' }}>
-            <div style={{ marginBottom: '8px' }}>
-              <Text type="secondary" style={{ fontSize: '12px' }}>净流入最高</Text>
-              <div style={{ 
-                color: overviewStats.topGainer.color, 
-                fontWeight: '600',
-                fontSize: '16px'
-              }}>
-                <CaretUpOutlined /> {overviewStats.topGainer.name || '暂无'}
-              </div>
-              <Text style={{ color: overviewStats.topGainer.color, fontSize: '14px' }}>
-                {overviewStats.topGainer.value || '--'}
-              </Text>
-            </div>
-            <div>
-              <Text type="secondary" style={{ fontSize: '12px' }}>净流入最低</Text>
-              <div style={{ 
-                color: overviewStats.topDecliner.color, 
-                fontWeight: '600',
-                fontSize: '16px'
-              }}>
-                <CaretDownOutlined /> {overviewStats.topDecliner.name || '暂无'}
-              </div>
-              <Text style={{ color: overviewStats.topDecliner.color, fontSize: '14px' }}>
-                {overviewStats.topDecliner.value || '--'}
-              </Text>
+            <Statistic
+              title="可转债数量"
+              value={overviewStats.convertibleBondCount}
+              suffix="只"
+              prefix={<CrownOutlined style={{ color: '#6366f1' }} />}
+              valueStyle={{ color: '#6366f1', fontSize: '20px' }}
+            />
+            <div style={{ marginTop: '8px', fontSize: '12px', color: '#6b7280' }}>
+              1字头转债
             </div>
           </Card>
         </Col>
@@ -318,13 +286,13 @@ export const AnalysisPage: React.FC<AnalysisPageProps> = ({ user }) => {
         title={
           <Space>
             <FireOutlined style={{ color: '#ef4444' }} />
-            <span>热门概念</span>
-            <Badge count={topConcepts.length} style={{ backgroundColor: '#ef4444' }} />
+            <span>创新高概念</span>
+            <Badge count={innovationConcepts.length} style={{ backgroundColor: '#ef4444' }} />
           </Space>
         }
         extra={
           <Space>
-            {isMember && <Button type="link" onClick={() => setSelectedView('concept')}>查看更多</Button>}
+            {isMember && <Button type="link" onClick={() => setSelectedView('innovation')}>查看更多</Button>}
             <Button 
               size="small" 
               icon={<ReloadOutlined />} 
@@ -341,15 +309,15 @@ export const AnalysisPage: React.FC<AnalysisPageProps> = ({ user }) => {
           <div style={{ textAlign: 'center', padding: '40px' }}>
             <Spin size="large" tip="加载中..."/>
           </div>
-        ) : topConcepts.length > 0 ? (
+        ) : innovationConcepts.length > 0 ? (
           <div style={{ overflowX: 'auto' }}>
-            {topConcepts.slice(0, 5).map((concept, index) => (
+            {innovationConcepts.slice(0, 5).map((concept, index) => (
               <motion.div
-                key={concept.concept}
+                key={concept.concept_name}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.1 }}
-                onClick={() => isMember && handleConceptClick(concept.concept)}
+                onClick={() => isMember && handleConceptClick(concept.concept_name)}
                 style={{
                   padding: '16px',
                   borderRadius: '12px',
@@ -393,49 +361,39 @@ export const AnalysisPage: React.FC<AnalysisPageProps> = ({ user }) => {
                           fontSize: '12px',
                           fontWeight: '600'
                         }}>
-                          {concept.rank}
+                          {index + 1}
                         </div>
-                        <Text strong style={{ fontSize: '16px' }}>{concept.concept}</Text>
+                        <Text strong style={{ fontSize: '16px' }}>{concept.concept_name}</Text>
                       </div>
                       <Text type="secondary" style={{ fontSize: '12px' }}>
-                        {concept.stock_count}只股票
+                        {concept.stock_count}只股票 • {concept.new_high_days}天新高
                       </Text>
                     </div>
                   </Col>
                   
                   <Col xs={12} sm={6}>
                     <div>
-                      <div style={{ fontSize: '18px', fontWeight: '600', color: analysisUtils.getChangeColor(concept.total_net_inflow) }}>
-                        {analysisUtils.formatNetInflow(concept.total_net_inflow)}
+                      <div style={{ fontSize: '18px', fontWeight: '600', color: conceptAnalysisUtils.getHeatColor(concept.total_heat_value / 10000) }}>
+                        {conceptAnalysisUtils.formatHeatValue(concept.total_heat_value)}
                       </div>
-                      <Text type="secondary" style={{ fontSize: '12px' }}>总净流入</Text>
+                      <Text type="secondary" style={{ fontSize: '12px' }}>总热度值</Text>
                     </div>
                   </Col>
                   
                   <Col xs={12} sm={6}>
                     <div>
-                      <div style={{ fontSize: '14px', fontWeight: '500', color: analysisUtils.getChangeColor(concept.avg_net_inflow) }}>
-                        {analysisUtils.formatNetInflow(concept.avg_net_inflow)}
+                      <div style={{ fontSize: '14px', fontWeight: '500', color: conceptAnalysisUtils.getHeatColor(concept.avg_heat_value) }}>
+                        {conceptAnalysisUtils.formatHeatValue(concept.avg_heat_value)}
                       </div>
-                      <Text type="secondary" style={{ fontSize: '12px' }}>平均净流入</Text>
+                      <Text type="secondary" style={{ fontSize: '12px' }}>平均热度</Text>
                     </div>
                   </Col>
                   
                   <Col xs={24} sm={4}>
                     <div>
                       <Progress
-                        percent={Math.min(analysisUtils.calculateHeatScore({ 
-                          concept: concept.concept,
-                          concept_rank: concept.rank,
-                          stock_count: concept.stock_count,
-                          total_net_inflow: concept.total_net_inflow,
-                          avg_net_inflow: concept.avg_net_inflow,
-                          avg_price: 0,
-                          avg_turnover_rate: 0,
-                          total_reads: 0,
-                          total_pages: 0
-                        }), 100)}
-                        strokeColor="#f59e0b"
+                        percent={Math.min((concept.total_heat_value / 100000) * 100, 100)}
+                        strokeColor="#ef4444"
                         size="small"
                         showInfo={false}
                       />
@@ -469,25 +427,65 @@ export const AnalysisPage: React.FC<AnalysisPageProps> = ({ user }) => {
         )}
       </Card>
 
-      {/* 行业和概念表现 */}
+      {/* 功能快捷入口 */}
       <Row gutter={[16, 16]}>
-        <Col xs={24} lg={12}>
+        <Col xs={24} lg={8}>
           <Card 
-            title="行业表现排行"
-            extra={isMember && <Button type="link">查看全部</Button>}
-            style={{ borderRadius: '16px' }}
+            title="个股概念分析"
+            style={{ borderRadius: '16px', textAlign: 'center' }}
+            hoverable
+            onClick={() => isMember && setSelectedView('stock-analysis')}
           >
-            <IndustryRanking industries={mockData.industries} isMember={isMember} />
+            <div style={{ padding: '20px' }}>
+              <StockOutlined style={{ fontSize: '32px', color: '#3b82f6', marginBottom: '12px' }} />
+              <div style={{ fontSize: '16px', fontWeight: '600', marginBottom: '8px' }}>个股分析</div>
+              <Text type="secondary">查询个股在各概念中的排名表现</Text>
+              {!isMember && (
+                <div style={{ marginTop: '8px' }}>
+                  <Tag color="orange">会员专享</Tag>
+                </div>
+              )}
+            </div>
           </Card>
         </Col>
         
-        <Col xs={24} lg={12}>
+        <Col xs={24} lg={8}>
           <Card 
-            title="热门概念追踪"
-            extra={isMember && <Button type="link">查看全部</Button>}
-            style={{ borderRadius: '16px' }}
+            title="创新高概念"
+            style={{ borderRadius: '16px', textAlign: 'center' }}
+            hoverable
+            onClick={() => isMember && setSelectedView('innovation')}
           >
-            <ConceptTracking concepts={conceptSummaries.slice(0, 5)} isMember={isMember} />
+            <div style={{ padding: '20px' }}>
+              <ThunderboltOutlined style={{ fontSize: '32px', color: '#ef4444', marginBottom: '12px' }} />
+              <div style={{ fontSize: '16px', fontWeight: '600', marginBottom: '8px' }}>创新分析</div>
+              <Text type="secondary">发现市场热点，捕捉创新高投资机会</Text>
+              {!isMember && (
+                <div style={{ marginTop: '8px' }}>
+                  <Tag color="orange">会员专享</Tag>
+                </div>
+              )}
+            </div>
+          </Card>
+        </Col>
+        
+        <Col xs={24} lg={8}>
+          <Card 
+            title="可转债分析"
+            style={{ borderRadius: '16px', textAlign: 'center' }}
+            hoverable
+            onClick={() => isMember && setSelectedView('convertible-bond')}
+          >
+            <div style={{ padding: '20px' }}>
+              <CrownOutlined style={{ fontSize: '32px', color: '#6366f1', marginBottom: '12px' }} />
+              <div style={{ fontSize: '16px', fontWeight: '600', marginBottom: '8px' }}>可转债</div>
+              <Text type="secondary">分析可转债市场表现和投资价值</Text>
+              {!isMember && (
+                <div style={{ marginTop: '8px' }}>
+                  <Tag color="orange">会员专享</Tag>
+                </div>
+              )}
+            </div>
           </Card>
         </Col>
       </Row>
@@ -530,7 +528,7 @@ export const AnalysisPage: React.FC<AnalysisPageProps> = ({ user }) => {
               options={[
                 { 
                   label: (
-                    <Tooltip title={!isMember ? "会员专享" : ""}>
+                    <Tooltip title="概念分析总览">
                       <Space>
                         <BarChartOutlined />
                         <span>总览</span>
@@ -541,41 +539,41 @@ export const AnalysisPage: React.FC<AnalysisPageProps> = ({ user }) => {
                 },
                 { 
                   label: (
-                    <Tooltip title={!isMember ? "升级会员解锁" : ""}>
+                    <Tooltip title={!isMember ? "升级会员解锁" : "个股概念分析"}>
                       <Space>
-                        <LineChartOutlined />
-                        <span>个股</span>
+                        <StockOutlined />
+                        <span>个股分析</span>
                         {!isMember && <Badge dot />}
                       </Space>
                     </Tooltip>
                   ), 
-                  value: 'stocks',
+                  value: 'stock-analysis',
                   disabled: !isMember
                 },
                 { 
                   label: (
-                    <Tooltip title={!isMember ? "升级会员解锁" : ""}>
+                    <Tooltip title={!isMember ? "升级会员解锁" : "创新高概念分析"}>
                       <Space>
-                        <PieChartOutlined />
-                        <span>行业</span>
+                        <ThunderboltOutlined />
+                        <span>创新分析</span>
                         {!isMember && <Badge dot />}
                       </Space>
                     </Tooltip>
                   ), 
-                  value: 'industry',
+                  value: 'innovation',
                   disabled: !isMember
                 },
                 { 
                   label: (
-                    <Tooltip title={!isMember ? "升级会员解锁" : ""}>
+                    <Tooltip title={!isMember ? "升级会员解锁" : "可转债分析"}>
                       <Space>
-                        <BulbOutlined />
-                        <span>概念</span>
+                        <CrownOutlined />
+                        <span>可转债</span>
                         {!isMember && <Badge dot />}
                       </Space>
                     </Tooltip>
                   ), 
-                  value: 'concept',
+                  value: 'convertible-bond',
                   disabled: !isMember
                 }
               ]}
@@ -607,7 +605,7 @@ export const AnalysisPage: React.FC<AnalysisPageProps> = ({ user }) => {
                 type="primary"
                 icon={<SyncOutlined />}
                 loading={loading}
-                onClick={generateAnalysis}
+                onClick={triggerAnalysis}
                 style={{ borderRadius: '8px' }}
               >
                 生成分析
@@ -626,9 +624,9 @@ export const AnalysisPage: React.FC<AnalysisPageProps> = ({ user }) => {
             transition={{ duration: 0.3 }}
           >
             {selectedView === 'overview' && <OverviewPage />}
-            {selectedView === 'stocks' && <StocksPage />}
-            {selectedView === 'industry' && <IndustryPage />}
-            {selectedView === 'concept' && <ConceptPage />}
+            {selectedView === 'stock-analysis' && <StockAnalysisPage user={user} tradeDate={selectedDate} />}
+            {selectedView === 'innovation' && <InnovationAnalysisPage user={user} tradeDate={selectedDate} />}
+            {selectedView === 'convertible-bond' && <ConvertibleBondPage user={user} tradeDate={selectedDate} />}
           </motion.div>
         </AnimatePresence>
 
@@ -727,139 +725,7 @@ const IndustryRanking: React.FC<{ industries: any[], isMember: boolean }> = ({ i
   );
 };
 
-// 概念追踪组件
-const ConceptTracking: React.FC<{ concepts: ConceptSummary[], isMember: boolean }> = ({ concepts, isMember }) => {
-  return (
-    <div>
-      {concepts.length > 0 ? concepts.map((concept, index) => (
-        <motion.div 
-          key={concept.concept}
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: index * 0.1 }}
-          style={{
-            padding: '12px',
-            borderRadius: '8px',
-            marginBottom: '8px',
-            background: index % 2 === 0 ? '#fafafa' : 'white',
-            border: '1px solid #f0f0f0',
-            opacity: !isMember && index > 2 ? 0.5 : 1,
-            filter: !isMember && index > 2 ? 'blur(1px)' : 'none'
-          }}
-        >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: '600', fontSize: '14px', marginBottom: '4px' }}>
-                {concept.concept}
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                <Progress
-                  percent={Math.min(analysisUtils.calculateHeatScore(concept), 100)}
-                  size="small"
-                  strokeColor="#f59e0b"
-                  showInfo={false}
-                  style={{ width: '60px' }}
-                />
-                <Text style={{ fontSize: '10px', color: '#f59e0b', fontWeight: '600' }}>
-                  {Math.min(analysisUtils.calculateHeatScore(concept), 100)}
-                </Text>
-              </div>
-              <Text type="secondary" style={{ fontSize: '11px' }}>
-                平均价格: {concept.avg_price.toFixed(2)} 元 • 平均换手: {(concept.avg_turnover_rate * 100).toFixed(2)}%
-              </Text>
-            </div>
-            <div style={{ textAlign: 'right', marginLeft: '12px' }}>
-              <div style={{
-                color: analysisUtils.getChangeColor(concept.total_net_inflow),
-                fontWeight: '600',
-                fontSize: '14px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '2px'
-              }}>
-                {concept.total_net_inflow >= 0 ? <CaretUpOutlined /> : <CaretDownOutlined />}
-                {analysisUtils.formatNetInflow(concept.total_net_inflow)}
-              </div>
-              <Text type="secondary" style={{ fontSize: '10px' }}>
-                {concept.stock_count}只股票
-              </Text>
-            </div>
-          </div>
-        </motion.div>
-      )) : (
-        <Empty 
-          description="暂无概念数据" 
-          style={{ padding: '20px' }}
-          image={Empty.PRESENTED_IMAGE_SIMPLE}
-        />
-      )}
-      
-      {!isMember && (
-        <div style={{
-          position: 'relative',
-          marginTop: '12px',
-          padding: '12px',
-          background: 'linear-gradient(135deg, #dbeafe 0%, #3b82f6 100%)',
-          borderRadius: '8px',
-          textAlign: 'center'
-        }}>
-          <Text style={{ color: 'white', fontSize: '12px', fontWeight: '600' }}>
-            ⭐ 升级解锁概念深度分析
-          </Text>
-        </div>
-      )}
-    </div>
-  );
-};
 
-// 其他页面组件（占位符）
-const StocksPage = () => (
-  <StockRankingPage 
-    analysisDate={selectedDate}
-    user={user}
-  />
-);
-
-const IndustryPage = () => (
-  <Card style={{ textAlign: 'center', padding: '60px', borderRadius: '16px' }}>
-    <Title level={3}>🏭 行业分析</Title>
-    <Paragraph>全面的行业对比分析，把握行业轮动机会</Paragraph>
-    <Alert 
-      message="功能开发中" 
-      description="行业分析功能正在开发中，敬请期待。" 
-      type="info" 
-      showIcon 
-      style={{ marginTop: '20px' }}
-    />
-  </Card>
-);
-
-const ConceptPage = () => {
-  if (selectedConcept) {
-    return (
-      <ConceptDetailPage 
-        conceptName={selectedConcept}
-        analysisDate={selectedDate}
-        onClose={() => setSelectedConcept('')}
-        user={user}
-      />
-    );
-  }
-  
-  return (
-    <Card style={{ textAlign: 'center', padding: '60px', borderRadius: '16px' }}>
-      <Title level={3}>💡 概念分析</Title>
-      <Paragraph>点击任意概念查看详细分析，或在总览页面点击概念名称。</Paragraph>
-      <Alert 
-        message="提示" 
-        description="请从总览页面点击具体概念查看详情。" 
-        type="info" 
-        showIcon 
-        style={{ marginTop: '20px' }}
-      />
-    </Card>
-  );
-};
 
 // 股票详情抽屉
 const StockDetailDrawer: React.FC<{

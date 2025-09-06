@@ -7,9 +7,9 @@ from sqlalchemy.sql import func
 from app.core.database import Base
 
 
-class DailyConceptRanking(Base):
-    """概念内个股每日排名表"""
-    __tablename__ = "daily_stock_concept_rankings"
+class DailyConceptFinancialRanking(Base):
+    """概念内个股每日排名表（财务数据版本）"""
+    __tablename__ = "daily_stock_concept_financial_rankings"
     
     id = Column(Integer, primary_key=True, autoincrement=True)
     analysis_date = Column(Date, nullable=False, comment='分析日期')
@@ -41,9 +41,9 @@ class DailyConceptRanking(Base):
     )
 
 
-class DailyConceptSummary(Base):
-    """概念每日总和统计表"""
-    __tablename__ = "daily_concept_summaries"
+class DailyConceptFinancialSummary(Base):
+    """概念每日总和统计表（财务数据版本）"""
+    __tablename__ = "daily_concept_financial_summaries"
     
     id = Column(Integer, primary_key=True, autoincrement=True)
     analysis_date = Column(Date, nullable=False, comment='分析日期')
@@ -69,6 +69,7 @@ class DailyConceptSummary(Base):
         Index('idx_analysis_date', 'analysis_date'),
         Index('idx_analysis_date_concept_unique', 'analysis_date', 'concept', unique=True),
         Index('idx_concept_rank', 'analysis_date', 'concept_rank'),
+        {'extend_existing': True}
     )
 
 
@@ -94,4 +95,5 @@ class DailyAnalysisTask(Base):
     # 创建索引
     __table_args__ = (
         Index('idx_analysis_date_type', 'analysis_date', 'task_type'),
+        {'extend_existing': True}
     )

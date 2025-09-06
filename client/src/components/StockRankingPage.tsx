@@ -54,8 +54,9 @@ export const StockRankingPage: React.FC<StockRankingPageProps> = ({
   const [pageSize, setPageSize] = useState(50);
   const [showAdvancedFilter, setShowAdvancedFilter] = useState(false);
 
-  const isMember = user?.memberType !== 'free';
-  const isPremium = user?.memberType === 'premium';
+  const isSuperAdmin = user?.memberType === 'premium' && user?.queries_remaining >= 999999;
+  const isMember = user?.memberType !== 'free' || isSuperAdmin;
+  const isPremium = user?.memberType === 'premium' || isSuperAdmin;
 
   // 获取所有概念列表
   const [concepts, setConcepts] = useState<string[]>([]);
@@ -195,7 +196,7 @@ export const StockRankingPage: React.FC<StockRankingPageProps> = ({
           <br />
           <Text type="secondary" style={{ fontSize: '12px' }}>{record.stock_code}</Text>
           <br />
-          <Tag size="small" style={{ fontSize: '10px' }}>{record.concept}</Tag>
+          <Tag style={{ fontSize: '10px' }}>{record.concept}</Tag>
         </div>
       )
     },
@@ -328,7 +329,7 @@ export const StockRankingPage: React.FC<StockRankingPageProps> = ({
                 <Space>
                   <span style={{ color: tab.color }}>{tab.icon}</span>
                   <span>{tab.label}</span>
-                  <Tag size="small" style={{ marginLeft: '4px' }}>
+                  <Tag style={{ marginLeft: '4px', fontSize: '12px' }}>
                     {filteredRankings.length}
                   </Tag>
                 </Space>

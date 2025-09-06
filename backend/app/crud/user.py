@@ -297,3 +297,47 @@ class UserCRUD:
             "total_payments_today": float(total_payments_today),
             "new_users_today": new_users_today
         }
+
+
+# 创建全局CRUD实例供脚本使用
+def get_user_crud(db: Session) -> UserCRUD:
+    """获取用户CRUD实例"""
+    return UserCRUD(db)
+
+
+# 为了保持与初始化脚本的兼容性，提供一个便捷的创建函数
+def create_user_with_db(db: Session, user_create: UserCreate) -> User:
+    """使用数据库会话创建用户"""
+    user_crud = UserCRUD(db)
+    return user_crud.create_user(user_create)
+
+
+# 为了与初始化脚本兼容，提供一个全局实例的包装类
+class GlobalUserCRUD:
+    """全局用户CRUD包装类，自动管理数据库会话"""
+    
+    def __init__(self):
+        self._db = None
+    
+    def _get_db(self):
+        """获取数据库会话"""
+        if self._db is None:
+            from app.database import get_db
+            self._db = next(get_db())
+        return self._db
+    
+    def get_user_by_username(self, username: str):
+        """根据用户名获取用户"""
+        db = self._get_db()
+        crud = UserCRUD(db)
+        return crud.get_user_by_username(username)
+    
+    def create_user(self, user_create: UserCreate):
+        """创建用户"""
+        db = self._get_db()
+        crud = UserCRUD(db)
+        return crud.create_user(user_create)
+
+
+# 创建全局实例供脚本使用
+user_crud = GlobalUserCRUD()

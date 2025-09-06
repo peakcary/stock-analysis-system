@@ -20,6 +20,8 @@ class Concept(Base):
     # 关联关系
     stock_concepts = relationship("StockConcept", back_populates="concept", cascade="all, delete-orphan")
     concept_sums = relationship("DailyConceptSum", back_populates="concept", cascade="all, delete-orphan")
+    daily_rankings = relationship("DailyConceptRanking", back_populates="concept", cascade="all, delete-orphan")
+    daily_summaries = relationship("DailyConceptSummary", back_populates="concept", cascade="all, delete-orphan")
 
 
 class StockConcept(Base):

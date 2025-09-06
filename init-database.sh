@@ -145,6 +145,11 @@ done
 log_info "👤 创建默认管理员用户..."
 
 cd backend
+source venv/bin/activate 2>/dev/null || {
+    log_error "请先运行 ./deploy.sh 创建Python虚拟环境"
+    exit 1
+}
+
 python -c "
 import sys
 sys.path.append('.')

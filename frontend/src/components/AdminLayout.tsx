@@ -28,17 +28,12 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, activeTab, onTabCha
     {
       key: 'simple-import',
       icon: <CloudUploadOutlined />,
-      label: '简化导入',
+      label: '数据导入',
     },
     {
       key: 'stocks',
       icon: <SearchOutlined />,
       label: '股票查询',
-    },
-    {
-      key: 'import',
-      icon: <UploadOutlined />,
-      label: '原导入（测试）',
     },
     {
       key: 'concepts',

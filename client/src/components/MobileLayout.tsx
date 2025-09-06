@@ -120,7 +120,8 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
                   display: 'inline-block'
                 }}>
                   {user.memberType === 'free' ? '免费版' : 
-                   user.memberType === 'pro' ? '专业版' : '旗舰版'}
+                   user.memberType === 'pro' ? '专业版' : 
+                   (user.memberType === 'premium' && user.queries_remaining >= 999999) ? '超级管理员' : '旗舰版'}
                 </div>
               )}
             </div>

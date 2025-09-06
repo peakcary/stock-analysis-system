@@ -43,8 +43,9 @@ export const ConceptDetailPage: React.FC<ConceptDetailPageProps> = ({
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
 
-  const isMember = user?.memberType !== 'free';
-  const isPremium = user?.memberType === 'premium';
+  const isSuperAdmin = user?.memberType === 'premium' && user?.queries_remaining >= 999999;
+  const isMember = user?.memberType !== 'free' || isSuperAdmin;
+  const isPremium = user?.memberType === 'premium' || isSuperAdmin;
 
   // 加载概念详情数据
   const loadConceptDetail = async () => {

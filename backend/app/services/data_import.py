@@ -50,14 +50,21 @@ class DataImportService:
         record.error_message = error_message
         record.updated_at = datetime.now()
     
-    async def import_csv_data(self, content: bytes, filename: str, allow_overwrite: bool = False) -> Dict[str, Any]:
+    async def import_csv_data(self, content: bytes, filename: str, allow_overwrite: bool = False, trade_date: date = None) -> Dict[str, Any]:
         """
         导入CSV格式的股票数据
         支持两种格式:
         1. 英文格式: stock_code,stock_name,concept,industry,date,price,turnover_rate,net_inflow
         2. 中文格式: 股票代码,股票名称,全部页数,热帖首页页阅读总数,价格,行业,概念,换手,净流入
         """
-        import_date = date.today()
+        # 如果没有提供交易日期，从文件名尝试解析日期
+        if not trade_date:
+            import_date = self._extract_date_from_filename(filename)
+            if not import_date:
+                import_date = date.today()
+        else:
+            import_date = trade_date
+        
         import_type = 'csv'
         
         try:
@@ -82,24 +89,88 @@ class DataImportService:
             skipped_records = 0
             errors = []
             
+            # 统计信息
+            stats = {
+                'new_stocks': 0,
+                'updated_stocks': 0,
+                'new_concepts': 0,
+                'new_relations': 0,
+                'updated_daily_data': 0,
+                'new_daily_data': 0
+            }
+            
             # 检查必需的列是否存在
             required_columns = ['stock_code', 'stock_name', 'concept']
             missing_columns = [col for col in required_columns if col not in df.columns]
             if missing_columns:
                 raise Exception(f"CSV文件缺少必需的列: {', '.join(missing_columns)}")
             
-            # 如果是覆盖导入，先删除当天的相关数据
+            # 如果是覆盖导入，先删除相关数据
             if allow_overwrite and existing_record:
-                # 删除当天导入的股票数据
-                deleted_count = self.db.query(DailyStockData).filter(
-                    DailyStockData.trade_date == import_date
-                ).delete(synchronize_session=False)
-                self.db.flush()  # 刷新但不提交，确保删除操作在后续插入前生效
-                print(f"🗑️ 已删除 {deleted_count} 条当天数据记录")
+                # 获取CSV文件中涉及的股票代码
+                stock_codes_in_csv = set(str(row['stock_code']).strip() for _, row in df.iterrows() 
+                                       if pd.notna(row.get('stock_code')))
+                
+                # 只删除CSV中涉及的股票在该日期的数据
+                if stock_codes_in_csv:
+                    # 先获取需要删除的股票ID
+                    stock_objects = self.db.query(Stock).filter(
+                        Stock.stock_code.in_(stock_codes_in_csv)
+                    ).all()
+                    
+                    stock_ids = [stock.id for stock in stock_objects]
+                    
+                    if stock_ids:
+                        # 使用股票ID直接删除，避免join操作
+                        deleted_count = self.db.query(DailyStockData).filter(
+                            DailyStockData.trade_date == import_date,
+                            DailyStockData.stock_id.in_(stock_ids)
+                        ).delete(synchronize_session=False)
+                        self.db.flush()
+                        print(f"🗑️ 已删除 {len(stock_codes_in_csv)} 只股票在 {import_date} 的 {deleted_count} 条数据记录")
+                
+                # 清理可能过时的股票概念关联（可选）
+                # 注意：这里不删除概念关联，因为其他日期可能仍然有效
             
             # 用于跟踪已处理的股票-日期组合，避免重复插入DailyStockData
             processed_stock_dates = set()
             
+            # 用于跟踪本次CSV中的股票和概念关系
+            csv_stock_concepts = {}  # {stock_code: [concept_names]}
+            csv_stocks_info = {}     # {stock_code: {'name': ..., 'industry': ...}}
+            
+            # 第一遍：收集CSV中的所有股票和概念信息
+            print(f"📊 第一步：分析CSV文件中的股票和概念关系...")
+            for index, row in df.iterrows():
+                try:
+                    if pd.isna(row.get('stock_code')) or pd.isna(row.get('stock_name')):
+                        continue
+                    
+                    stock_code = str(row['stock_code']).strip()
+                    stock_name = str(row['stock_name']).strip()
+                    industry = str(row.get('industry', '')).strip() if not pd.isna(row.get('industry')) else ''
+                    concept_name = str(row['concept']).strip()
+                    
+                    if not stock_code or not stock_name or not concept_name:
+                        continue
+                    
+                    # 收集股票基本信息（总是使用最新的）
+                    csv_stocks_info[stock_code] = {
+                        'name': stock_name,
+                        'industry': industry
+                    }
+                    
+                    # 收集概念关系
+                    if stock_code not in csv_stock_concepts:
+                        csv_stock_concepts[stock_code] = set()
+                    csv_stock_concepts[stock_code].add(concept_name)
+                    
+                except Exception as e:
+                    continue
+            
+            print(f"📈 CSV中包含 {len(csv_stocks_info)} 只股票，{sum(len(concepts) for concepts in csv_stock_concepts.values())} 个股票-概念关系")
+            
+            # 第二遍：处理股票基础信息和概念关系
             for index, row in df.iterrows():
                 try:
                     # 跳过空行或无效行
@@ -131,6 +202,7 @@ class DataImportService:
                     ).first()
                     
                     if not stock:
+                        # 创建新股票
                         stock = Stock(
                             stock_code=stock_code,
                             stock_name=stock_name,
@@ -139,6 +211,20 @@ class DataImportService:
                         )
                         self.db.add(stock)
                         self.db.flush()  # 获取ID
+                        stats['new_stocks'] += 1
+                        print(f"✨ 创建新股票: {stock_code} - {stock_name}")
+                    else:
+                        # 更新现有股票的基本信息（总是使用最新CSV的数据）
+                        updated_fields = []
+                        if stock.stock_name != stock_name:
+                            stock.stock_name = stock_name
+                            updated_fields.append(f"名称: {stock_name}")
+                        if stock.industry != (industry if industry else None):
+                            stock.industry = industry if industry else None
+                            updated_fields.append(f"行业: {industry or '无'}")
+                        if updated_fields:
+                            stats['updated_stocks'] += 1
+                            print(f"🔄 更新股票 {stock_code}: {', '.join(updated_fields)}")
                     
                     # 获取或创建概念记录
                     concept = self.db.query(Concept).filter(
@@ -149,8 +235,10 @@ class DataImportService:
                         concept = Concept(concept_name=concept_name)
                         self.db.add(concept)
                         self.db.flush()  # 获取ID
+                        stats['new_concepts'] += 1
+                        print(f"✨ 创建新概念: {concept_name}")
                     
-                    # 创建股票概念关联（如果不存在）
+                    # 创建股票概念关联（增量模式：只添加，不删除旧关系）
                     stock_concept = self.db.query(StockConcept).filter(
                         StockConcept.stock_id == stock.id,
                         StockConcept.concept_id == concept.id
@@ -162,6 +250,8 @@ class DataImportService:
                             concept_id=concept.id
                         )
                         self.db.add(stock_concept)
+                        stats['new_relations'] += 1
+                        print(f"🔗 添加关联: {stock_code} -> {concept_name}")
                     
                     # 处理每日数据（现在总是有日期信息）
                     if 'date' in df.columns:
@@ -189,6 +279,7 @@ class DataImportService:
                                 existing_data.net_inflow = net_inflow
                                 existing_data.pages_count = pages_count
                                 existing_data.total_reads = total_reads
+                                stats['updated_daily_data'] += 1
                             else:
                                 # 创建新记录
                                 daily_data = DailyStockData(
@@ -202,6 +293,7 @@ class DataImportService:
                                     heat_value=0  # 默认热度值为0
                                 )
                                 self.db.add(daily_data)
+                                stats['new_daily_data'] += 1
                             
                             # 标记该股票-日期组合已处理
                             processed_stock_dates.add(stock_date_key)
@@ -227,6 +319,19 @@ class DataImportService:
                     '\n'.join(errors[:5]) if errors else None
                 )
             
+            # 打印导入总结
+            print(f"\n📈 CSV导入完成总结:")
+            print(f"   📋 文件名: {filename}")
+            print(f"   📅 导入日期: {import_date}")
+            print(f"   📊 处理记录: {imported_records} 成功, {skipped_records} 跳过")
+            print(f"   🏢 股票信息: {stats['new_stocks']} 新增, {stats['updated_stocks']} 更新")
+            print(f"   🏷️  概念信息: {stats['new_concepts']} 新增概念")
+            print(f"   🔗 关联关系: {stats['new_relations']} 新增关联")
+            print(f"   📈 每日数据: {stats['new_daily_data']} 新增, {stats['updated_daily_data']} 更新")
+            if errors:
+                print(f"   ⚠️  错误数量: {len(errors)} 个")
+            print(f"   ✅ 导入状态: {'完全成功' if not errors else '部分成功'}")
+            
             # 提交事务
             self.db.commit()
             
@@ -235,100 +340,187 @@ class DataImportService:
                 "skipped_records": skipped_records,
                 "errors": errors,
                 "import_date": import_date.isoformat(),
-                "overwrite": allow_overwrite and existing_record is not None
+                "overwrite": allow_overwrite and existing_record is not None,
+                "stats": stats
             }
             
         except Exception as e:
             self.db.rollback()
             raise Exception(f"CSV解析失败: {str(e)}")
     
-    async def import_txt_data(self, content: bytes, filename: str, allow_overwrite: bool = False) -> Dict[str, Any]:
+    async def import_txt_data(self, content: bytes, filename: str, allow_overwrite: bool = False, trade_date: date = None) -> Dict[str, Any]:
         """
-        导入TXT格式的热度数据
-        TXT格式: 每行包含股票代码和热度值，用制表符或空格分隔
+        导入TXT格式的每日交易数据
+        
+        TXT文件特点：
+        1. 包含每日交易数据，每行格式: 股票代码\t日期\t热度值
+        2. 支持基于日期的完全覆盖导入
+        3. 日期来源：优先使用文件内容中的日期，其次是参数，最后是文件名
+        
+        导入策略：
+        - 如果是同一日期的重复导入，完全覆盖该日期的所有数据
+        - 支持数据纠正：重新导入可以覆盖之前错误的数据
         """
-        # 从文件名尝试解析日期（假设格式如：data_20240821.txt）
-        trade_date = self._extract_date_from_filename(filename)
-        if not trade_date:
-            trade_date = date.today()
+        
+        # 第一步：预解析TXT内容以确定日期和数据范围
+        text_content = content.decode('utf-8')
+        lines = text_content.strip().split('\n')
+        
+        # 从文件内容中提取日期
+        detected_dates = set()
+        valid_lines = []
+        
+        for line_num, line in enumerate(lines, 1):
+            line = line.strip()
+            if not line:
+                continue
+                
+            parts = line.split('\t') if '\t' in line else line.split()
+            if len(parts) >= 3:
+                try:
+                    # 尝试解析日期 (第二个字段应该是日期)
+                    date_str = parts[1].strip()
+                    parsed_date = self._parse_date_from_string(date_str)
+                    if parsed_date:
+                        detected_dates.add(parsed_date)
+                        valid_lines.append((line_num, line, parsed_date))
+                except:
+                    continue
+        
+        # 确定导入的目标日期
+        if trade_date:
+            target_date = trade_date
+            print(f"📅 使用指定日期: {target_date}")
+        elif len(detected_dates) == 1:
+            target_date = list(detected_dates)[0]
+            print(f"📅 从文件内容检测到日期: {target_date}")
+        elif len(detected_dates) > 1:
+            # 如果检测到多个日期，使用最常见的日期
+            from collections import Counter
+            date_counts = Counter([line[2] for line in valid_lines])
+            target_date = date_counts.most_common(1)[0][0]
+            print(f"📅 检测到多个日期，使用最常见的: {target_date} (出现{date_counts[target_date]}次)")
+        else:
+            # 从文件名提取日期
+            target_date = self._extract_date_from_filename(filename)
+            if not target_date:
+                target_date = date.today()
+            print(f"📅 从文件名提取日期: {target_date}")
         
         import_type = 'txt'
         
+        print(f"📊 TXT文件预分析:")
+        print(f"   📋 文件名: {filename}")
+        print(f"   📅 目标日期: {target_date}")  
+        print(f"   📝 有效行数: {len(valid_lines)}")
+        print(f"   🔍 检测到日期: {sorted(detected_dates)}")
+        
         try:
-            # 检查是否已经导入过
-            existing_record = self.check_existing_import(trade_date, import_type, filename)
+            # 检查是否已经导入过该日期的数据
+            existing_record = self.check_existing_import(target_date, import_type, filename)
+            
+            # TXT文件支持重复导入和覆盖（用于数据纠正）
             if existing_record and not allow_overwrite:
+                print(f"⚠️  该日期 {target_date} 已有TXT数据，如需覆盖请设置allow_overwrite=True")
                 return {
-                    "message": "今日已导入该文件，如需覆盖请设置allow_overwrite=True",
+                    "message": f"该日期 {target_date} 已有数据，如需覆盖请设置allow_overwrite=True",
                     "imported_records": existing_record.imported_records,
                     "skipped_records": existing_record.skipped_records,
-                    "import_date": trade_date.isoformat(),
+                    "import_date": target_date.isoformat(),
                     "already_exists": True
                 }
-            
-            # 解析TXT内容
-            text_content = content.decode('utf-8')
-            lines = text_content.strip().split('\n')
             
             imported_records = 0
             skipped_records = 0
             errors = []
             
-            # 如果是覆盖导入，先删除当天的热度数据
-            if allow_overwrite and existing_record:
-                # 只删除热度值，不删除其他数据
-                self.db.query(DailyStockData).filter(
-                    DailyStockData.trade_date == trade_date
-                ).update({"heat_value": 0}, synchronize_session=False)
+            # 统计信息
+            stats = {
+                'target_date': target_date.isoformat(),
+                'deleted_records': 0,
+                'updated_records': 0,
+                'new_records': 0,
+                'error_records': 0
+            }
             
-            for line_num, line in enumerate(lines, 1):
+            # 核心策略：基于日期的完全覆盖
+            # 1. 收集要处理的股票代码
+            txt_stock_codes = set()
+            for line_num, line, line_date in valid_lines:
+                if line_date != target_date:
+                    continue
+                
+                parts = line.split('\t') if '\t' in line else line.split()
+                if len(parts) >= 3:
+                    stock_code_with_prefix = parts[0].strip()
+                    stock_code = self._normalize_stock_code(stock_code_with_prefix)
+                    if stock_code.isdigit() and len(stock_code) == 6:
+                        txt_stock_codes.add(stock_code)
+            
+            print(f"🔄 准备处理 {len(txt_stock_codes)} 只股票在 {target_date} 的热度数据")
+            
+            # 2. 如果是覆盖模式或已存在数据，先删除该日期的相关数据
+            if allow_overwrite or existing_record:
+                if txt_stock_codes:
+                    # 先获取要删除的股票ID
+                    stock_objects = self.db.query(Stock).filter(
+                        Stock.stock_code.in_(txt_stock_codes)
+                    ).all()
+                    
+                    stock_ids = [stock.id for stock in stock_objects]
+                    
+                    if stock_ids:
+                        # 删除该日期下这些股票的现有数据
+                        deleted_count = self.db.query(DailyStockData).filter(
+                            DailyStockData.trade_date == target_date,
+                            DailyStockData.stock_id.in_(stock_ids)
+                        ).delete(synchronize_session=False)
+                        
+                        stats['deleted_records'] = deleted_count
+                        self.db.flush()
+                        
+                        if deleted_count > 0:
+                            print(f"🗑️  删除了 {deleted_count} 条 {target_date} 的旧数据，准备导入新数据")
+            
+            # 3. 处理每一行数据
+            print(f"📝 开始处理TXT数据...")
+            
+            for line_num, line, line_date in valid_lines:
                 try:
-                    line = line.strip()
-                    if not line:
-                        continue
-                    
-                    # 分割数据部分
-                    parts = line.split()
-                    if len(parts) < 2:
+                    # 只处理目标日期的数据
+                    if line_date != target_date:
                         skipped_records += 1
                         continue
-                    
-                    # 尝试不同的格式
-                    stock_code = None
-                    heat_value = None
-                    
-                    # 格式1: 股票代码 热度值
-                    # 格式2: 日期 股票代码 热度值 等其他字段
-                    if len(parts) == 2:
-                        # 格式1: stock_code heat_value
-                        try:
-                            stock_code = parts[0].strip()
-                            heat_value = float(parts[1])
-                        except ValueError:
-                            skipped_records += 1
-                            continue
-                    elif len(parts) >= 3:
-                        # 格式2: date stock_code heat_value ...
-                        try:
-                            # 尝试第二个字段作为股票代码，第三个作为热度值
-                            stock_code = parts[1].strip()
-                            heat_value = float(parts[2])
-                        except ValueError:
-                            try:
-                                # 如果失败，尝试第一个字段作为股票代码，第二个作为热度值
-                                stock_code = parts[0].strip()
-                                heat_value = float(parts[1])
-                            except ValueError:
-                                skipped_records += 1
-                                continue
-                    else:
+                        
+                    # 分割数据部分 - 支持制表符分隔
+                    parts = line.split('\t') if '\t' in line else line.split()
+                    if len(parts) < 3:
                         skipped_records += 1
+                        errors.append(f"第{line_num}行: 数据格式不正确，需要至少3个字段")
                         continue
+                    
+                    # 解析字段：股票代码、日期、热度值
+                    stock_code_with_prefix = parts[0].strip()
+                    date_str = parts[1].strip()
+                    heat_value_str = parts[2].strip()
+                    
+                    # 解析热度值
+                    try:
+                        heat_value = float(heat_value_str)
+                    except ValueError:
+                        skipped_records += 1
+                        errors.append(f"第{line_num}行: 无法解析热度值 '{heat_value_str}'")
+                        stats['error_records'] += 1
+                        continue
+                    
+                    # 处理股票代码 - 去掉SH/SZ前缀
+                    stock_code = self._normalize_stock_code(stock_code_with_prefix)
                     
                     # 验证股票代码格式（6位数字）
                     if not stock_code or not stock_code.isdigit() or len(stock_code) != 6:
                         skipped_records += 1
-                        errors.append(f"第{line_num}行: 股票代码格式无效 {stock_code}")
+                        errors.append(f"第{line_num}行: 股票代码格式无效 {stock_code_with_prefix} -> {stock_code}")
+                        stats['error_records'] += 1
                         continue
                     
                     # 查找股票记录
@@ -337,34 +529,61 @@ class DataImportService:
                     ).first()
                     
                     if not stock:
-                        errors.append(f"第{line_num}行: 股票代码 {stock_code} 不存在")
-                        skipped_records += 1
-                        continue
-                    
-                    # 更新或创建每日数据
-                    daily_data = self.db.query(DailyStockData).filter(
-                        DailyStockData.stock_id == stock.id,
-                        DailyStockData.trade_date == trade_date
-                    ).first()
-                    
-                    if daily_data:
-                        # 更新现有记录的热度值
-                        daily_data.heat_value = heat_value
-                    else:
-                        # 创建新的每日数据记录
-                        daily_data = DailyStockData(
-                            stock_id=stock.id,
-                            trade_date=trade_date,
-                            heat_value=heat_value
+                        # 为不存在的股票创建基础记录
+                        is_convertible_bond = (
+                            len(stock_code) == 6 and 
+                            stock_code.startswith('1') and 
+                            stock_code.isdigit()
                         )
-                        self.db.add(daily_data)
+                        
+                        stock = Stock(
+                            stock_code=stock_code,
+                            stock_name=f"股票{stock_code}",  # 临时名称
+                            is_convertible_bond=is_convertible_bond
+                        )
+                        self.db.add(stock)
+                        self.db.flush()  # 获取ID
+                        print(f"💫 自动创建股票记录: {stock_code}")
                     
+                    # 创建每日数据记录（因为之前已删除，这里都是新建）
+                    daily_data = DailyStockData(
+                        stock_id=stock.id,
+                        trade_date=target_date,
+                        heat_value=heat_value,
+                        # 其他字段使用默认值
+                        price=0,
+                        turnover_rate=0,
+                        net_inflow=0,
+                        pages_count=0,
+                        total_reads=0
+                    )
+                    self.db.add(daily_data)
+                    stats['new_records'] += 1
                     imported_records += 1
+                    
+                    if imported_records % 100 == 0:
+                        print(f"   ... 已处理 {imported_records} 条记录")
                     
                 except Exception as e:
                     skipped_records += 1
+                    stats['error_records'] += 1
                     errors.append(f"第{line_num}行: {str(e)}")
                     continue
+            
+            # 打印导入总结
+            print(f"\n📈 TXT导入完成总结:")
+            print(f"   📋 文件名: {filename}")
+            print(f"   📅 目标日期: {target_date}")
+            print(f"   📊 处理记录: {imported_records} 成功, {skipped_records} 跳过")
+            print(f"   🗑️  删除记录: {stats['deleted_records']} 条旧数据")
+            print(f"   ✨ 新增记录: {stats['new_records']} 条热度数据")
+            print(f"   ❌ 错误记录: {stats['error_records']} 条")
+            if errors:
+                print(f"   ⚠️  错误详情: 显示前3个")
+                for error in errors[:3]:
+                    print(f"      - {error}")
+            print(f"   ✅ 导入状态: {'完全成功' if not errors else '部分成功'}")
+            print(f"   🔄 覆盖模式: {'是' if (allow_overwrite or existing_record) else '否'}")
             
             # 创建或更新导入记录
             if existing_record and allow_overwrite:
@@ -375,7 +594,7 @@ class DataImportService:
                 )
             else:
                 self.create_import_record(
-                    trade_date, import_type, filename, imported_records,
+                    target_date, import_type, filename, imported_records,
                     skipped_records, 'success' if not errors else 'partial',
                     '\n'.join(errors[:5]) if errors else None
                 )
@@ -387,8 +606,9 @@ class DataImportService:
                 "imported_records": imported_records,
                 "skipped_records": skipped_records,
                 "errors": errors,
-                "import_date": trade_date.isoformat(),
-                "overwrite": allow_overwrite and existing_record is not None
+                "import_date": target_date.isoformat(),
+                "overwrite": allow_overwrite or existing_record is not None,
+                "stats": stats
             }
             
         except Exception as e:
@@ -396,19 +616,32 @@ class DataImportService:
             raise Exception(f"TXT解析失败: {str(e)}")
     
     def _extract_date_from_filename(self, filename: str) -> date:
-        """从文件名中提取日期"""
+        """从文件名中提取日期，支持多种格式"""
         import re
         
-        # 匹配 YYYYMMDD 格式
-        date_pattern = r'(\d{8})'
-        match = re.search(date_pattern, filename)
+        # 支持的日期格式模式
+        patterns = [
+            (r'(\d{4}-\d{2}-\d{2})', '%Y-%m-%d'),  # 2025-08-28
+            (r'(\d{4}_\d{2}_\d{2})', '%Y_%m_%d'),  # 2025_08_28
+            (r'(\d{8})', '%Y%m%d'),                # 20250828
+            (r'(\d{4})(\d{2})(\d{2})', '%Y%m%d'),  # 分组形式的20250828
+            (r'(\d{2}-\d{2}-\d{4})', '%m-%d-%Y'),  # MM-DD-YYYY
+            (r'(\d{2}/\d{2}/\d{4})', '%m/%d/%Y'),  # MM/DD/YYYY
+        ]
         
-        if match:
-            date_str = match.group(1)
-            try:
-                return datetime.strptime(date_str, '%Y%m%d').date()
-            except ValueError:
-                pass
+        for pattern, date_format in patterns:
+            match = re.search(pattern, filename)
+            if match:
+                if len(match.groups()) == 1:
+                    date_str = match.group(1)
+                else:
+                    # 处理分组匹配，如(\d{4})(\d{2})(\d{2})
+                    date_str = ''.join(match.groups())
+                    
+                try:
+                    return datetime.strptime(date_str, date_format).date()
+                except ValueError:
+                    continue
         
         return None
     
@@ -455,3 +688,188 @@ class DataImportService:
                 df['net_inflow'] = pd.to_numeric(df['net_inflow'], errors='coerce').fillna(0)
         
         return df
+    
+    def _parse_date_from_string(self, date_str: str) -> date:
+        """从字符串中解析日期，支持多种格式"""
+        from datetime import datetime
+        
+        # 支持的日期格式
+        formats = [
+            '%Y-%m-%d',    # 2025-08-28
+            '%Y/%m/%d',    # 2025/08/28
+            '%Y%m%d',      # 20250828
+            '%m/%d/%Y',    # 08/28/2025
+            '%d/%m/%Y',    # 28/08/2025
+            '%m-%d-%Y',    # 08-28-2025
+            '%d-%m-%Y',    # 28-08-2025
+        ]
+        
+        for fmt in formats:
+            try:
+                return datetime.strptime(date_str, fmt).date()
+            except ValueError:
+                continue
+        
+        return None
+    
+    def _normalize_stock_code(self, stock_code_with_prefix: str) -> str:
+        """
+        规范化股票代码，去掉SH/SZ等前缀
+        SH600000 -> 600000
+        SZ000001 -> 000001
+        600000 -> 600000
+        """
+        stock_code = stock_code_with_prefix.strip().upper()
+        
+        # 去掉常见前缀
+        if stock_code.startswith('SH'):
+            return stock_code[2:]
+        elif stock_code.startswith('SZ'):
+            return stock_code[2:]
+        elif stock_code.startswith('BJ'):  # 北交所
+            return stock_code[2:]
+        elif stock_code.startswith('HK'):  # 港股
+            return stock_code[2:]
+        
+        return stock_code
+    
+    async def import_daily_batch(self, csv_content: bytes, csv_filename: str, 
+                                txt_content: bytes, txt_filename: str, 
+                                trade_date: date = None, allow_overwrite: bool = False,
+                                import_mode: str = "smart") -> Dict[str, Any]:
+        """
+        批量导入每日数据（CSV + TXT）
+        确保两个文件都成功导入才算完成
+        
+        参数:
+            import_mode: 导入模式
+                - "smart": 智能模式，自动判断是否需要导入
+                - "skip": 跳过已存在的文件
+                - "update": 更新模式，只更新已存在的数据
+                - "overwrite": 完全覆盖模式
+        """
+        if not trade_date:
+            # 优先从CSV文件名解析日期
+            trade_date = self._extract_date_from_filename(csv_filename)
+            if not trade_date:
+                trade_date = self._extract_date_from_filename(txt_filename)
+            if not trade_date:
+                trade_date = date.today()
+        
+        results = {
+            "trade_date": trade_date.isoformat(),
+            "csv_result": None,
+            "txt_result": None,
+            "success": False,
+            "message": ""
+        }
+        
+        try:
+            # 1. 先导入CSV数据（股票基础信息和概念）
+            print(f"🔄 开始导入CSV数据: {csv_filename}")
+            csv_result = await self.import_csv_data(csv_content, csv_filename, allow_overwrite)
+            results["csv_result"] = csv_result
+            
+            if csv_result.get("already_exists") and not allow_overwrite:
+                # CSV已存在，继续检查TXT是否也存在
+                print(f"⚠️ CSV文件已存在，检查TXT文件状态...")
+                txt_existing = self.check_existing_import(trade_date, 'txt', txt_filename)
+                if txt_existing:
+                    results["message"] = "CSV和TXT文件都已存在，如需重新导入请设置allow_overwrite=True"
+                    results["txt_result"] = {
+                        "already_exists": True,
+                        "imported_records": txt_existing.imported_records,
+                        "skipped_records": txt_existing.skipped_records,
+                        "import_date": trade_date.isoformat()
+                    }
+                    return results
+                else:
+                    # 只导入TXT文件
+                    print(f"🔄 CSV已存在，仅导入TXT数据...")
+                    txt_result = await self.import_txt_data(txt_content, txt_filename, allow_overwrite, trade_date)
+                    results["txt_result"] = txt_result
+                    
+                    txt_success = not txt_result.get("already_exists", False) or txt_result.get("imported_records", 0) > 0
+                    if txt_success:
+                        results["success"] = True
+                        results["message"] = f"✅ CSV已存在，仅导入TXT数据({txt_result.get('imported_records', 0)}条)"
+                    else:
+                        results["message"] = f"⚠️ CSV已存在，TXT导入失败"
+                    return results
+            
+            # 2. 再导入TXT数据（热度数据）
+            print(f"🔄 开始导入TXT数据: {txt_filename}")
+            txt_result = await self.import_txt_data(txt_content, txt_filename, allow_overwrite, trade_date)
+            results["txt_result"] = txt_result
+            
+            # 3. 检查两个文件是否都成功导入
+            csv_success = not csv_result.get("already_exists", False) or csv_result.get("imported_records", 0) > 0
+            txt_success = not txt_result.get("already_exists", False) or txt_result.get("imported_records", 0) > 0
+            
+            if csv_success and txt_success:
+                results["success"] = True
+                results["message"] = f"✅ 成功导入 {trade_date} 的数据：CSV({csv_result.get('imported_records', 0)}条) + TXT({txt_result.get('imported_records', 0)}条)"
+                
+                # 创建批量导入记录
+                batch_record = self.create_import_record(
+                    trade_date, 'both', f"{csv_filename}+{txt_filename}",
+                    csv_result.get('imported_records', 0) + txt_result.get('imported_records', 0),
+                    csv_result.get('skipped_records', 0) + txt_result.get('skipped_records', 0),
+                    'success'
+                )
+                self.db.commit()
+                
+                # 触发每日分析计算
+                try:
+                    print(f"🚀 触发 {trade_date} 的每日分析计算...")
+                    from app.services.ranking_calculator import RankingCalculatorService
+                    ranking_service = RankingCalculatorService(self.db)
+                    analysis_result = await ranking_service.trigger_full_analysis(trade_date)
+                    print(f"✅ 分析计算完成: {analysis_result['message']}")
+                except Exception as e:
+                    print(f"⚠️ 分析计算失败（但导入成功）: {str(e)}")
+                    # 不影响导入结果，只记录警告
+                
+            else:
+                results["message"] = f"⚠️ 部分导入失败：CSV({'成功' if csv_success else '失败'}) + TXT({'成功' if txt_success else '失败'})"
+            
+            return results
+            
+        except Exception as e:
+            self.db.rollback()
+            results["message"] = f"❌ 批量导入失败: {str(e)}"
+            raise Exception(f"批量导入失败: {str(e)}")
+    
+    def check_daily_import_completeness(self, trade_date: date) -> Dict[str, Any]:
+        """
+        检查指定日期的导入完整性
+        确保CSV和TXT数据都已导入
+        """
+        csv_records = self.db.query(DataImportRecord).filter(
+            DataImportRecord.import_date == trade_date,
+            DataImportRecord.import_type == 'csv',
+            DataImportRecord.import_status.in_(['success', 'partial'])
+        ).all()
+        
+        txt_records = self.db.query(DataImportRecord).filter(
+            DataImportRecord.import_date == trade_date,
+            DataImportRecord.import_type == 'txt',
+            DataImportRecord.import_status.in_(['success', 'partial'])
+        ).all()
+        
+        batch_records = self.db.query(DataImportRecord).filter(
+            DataImportRecord.import_date == trade_date,
+            DataImportRecord.import_type == 'both'
+        ).all()
+        
+        return {
+            "trade_date": trade_date.isoformat(),
+            "csv_imported": len(csv_records) > 0,
+            "txt_imported": len(txt_records) > 0,
+            "batch_imported": len(batch_records) > 0,
+            "complete": len(csv_records) > 0 and len(txt_records) > 0,
+            "csv_records": len(csv_records),
+            "txt_records": len(txt_records),
+            "batch_records": len(batch_records),
+            "ready_for_analysis": len(csv_records) > 0 and len(txt_records) > 0
+        }

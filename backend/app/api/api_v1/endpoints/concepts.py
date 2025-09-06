@@ -14,6 +14,13 @@ from datetime import date, datetime, timedelta
 router = APIRouter()
 
 
+@router.get("/count")
+def get_concepts_count(db: Session = Depends(get_db)):
+    """获取概念总数"""
+    total_count = db.query(Concept).count()
+    return {"total": total_count}
+
+
 @router.get("/", response_model=List[ConceptResponse])
 def get_concepts(
     skip: int = 0,

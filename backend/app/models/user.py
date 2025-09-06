@@ -14,6 +14,7 @@ class MembershipType(enum.Enum):
     FREE = "free"
     PRO = "pro"  # 专业版
     PREMIUM = "premium"  # 旗舰版
+    SUPER_ADMIN = "super_admin"  # 超级管理员
     PAID_10 = "paid_10" 
     MONTHLY = "monthly"
     QUARTERLY = "quarterly"

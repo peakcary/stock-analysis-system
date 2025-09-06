@@ -9,7 +9,7 @@ from sqlalchemy import text, desc, asc, func
 import pandas as pd
 
 from app.models.simple_import import StockConceptData
-from app.models.daily_analysis import DailyConceptRanking, DailyConceptSummary, DailyAnalysisTask
+from app.models.daily_analysis import DailyConceptFinancialRanking as DailyConceptRanking, DailyConceptFinancialSummary as DailyConceptSummary, DailyAnalysisTask
 
 
 class DailyAnalysisService:
