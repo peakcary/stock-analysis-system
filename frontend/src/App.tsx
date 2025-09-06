@@ -70,6 +70,12 @@ const AdminApp: React.FC = () => {
   const [stockList, setStockList] = useState([]);
   const [stockLoading, setStockLoading] = useState(false);
   const [stockSearchText, setStockSearchText] = useState('');
+  const [searchFilters, setSearchFilters] = useState({
+    code: '',
+    name: '', 
+    industry: '',
+    concept: ''
+  });
   const [selectedRowKeys, setSelectedRowKeys] = useState([]);
   const [pagination, setPagination] = useState({
     current: 1,
@@ -132,7 +138,7 @@ const AdminApp: React.FC = () => {
         ...stock,
         concepts: stock.concepts || [], // 已加载的部分概念
         conceptsLoaded: false, // 标记为可以加载更多概念
-        showingPartialConcepts: true // 标记正在显示部分概念
+        showingPartialConcepts: (stock.concepts || []).length > 0 // 只有当已有概念时才可能有更多概念
       }));
       
       setStockList(stocksData);
@@ -149,7 +155,9 @@ const AdminApp: React.FC = () => {
   const getStockConcepts = async (stockCode: string) => {
     try {
       const response = await apiClient.get(`/api/v1/stocks/${stockCode}`);
-      return response.data?.concepts || [];
+      // 后端返回的数据结构是 {stock: ..., concepts: [...]}
+      const concepts = response.data?.concepts || [];
+      return concepts;
     } catch (error) {
       console.error(`获取股票${stockCode}的概念失败:`, error);
       return [];
@@ -245,6 +253,31 @@ const AdminApp: React.FC = () => {
   // 搜索股票列表
   const handleStockSearch = async () => {
     await getStockList(stockSearchText);
+  };
+
+  // 分离搜索函数
+  const handleSeparateSearch = async () => {
+    const { code, name, industry, concept } = searchFilters;
+    const searchTerms = [];
+    
+    if (code.trim()) searchTerms.push(code.trim());
+    if (name.trim()) searchTerms.push(name.trim());
+    if (industry.trim()) searchTerms.push(industry.trim());
+    if (concept.trim()) searchTerms.push(concept.trim());
+    
+    const combinedSearch = searchTerms.join(' ');
+    await getStockList(combinedSearch);
+  };
+
+  // 清除搜索条件
+  const clearSearchFilters = () => {
+    setSearchFilters({
+      code: '',
+      name: '', 
+      industry: '',
+      concept: ''
+    });
+    getStockList(''); // 重新加载全部数据
   };
 
 
@@ -899,16 +932,54 @@ const AdminApp: React.FC = () => {
                   }}
                 >
                   <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
-                    <Col xs={24}>
-                      <Input.Search
-                        placeholder="输入股票代码、名称、行业或概念进行搜索..."
-                        value={stockSearchText}
-                        onChange={(e) => setStockSearchText(e.target.value)}
-                        onSearch={handleStockSearch}
-                        loading={stockLoading}
-                        enterButton="搜索"
-                        size="large"
+                    <Col xs={24} sm={12} md={6}>
+                      <Input
+                        placeholder="股票代码"
+                        value={searchFilters.code}
+                        onChange={(e) => setSearchFilters(prev => ({...prev, code: e.target.value}))}
+                        prefix={<SearchOutlined />}
                       />
+                    </Col>
+                    <Col xs={24} sm={12} md={6}>
+                      <Input
+                        placeholder="股票名称"
+                        value={searchFilters.name}
+                        onChange={(e) => setSearchFilters(prev => ({...prev, name: e.target.value}))}
+                        prefix={<SearchOutlined />}
+                      />
+                    </Col>
+                    <Col xs={24} sm={12} md={6}>
+                      <Input
+                        placeholder="所属行业"
+                        value={searchFilters.industry}
+                        onChange={(e) => setSearchFilters(prev => ({...prev, industry: e.target.value}))}
+                        prefix={<SearchOutlined />}
+                      />
+                    </Col>
+                    <Col xs={24} sm={12} md={6}>
+                      <Input
+                        placeholder="相关概念"
+                        value={searchFilters.concept}
+                        onChange={(e) => setSearchFilters(prev => ({...prev, concept: e.target.value}))}
+                        prefix={<SearchOutlined />}
+                      />
+                    </Col>
+                  </Row>
+                  <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
+                    <Col xs={24}>
+                      <Space>
+                        <Button 
+                          type="primary" 
+                          icon={<SearchOutlined />}
+                          onClick={handleSeparateSearch}
+                          loading={stockLoading}
+                        >
+                          搜索
+                        </Button>
+                        <Button onClick={clearSearchFilters}>
+                          清除条件
+                        </Button>
+                      </Space>
                     </Col>
                   </Row>
                   {selectedRowKeys.length > 0 && (
@@ -1034,11 +1105,12 @@ const AdminApp: React.FC = () => {
                                       
                                       try {
                                         const allConcepts = await getStockConcepts(record.stock_code);
+                                        
                                         setStockList(prev => prev.map(stock => 
                                           stock.id === record.id 
                                             ? { 
                                                 ...stock, 
-                                                concepts: allConcepts, 
+                                                concepts: allConcepts && allConcepts.length > 0 ? allConcepts : stock.concepts, 
                                                 conceptsLoaded: true,
                                                 conceptsLoading: false,
                                                 showingPartialConcepts: false

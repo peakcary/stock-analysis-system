@@ -212,8 +212,8 @@ def get_stock_by_code(
     if not stock:
         raise HTTPException(status_code=404, detail="股票不存在")
     
-    # 如果用户已登录，消费查询次数
-    if current_user:
+    # 如果用户已登录且不是管理员，消费查询次数
+    if current_user and current_user.username != 'admin':
         user_crud = UserCRUD(db)
         if current_user.queries_remaining > 0:
             user_crud.consume_query(
