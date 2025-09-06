@@ -4,11 +4,11 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite --port 8011",
-    "start": "vite --port 8011",
+    "dev": "vite --port 8005",
+    "start": "vite --port 8005",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview --port 8011"
+    "preview": "vite preview --port 8005"
   },
   "dependencies": {
     "@ant-design/charts": "^2.6.2",
