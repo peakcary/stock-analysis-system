@@ -23,6 +23,14 @@ FRONTEND_PORT=8006
 echo "📊 端口配置: API($BACKEND_PORT) | 客户端($CLIENT_PORT) | 管理端($FRONTEND_PORT)"
 echo ""
 
+# 检查是否是迁移模式
+MIGRATION_MODE=false
+if [ "$1" = "--migrate" ] || [ "$1" = "-m" ]; then
+    MIGRATION_MODE=true
+    echo "🔄 迁移模式: 只更新数据库结构，跳过依赖安装"
+    echo ""
+fi
+
 # 环境检查
 echo "🔍 检查环境..."
 command -v node >/dev/null || { log_error "Node.js未安装"; exit 1; }
@@ -40,10 +48,27 @@ log_success "环境检查完成"
 # 后端设置
 echo "🔧 设置后端..."
 cd backend
-[ ! -d "venv" ] && python3 -m venv venv
+
+# 虚拟环境检查
+if [ ! -d "venv" ]; then
+    if [ "$MIGRATION_MODE" = true ]; then
+        log_error "迁移模式需要虚拟环境，请先运行完整部署: ./deploy.sh"
+        exit 1
+    fi
+    python3 -m venv venv
+fi
+
 source venv/bin/activate
-pip install -r requirements.txt -q
-log_success "后端依赖完成"
+
+# 依赖安装（迁移模式可选）
+if [ "$MIGRATION_MODE" = false ]; then
+    pip install -r requirements.txt -q
+    log_success "后端依赖完成"
+else
+    # 迁移模式：只安装必要依赖
+    pip install -r requirements.txt -q --upgrade
+    log_success "后端依赖检查完成"
+fi
 
 # 创建管理员用户表
 echo "👤 创建管理员用户表..."
@@ -66,10 +91,14 @@ if [ -f "frontend/package.json" ]; then
     sed -i.bak "s/--port [0-9]*/--port $FRONTEND_PORT/g" frontend/package.json
 fi
 
-# 安装依赖
-[ ! -d "client/node_modules" ] && { cd client && npm install -q && cd ..; }
-[ ! -d "frontend/node_modules" ] && { cd frontend && npm install -q && cd ..; }
-log_success "前端依赖完成"
+# 前端依赖安装（迁移模式跳过）
+if [ "$MIGRATION_MODE" = false ]; then
+    [ ! -d "client/node_modules" ] && { cd client && npm install -q && cd ..; }
+    [ ! -d "frontend/node_modules" ] && { cd frontend && npm install -q && cd ..; }
+    log_success "前端依赖完成"
+else
+    log_success "迁移模式: 跳过前端依赖安装"
+fi
 
 # 配置文件
 echo "⚙️ 生成配置..."
@@ -118,18 +147,35 @@ cd ..
 log_success "数据库验证完成"
 
 echo ""
-echo "🎉 部署完成！"
-echo ""
-echo "📊 服务地址:"
-echo "  🔗 API:     http://localhost:$BACKEND_PORT"
-echo "  📱 客户端:   http://localhost:$CLIENT_PORT" 
-echo "  🖥️ 管理端:   http://localhost:$FRONTEND_PORT"
-echo ""
-echo "👤 管理员账号: admin / admin123"
-echo ""
-echo "🚀 启动方式:"
-echo "  ./start.sh  - 启动所有服务"
-echo "  ./status.sh - 检查运行状态"
-echo "  ./stop.sh   - 停止所有服务"
-echo ""
-echo "📋 下一步: ./start.sh"
+if [ "$MIGRATION_MODE" = true ]; then
+    echo "🎉 数据库迁移完成！"
+    echo ""
+    echo "📊 新增功能:"
+    echo "  ✅ TXT热度数据导入"
+    echo "  ✅ 概念每日汇总计算" 
+    echo "  ✅ 个股概念排名分析"
+    echo "  ✅ 概念创新高检测"
+    echo "  ✅ 管理员认证系统"
+    echo ""
+    echo "🚀 下一步："
+    echo "  1. ./start.sh    - 启动服务"
+    echo "  2. 访问管理端    - http://localhost:$FRONTEND_PORT"
+    echo "  3. 登录账号      - admin / admin123"
+    echo "  4. 导入TXT数据   - 进入'数据导入'页面"
+else
+    echo "🎉 部署完成！"
+    echo ""
+    echo "📊 服务地址:"
+    echo "  🔗 API:     http://localhost:$BACKEND_PORT"
+    echo "  📱 客户端:   http://localhost:$CLIENT_PORT" 
+    echo "  🖥️ 管理端:   http://localhost:$FRONTEND_PORT"
+    echo ""
+    echo "👤 管理员账号: admin / admin123"
+    echo ""
+    echo "🚀 启动方式:"
+    echo "  ./start.sh  - 启动所有服务"
+    echo "  ./status.sh - 检查运行状态"
+    echo "  ./stop.sh   - 停止所有服务"
+    echo ""
+    echo "📋 下一步: ./start.sh"
+fi
