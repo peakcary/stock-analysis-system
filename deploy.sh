@@ -45,9 +45,13 @@ source venv/bin/activate
 pip install -r requirements.txt -q
 log_success "后端依赖完成"
 
-# 创建管理员用户
-echo "👤 创建管理员用户..."
-python create_admin_table.py 2>/dev/null || log_warn "管理员可能已存在"
+# 创建管理员用户表
+echo "👤 创建管理员用户表..."
+python create_admin_table.py 2>/dev/null || log_warn "管理员表可能已存在"
+
+# 创建TXT导入相关数据表
+echo "📊 创建TXT导入数据表..."
+python create_daily_trading_tables.py 2>/dev/null || log_warn "TXT导入表可能已存在"
 
 cd ..
 
@@ -78,6 +82,41 @@ EOF
 mkdir -p logs
 log_success "配置完成"
 
+# 数据库表验证
+echo "🔍 验证数据库表..."
+cd backend
+source venv/bin/activate
+
+# 验证核心数据表是否存在
+python -c "
+from app.core.database import engine
+from sqlalchemy import text
+
+tables_to_check = [
+    'admin_users',
+    'daily_trading', 
+    'concept_daily_summary',
+    'stock_concept_ranking',
+    'concept_high_record',
+    'txt_import_record'
+]
+
+print('📋 检查数据表:')
+with engine.connect() as conn:
+    for table in tables_to_check:
+        try:
+            result = conn.execute(text(f'SHOW TABLES LIKE \"{table}\"'))
+            if result.fetchone():
+                print(f'  ✅ {table}')
+            else:
+                print(f'  ❌ {table} - 缺失')
+        except Exception as e:
+            print(f'  ⚠️  {table} - 检查失败: {str(e)[:30]}...')
+"
+
+cd ..
+log_success "数据库验证完成"
+
 echo ""
 echo "🎉 部署完成！"
 echo ""
@@ -87,5 +126,10 @@ echo "  📱 客户端:   http://localhost:$CLIENT_PORT"
 echo "  🖥️ 管理端:   http://localhost:$FRONTEND_PORT"
 echo ""
 echo "👤 管理员账号: admin / admin123"
+echo ""
+echo "🚀 启动方式:"
+echo "  ./start.sh  - 启动所有服务"
+echo "  ./status.sh - 检查运行状态"
+echo "  ./stop.sh   - 停止所有服务"
 echo ""
 echo "📋 下一步: ./start.sh"
