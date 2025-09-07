@@ -1,11 +1,11 @@
 import React, { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
 import { message } from 'antd';
-import { authManager, apiClient, type User } from '../../../shared/auth';
+import { adminAuthManager, adminApiClient, type AdminUser } from '../../../shared/admin-auth';
 
 
 interface AuthContextType {
   isAuthenticated: boolean;
-  user: User | null;
+  user: AdminUser | null;
   login: (username: string, password: string) => Promise<boolean>;
   logout: () => void;
   loading: boolean;
@@ -27,47 +27,56 @@ interface AuthProviderProps {
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<AdminUser | null>(null);
   const [loading, setLoading] = useState(true);
 
 
-  // 登录函数
+  // 管理员登录函数
   const login = async (username: string, password: string): Promise<boolean> => {
     try {
-      const result = await authManager.login(username, password);
+      const result = await adminAuthManager.login(username, password);
       if (result.success && result.user) {
         setUser(result.user);
         setIsAuthenticated(true);
-        message.success('登录成功');
+        message.success('管理员登录成功');
         return true;
+      } else {
+        message.error(result.error || '登录失败');
+        return false;
       }
-      return false;
     } catch (error: any) {
-      console.error('登录失败:', error);
-      message.error(error || '登录失败');
+      console.error('管理员登录失败:', error);
+      message.error(error || '管理员登录失败');
       return false;
     }
   };
 
   // 退出登录
-  const logout = () => {
-    authManager.logout();
-    setUser(null);
-    setIsAuthenticated(false);
-    message.success('已退出登录');
+  const logout = async () => {
+    try {
+      await adminAuthManager.logout();
+      setUser(null);
+      setIsAuthenticated(false);
+      message.success('已退出登录');
+    } catch (error) {
+      console.error('登出失败:', error);
+      // 即使登出请求失败，也要清除本地状态
+      setUser(null);
+      setIsAuthenticated(false);
+    }
   };
 
-  // 初始化认证状态
+  // 初始化管理员认证状态
   useEffect(() => {
     const initAuth = async () => {
-      if (authManager.isAuthenticated()) {
-        const isValid = await authManager.checkAuth();
+      if (adminAuthManager.isAuthenticated()) {
+        const isValid = await adminAuthManager.checkAuth();
         if (isValid) {
-          const currentUser = authManager.getUser();
+          const currentUser = adminAuthManager.getUser();
           setUser(currentUser);
           setIsAuthenticated(true);
         } else {
-          logout();
+          await logout();
         }
       }
       setLoading(false);

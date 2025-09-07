@@ -11,7 +11,7 @@ import {
   DollarOutlined, ReloadOutlined, KeyOutlined, LockOutlined,
   UnlockOutlined, SettingOutlined, TrophyOutlined, StarOutlined
 } from '@ant-design/icons';
-import { apiClient } from '../../../shared/auth';
+import { adminApiClient } from '../../../shared/admin-auth';
 import dayjs from 'dayjs';
 
 const { Title, Text } = Typography;
@@ -95,7 +95,7 @@ const UserManagement: React.FC = () => {
       }
 
       // 模拟管理员API调用 - 实际使用时需要添加认证
-      const response = await apiClient.get('/api/v1/admin/users', {
+      const response = await adminApiClient.get('/api/v1/admin/users', {
         params,
         headers: {
           'Authorization': 'Bearer admin-token' // 实际使用时需要真实token
@@ -142,7 +142,7 @@ const UserManagement: React.FC = () => {
   // 获取用户统计
   const fetchStats = async () => {
     try {
-      const response = await apiClient.get('/api/v1/admin/stats', {
+      const response = await adminApiClient.get('/api/v1/admin/stats', {
         headers: {
           'Authorization': 'Bearer admin-token'
         }
@@ -168,13 +168,13 @@ const UserManagement: React.FC = () => {
   const fetchUserDetail = async (userId: number) => {
     try {
       // 获取用户查询记录
-      const queriesResponse = await apiClient.get(`/api/v1/admin/users/${userId}/queries`, {
+      const queriesResponse = await adminApiClient.get(`/api/v1/admin/users/${userId}/queries`, {
         headers: { 'Authorization': 'Bearer admin-token' }
       });
       setUserQueries(queriesResponse.data.queries || []);
 
       // 获取用户支付记录
-      const paymentsResponse = await apiClient.get(`/api/v1/admin/users/${userId}/payments`, {
+      const paymentsResponse = await adminApiClient.get(`/api/v1/admin/users/${userId}/payments`, {
         headers: { 'Authorization': 'Bearer admin-token' }
       });
       setUserPayments(paymentsResponse.data.payments || []);
@@ -198,13 +198,13 @@ const UserManagement: React.FC = () => {
     try {
       if (editingUser) {
         // 更新用户
-        await apiClient.put(`/api/v1/admin/users/${editingUser.id}`, values, {
+        await adminApiClient.put(`/api/v1/admin/users/${editingUser.id}`, values, {
           headers: { 'Authorization': 'Bearer admin-token' }
         });
         message.success('用户更新成功');
       } else {
         // 创建用户
-        await apiClient.post('/api/v1/admin/users', values, {
+        await adminApiClient.post('/api/v1/admin/users', values, {
           headers: { 'Authorization': 'Bearer admin-token' }
         });
         message.success('用户创建成功');
@@ -222,7 +222,7 @@ const UserManagement: React.FC = () => {
   // 删除用户
   const handleDeleteUser = async (userId: number) => {
     try {
-      await apiClient.delete(`/api/v1/admin/users/${userId}`, {
+      await adminApiClient.delete(`/api/v1/admin/users/${userId}`, {
         headers: { 'Authorization': 'Bearer admin-token' }
       });
       message.success('用户删除成功');
@@ -236,7 +236,7 @@ const UserManagement: React.FC = () => {
   // 升级会员
   const handleUpgradeMembership = async (userId: number, membershipType: string) => {
     try {
-      await apiClient.post(`/api/v1/admin/users/${userId}/membership`, {
+      await adminApiClient.post(`/api/v1/admin/users/${userId}/membership`, {
         membership_type: membershipType,
         queries_to_add: membershipType === 'pro' ? 1000 : membershipType === 'premium' ? 9999 : 0,
         days_to_add: membershipType === 'pro' ? 30 : membershipType === 'premium' ? 365 : 0
@@ -255,7 +255,7 @@ const UserManagement: React.FC = () => {
   const handleResetPassword = async (userId: number) => {
     const newPassword = 'reset123';
     try {
-      await apiClient.post(`/api/v1/admin/users/${userId}/reset-password?new_password=${newPassword}`, {}, {
+      await adminApiClient.post(`/api/v1/admin/users/${userId}/reset-password?new_password=${newPassword}`, {}, {
         headers: { 'Authorization': 'Bearer admin-token' }
       });
       message.success(`密码重置成功，新密码: ${newPassword}`);

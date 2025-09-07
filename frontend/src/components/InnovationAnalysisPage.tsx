@@ -33,6 +33,10 @@ import {
 import type { ColumnType } from 'antd/es/table';
 import dayjs from 'dayjs';
 
+// 移除可能不存在的依赖
+// import { motion, AnimatePresence } from 'framer-motion';
+// import ReactECharts from 'echarts-for-react';
+
 const { Title, Text } = Typography;
 const { Panel } = Collapse;
 

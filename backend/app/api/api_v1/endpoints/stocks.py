@@ -6,7 +6,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional, Union
 from app.core.database import get_db
-from app.core.auth import get_optional_user, require_queries_remaining
+from app.core.auth import get_optional_user
+from app.core.admin_auth import get_optional_admin_user, get_current_admin_user
 from app.crud.user import UserCRUD
 from app.models import Stock, DailyStockData, StockConcept, Concept, User
 from app.models.user import QueryType
@@ -37,7 +38,8 @@ def get_stocks(
     limit: int = 100,
     is_bond: Optional[bool] = None,
     search: Optional[str] = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_admin = Depends(get_current_admin_user)
 ):
     """获取股票列表"""
     try:
@@ -88,7 +90,8 @@ def get_stocks_simple(
     limit: int = 100,
     search: Optional[str] = None,
     include_concepts: bool = Query(default=True, description="是否包含概念信息"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_admin = Depends(get_current_admin_user)
 ):
     """简单的股票列表获取（避免关系加载问题）"""
     try:
@@ -204,30 +207,15 @@ def get_stocks_simple(
 def get_stock_by_code(
     stock_code: str, 
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_optional_user)
+    current_admin = Depends(get_current_admin_user)
 ):
-    """根据股票代码获取股票信息和所属概念"""
+    """根据股票代码获取股票信息和所属概念（管理员专用）"""
     stock = db.query(Stock).filter(Stock.stock_code == stock_code).first()
     
     if not stock:
         raise HTTPException(status_code=404, detail="股票不存在")
     
-    # 如果用户已登录且不是管理员，消费查询次数
-    if current_user and current_user.username != 'admin':
-        user_crud = UserCRUD(db)
-        if current_user.queries_remaining > 0:
-            user_crud.consume_query(
-                current_user.id, 
-                QueryType.STOCK_SEARCH, 
-                {"stock_code": stock_code}
-            )
-        else:
-            raise HTTPException(
-                status_code=403, 
-                detail="查询次数已用完，请升级会员"
-            )
-    
-    # 获取股票所属的概念 - 优化查询性能
+    # 管理员无需查询限制，直接获取股票概念
     concepts = db.query(Concept).join(StockConcept).filter(
         StockConcept.stock_id == stock.id
     ).limit(50).all()  # 限制概念数量避免过大查询

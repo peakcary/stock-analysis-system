@@ -8,6 +8,7 @@ from .concept_analysis import DailyConceptRanking, DailyConceptSummary, DailyAna
 from .concept import Concept, StockConcept, DailyConceptSum
 from .user import User, UserQuery, Payment, MembershipType, QueryType, PaymentType, PaymentStatus
 from .data_import import DataImportRecord, ImportType, ImportStatus
+from .daily_trading import DailyTrading, ConceptDailySummary, StockConceptRanking, ConceptHighRecord
 from .payment import (
     PaymentPackage, PaymentOrder, PaymentNotification, MembershipLog, RefundRecord,
     PaymentStatus as PaymentOrderStatus, PaymentMethod, MembershipTypeEnum,
@@ -23,6 +24,8 @@ __all__ = [
     "Concept", "StockConcept", "DailyConceptSum",
     # Concept analysis models  
     "DailyConceptRanking", "DailyConceptSummary", "DailyAnalysisTask",
+    # Daily trading models
+    "DailyTrading", "ConceptDailySummary", "StockConceptRanking", "ConceptHighRecord",
     # User models
     "User", "UserQuery", "Payment",
     # Payment models

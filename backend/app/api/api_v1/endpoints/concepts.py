@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from app.core.database import get_db
+from app.core.admin_auth import get_current_admin_user
 from app.core.cache import cache_result
 from app.models import Concept, Stock, StockConcept, DailyConceptSum
 from app.schemas.concept import ConceptResponse, ConceptWithStocks, NewHighConcept
@@ -25,7 +26,8 @@ def get_concepts_count(db: Session = Depends(get_db)):
 def get_concepts(
     skip: int = 0,
     limit: int = 100,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_admin = Depends(get_current_admin_user)
 ):
     """获取概念列表"""
     # 优化查询性能 - 添加排序和限制
@@ -34,7 +36,11 @@ def get_concepts(
 
 
 @router.get("/{concept_name}/stocks", response_model=ConceptWithStocks)
-def get_concept_stocks(concept_name: str, db: Session = Depends(get_db)):
+def get_concept_stocks(
+    concept_name: str, 
+    db: Session = Depends(get_db),
+    current_admin = Depends(get_current_admin_user)
+):
     """获取概念下的所有股票"""
     concept = db.query(Concept).filter(Concept.concept_name == concept_name).first()
     

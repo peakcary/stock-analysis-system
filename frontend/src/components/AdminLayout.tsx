@@ -3,7 +3,7 @@ import { Layout, Menu, Button, Avatar, Dropdown, Space, Typography, Tag } from '
 import {
   SearchOutlined, UserOutlined, ApiOutlined, UploadOutlined,
   CloudUploadOutlined, GiftOutlined, SettingOutlined, LogoutOutlined,
-  DashboardOutlined
+  DashboardOutlined, FireOutlined, DatabaseOutlined, HistoryOutlined
 } from '@ant-design/icons';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -39,6 +39,21 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, activeTab, onTabCha
       key: 'concepts',
       icon: <ApiOutlined />,
       label: '概念分析',
+    },
+    {
+      key: 'stock-analysis',
+      icon: <SearchOutlined />,
+      label: '个股分析',
+    },
+    {
+      key: 'innovation-analysis',
+      icon: <FireOutlined />,
+      label: '创新高分析',
+    },
+    {
+      key: 'convertible-bonds',
+      icon: <DatabaseOutlined />,
+      label: '转债分析',
     },
     {
       key: 'user',

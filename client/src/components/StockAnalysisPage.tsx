@@ -34,16 +34,72 @@ export const StockAnalysisPage: React.FC<StockAnalysisPageProps> = ({ user, trad
 
     setLoading(true);
     try {
-      // 获取股票在各概念中的排名
-      const rankingData = await ConceptAnalysisApi.getStockRanking(stockCode, tradeDate);
-      setSearchResult(rankingData);
+      // 获取股票概念信息
+      const token = localStorage.getItem('admin_token') || localStorage.getItem('token');
+      const response = await fetch(`/api/v1/stock-analysis/stock/${stockCode}/concepts?trading_date=${tradeDate}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
 
-      // 获取股票概念表现图表数据
-      if (rankingData.concept_rankings?.length > 0) {
-        const stockId = rankingData.concept_rankings[0]?.stock_id;
-        if (stockId) {
-          const chartResponse = await ChartDataApi.getStockConceptPerformance(stockId, tradeDate);
-          setChartData(chartResponse);
+      if (!response.ok) {
+        if (response.status === 404) {
+          throw new Error('404');
+        }
+        throw new Error('查询失败');
+      }
+
+      const stockData = await response.json();
+      setSearchResult({
+        stock_code: stockData.stock_code,
+        stock_name: stockData.stock_name,
+        heat_value: stockData.total_trading_volume,
+        total_concepts: stockData.concepts?.length || 0,
+        trade_date: stockData.trading_date,
+        concept_rankings: stockData.concepts?.map((concept: any, index: number) => ({
+          concept_id: index + 1,
+          concept_name: concept.concept_name,
+          rank: concept.concept_rank,
+          total_stocks: 100, // 这里可以从概念汇总获取
+          heat_value: concept.trading_volume
+        })) || []
+      });
+
+      // 获取图表数据
+      if (stockData.concepts?.length > 0) {
+        const chartResponse = await fetch(`/api/v1/stock-analysis/stock/${stockCode}/chart-data?concept_name=${stockData.concepts[0].concept_name}&days=30`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        });
+        
+        if (chartResponse.ok) {
+          const chartData = await chartResponse.json();
+          setChartData({
+            chart_data: {
+              categories: chartData.chart_data?.map((item: any) => item.date) || [],
+              series: [
+                {
+                  name: '概念排名',
+                  type: 'line',
+                  data: chartData.chart_data?.map((item: any) => item.concept_rank) || []
+                },
+                {
+                  name: '交易量',
+                  type: 'bar',
+                  data: chartData.chart_data?.map((item: any) => item.trading_volume) || []
+                }
+              ]
+            },
+            performance_summary: {
+              avg_rank: Math.round((chartData.chart_data?.reduce((sum: number, item: any) => sum + (item.concept_rank || 0), 0) || 0) / (chartData.chart_data?.length || 1)),
+              best_rank: Math.min(...(chartData.chart_data?.map((item: any) => item.concept_rank).filter((rank: any) => rank) || [0])),
+              worst_rank: Math.max(...(chartData.chart_data?.map((item: any) => item.concept_rank).filter((rank: any) => rank) || [0])),
+              avg_heat: Math.round((chartData.chart_data?.reduce((sum: number, item: any) => sum + (item.trading_volume || 0), 0) || 0) / (chartData.chart_data?.length || 1))
+            }
+          });
         }
       }
 

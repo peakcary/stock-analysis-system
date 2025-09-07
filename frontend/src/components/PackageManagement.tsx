@@ -11,7 +11,7 @@ import {
   DollarOutlined, CrownOutlined, StarOutlined, ClockCircleOutlined,
   SortAscendingOutlined
 } from '@ant-design/icons';
-import { apiClient } from '../../../shared/auth';
+import { adminApiClient } from '../../../shared/admin-auth';
 import dayjs from 'dayjs';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -65,7 +65,7 @@ const PackageManagement: React.FC = () => {
   const fetchPackages = async () => {
     setLoading(true);
     try {
-      const response = await apiClient.get('/api/v1/admin/packages');
+      const response = await adminApiClient.get('/api/v1/admin/packages');
       setPackages(response.data);
       setFilteredPackages(response.data);
     } catch (error: any) {
@@ -79,7 +79,7 @@ const PackageManagement: React.FC = () => {
   // 获取统计信息
   const fetchStats = async () => {
     try {
-      const response = await apiClient.get('/api/v1/admin/packages/stats');
+      const response = await adminApiClient.get('/api/v1/admin/packages/stats');
       setStats(response.data);
     } catch (error: any) {
       console.error('获取统计信息失败:', error);
@@ -109,7 +109,7 @@ const PackageManagement: React.FC = () => {
   // 创建套餐
   const handleCreate = async (values: any) => {
     try {
-      await apiClient.post('/api/v1/admin/packages', values);
+      await adminApiClient.post('/api/v1/admin/packages', values);
       message.success('套餐创建成功');
       setShowCreateModal(false);
       form.resetFields();
@@ -126,7 +126,7 @@ const PackageManagement: React.FC = () => {
     if (!editingPackage) return;
     
     try {
-      await apiClient.put(`/api/v1/admin/packages/${editingPackage.id}`, values);
+      await adminApiClient.put(`/api/v1/admin/packages/${editingPackage.id}`, values);
       message.success('套餐更新成功');
       setShowEditModalVisible(false);
       setEditingPackage(null);
@@ -142,7 +142,7 @@ const PackageManagement: React.FC = () => {
   // 切换套餐状态
   const handleToggleStatus = async (packageId: number) => {
     try {
-      const response = await apiClient.post(`/api/v1/admin/packages/${packageId}/toggle-status`, {});
+      const response = await adminApiClient.post(`/api/v1/admin/packages/${packageId}/toggle-status`, {});
       message.success(response.data.message);
       fetchPackages();
       fetchStats();
@@ -155,7 +155,7 @@ const PackageManagement: React.FC = () => {
   // 删除套餐
   const handleDelete = async (packageId: number) => {
     try {
-      const response = await apiClient.delete(`/api/v1/admin/packages/${packageId}`);
+      const response = await adminApiClient.delete(`/api/v1/admin/packages/${packageId}`);
       message.success(response.data.message);
       fetchPackages();
       fetchStats();
