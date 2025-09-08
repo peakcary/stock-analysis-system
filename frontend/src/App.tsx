@@ -20,7 +20,7 @@ import PackageManagement from './components/PackageManagement';
 import StockAnalysisPage from './components/StockAnalysisPage';
 import InnovationAnalysisPage from './components/InnovationAnalysisPage';
 import ConvertibleBondPage from './components/ConvertibleBondPage';
-import ConceptAnalysisPage from './components/ConceptAnalysisPage';
+import ConceptAnalysisPageNew from './components/ConceptAnalysisPageNew';
 import TxtImportRecords from './components/TxtImportRecords';
 import DataImportPage from './components/DataImportPage';
 
@@ -1121,10 +1121,10 @@ const AdminApp: React.FC = () => {
             )}
 
             {/* 股票查询页面 */}
-            {activeTab === 'stocks' && <ConceptAnalysisPage />}
+            {activeTab === 'stocks' && <ConceptAnalysisPageNew />}
 
             {/* 概念分析页面 */}
-            {activeTab === 'concepts' && <ConceptAnalysisPage />}
+            {activeTab === 'concepts' && <ConceptAnalysisPageNew />}
 
 
             {/* 新的业务分析页面 */}

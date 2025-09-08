@@ -78,7 +78,9 @@ export const StockAnalysisPage: React.FC<StockAnalysisPageProps> = ({ user, trad
           concept_name: concept.concept_name,
           rank: concept.concept_rank,
           total_stocks: 100, // 默认值
-          heat_value: concept.trading_volume
+          heat_value: concept.trading_volume,
+          volume_percentage: concept.volume_percentage,
+          concept_total_volume: concept.concept_total_volume
         })) || []
       });
 
@@ -112,58 +114,70 @@ export const StockAnalysisPage: React.FC<StockAnalysisPageProps> = ({ user, trad
     }
   };
 
+  // 格式化数字显示
+  const formatNumber = (num: number) => {
+    if (num >= 100000000) {
+      return (num / 100000000).toFixed(1) + '亿';
+    } else if (num >= 10000) {
+      return (num / 10000).toFixed(1) + '万';
+    }
+    return num.toLocaleString();
+  };
+
   // 概念排名表格列定义
   const conceptColumns = [
-    {
-      title: '排名',
-      dataIndex: 'rank',
-      key: 'rank',
-      width: 80,
-      render: (rank: number) => (
-        <div style={{ textAlign: 'center' }}>
-          <div style={{
-            width: '32px',
-            height: '32px',
-            borderRadius: '50%',
-            background: rank <= 3 ? '#f59e0b' : rank <= 10 ? '#10b981' : '#6b7280',
-            color: 'white',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: '12px',
-            fontWeight: '600',
-            margin: '0 auto'
-          }}>
-            {rank}
-          </div>
-        </div>
-      )
-    },
     {
       title: '概念名称',
       dataIndex: 'concept_name',
       key: 'concept_name',
+      width: 120,
       render: (name: string) => (
-        <Text strong>{name}</Text>
+        <Text strong style={{ color: '#1890ff' }}>{name}</Text>
       )
     },
     {
       title: '交易量',
       dataIndex: 'heat_value',
       key: 'heat_value',
+      width: 120,
+      sorter: (a: any, b: any) => a.heat_value - b.heat_value,
       render: (value: number) => (
-        <Text style={{ fontWeight: '600' }}>
-          {value ? value.toLocaleString() : 0}
+        <Text style={{ fontWeight: '600', color: '#cf1322' }}>
+          {formatNumber(value || 0)}
         </Text>
       )
     },
     {
-      title: '排名情况',
-      key: 'ranking_info',
+      title: '概念内排名',
+      dataIndex: 'rank',
+      key: 'rank',
+      width: 100,
+      render: (rank: number) => (
+        <div style={{ textAlign: 'center' }}>
+          <Tag color={rank <= 3 ? 'gold' : rank <= 10 ? 'blue' : 'default'}>
+            #{rank}
+          </Tag>
+        </div>
+      )
+    },
+    {
+      title: '占概念比例',
+      key: 'percentage',
+      width: 120,
       render: (record: any) => (
         <div>
-          <Text>第{record.rank}名 / 共{record.total_stocks}只股票</Text>
+          <Text>{record.volume_percentage ? record.volume_percentage.toFixed(2) + '%' : '0%'}</Text>
         </div>
+      )
+    },
+    {
+      title: '概念总量',
+      key: 'concept_total',
+      width: 120,
+      render: (record: any) => (
+        <Text type="secondary">
+          {formatNumber(record.concept_total_volume || 0)}
+        </Text>
       )
     }
   ];
@@ -178,7 +192,7 @@ export const StockAnalysisPage: React.FC<StockAnalysisPageProps> = ({ user, trad
             个股概念分析
           </Title>
           <Text type="secondary">
-            查询个股在各概念中的排名表现和交易量分析
+            输入股票代码查看该股票在所有概念中的表现，概念按交易量从高到低排列
           </Text>
         </div>
 
@@ -306,7 +320,9 @@ export const StockAnalysisPage: React.FC<StockAnalysisPageProps> = ({ user, trad
                       showQuickJumper: true,
                       showTotal: (total) => `共 ${total} 个概念`
                     }}
-                    scroll={{ x: 800 }}
+                    scroll={{ x: 600 }}
+                    defaultSortOrder="descend"
+                    size="middle"
                   />
                 ) : (
                   <Empty 
@@ -372,8 +388,8 @@ export const StockAnalysisPage: React.FC<StockAnalysisPageProps> = ({ user, trad
             <Title level={3} style={{ color: '#6b7280' }}>个股概念分析工具</Title>
             <div style={{ maxWidth: '600px', margin: '0 auto' }}>
               <Text type="secondary" style={{ fontSize: '16px', lineHeight: '1.6' }}>
-                输入股票代码查询该股票在各个概念中的排名表现，了解股票的概念属性和市场热度。
-                支持沪深A股所有股票代码查询。
+                输入股票代码查询该股票所属的所有概念及其表现数据，概念按交易量从高到低排列，
+                可查看股票在每个概念中的排名、交易量占比等详细信息。支持沪深A股所有股票代码查询。
               </Text>
             </div>
             

@@ -21,10 +21,15 @@ router = APIRouter()
 @router.get("/concepts/daily-summary")
 async def get_concepts_daily_summary(
     trading_date: Optional[str] = Query(None, description="交易日期 YYYY-MM-DD"),
+    page: int = Query(1, ge=1, description="页码"),
+    size: int = Query(50, ge=1, le=200, description="每页数量"),
+    sort_by: str = Query("total_volume", description="排序字段: total_volume|stock_count|avg_volume"),
+    sort_order: str = Query("desc", description="排序方式: desc|asc"),
+    search: Optional[str] = Query(None, description="概念名称搜索"),
     db: Session = Depends(get_db),
     current_admin: AdminUser = Depends(get_current_admin_user)
 ):
-    """获取指定日期所有概念的每日汇总"""
+    """获取指定日期所有概念的每日汇总 - 增强版"""
     try:
         # 解析交易日期
         if trading_date:
@@ -36,33 +41,95 @@ async def get_concepts_daily_summary(
             ).first()
             parsed_date = latest_date[0] if latest_date else date.today()
         
-        # 获取概念每日汇总数据
-        summaries = db.query(ConceptDailySummary).filter(
+        # 构建查询
+        query = db.query(ConceptDailySummary).filter(
             ConceptDailySummary.trading_date == parsed_date
-        ).order_by(ConceptDailySummary.total_volume.desc()).all()
+        )
+        
+        # 添加搜索条件
+        if search:
+            query = query.filter(ConceptDailySummary.concept_name.like(f"%{search}%"))
+        
+        # 添加排序
+        sort_column = {
+            "total_volume": ConceptDailySummary.total_volume,
+            "stock_count": ConceptDailySummary.stock_count,
+            "avg_volume": ConceptDailySummary.average_volume
+        }.get(sort_by, ConceptDailySummary.total_volume)
+        
+        if sort_order == "desc":
+            query = query.order_by(desc(sort_column))
+        else:
+            query = query.order_by(sort_column)
+        
+        # 获取总数
+        total_count = query.count()
+        
+        # 分页
+        offset = (page - 1) * size
+        summaries = query.offset(offset).limit(size).all()
         
         if not summaries:
             return {
                 "trading_date": parsed_date.strftime('%Y-%m-%d'),
-                "summaries": []
+                "summaries": [],
+                "pagination": {
+                    "page": page,
+                    "size": size,
+                    "total": 0,
+                    "pages": 0
+                },
+                "statistics": {
+                    "total_concepts": 0,
+                    "total_volume": 0,
+                    "total_stocks": 0
+                }
             }
         
-        # 计算平均交易量
+        # 格式化数据
         summary_data = []
+        total_volume_all = 0
+        total_stocks_all = 0
+        
         for summary in summaries:
-            avg_volume = summary.total_volume / summary.stock_count if summary.stock_count > 0 else 0
+            total_volume_all += summary.total_volume
+            total_stocks_all += summary.stock_count
+            
             summary_data.append({
                 "concept_name": summary.concept_name,
                 "total_volume": summary.total_volume,
                 "stock_count": summary.stock_count,
-                "avg_volume": round(avg_volume, 2),
-                "trading_date": summary.trading_date.strftime('%Y-%m-%d')
+                "avg_volume": round(summary.average_volume, 2),
+                "max_volume": summary.max_volume,
+                "trading_date": summary.trading_date.strftime('%Y-%m-%d'),
+                "volume_percentage": 0  # 将在下面计算
             })
+        
+        # 计算百分比（基于当前页面的数据）
+        if total_volume_all > 0:
+            for item in summary_data:
+                item["volume_percentage"] = round((item["total_volume"] / total_volume_all) * 100, 2)
         
         return {
             "trading_date": parsed_date.strftime('%Y-%m-%d'),
-            "total_concepts": len(summary_data),
-            "summaries": summary_data
+            "summaries": summary_data,
+            "pagination": {
+                "page": page,
+                "size": size,
+                "total": total_count,
+                "pages": (total_count + size - 1) // size
+            },
+            "statistics": {
+                "total_concepts": total_count,
+                "current_page_volume": total_volume_all,
+                "current_page_stocks": total_stocks_all,
+                "avg_volume_per_concept": round(total_volume_all / len(summary_data), 2) if summary_data else 0
+            },
+            "filters": {
+                "search": search,
+                "sort_by": sort_by,
+                "sort_order": sort_order
+            }
         }
         
     except Exception as e:
@@ -73,10 +140,12 @@ async def get_concepts_daily_summary(
 async def get_concept_stock_rankings(
     concept_name: str,
     trading_date: Optional[str] = Query(None, description="交易日期 YYYY-MM-DD"),
+    page: int = Query(1, ge=1, description="页码"),
+    size: int = Query(20, ge=1, le=100, description="每页数量"),
     db: Session = Depends(get_db),
     current_admin: AdminUser = Depends(get_current_admin_user)
 ):
-    """获取指定概念在指定日期的所有股票排名"""
+    """获取指定概念在指定日期的所有股票排名 - 增强版"""
     try:
         # 解析交易日期
         if trading_date:
@@ -88,39 +157,71 @@ async def get_concept_stock_rankings(
             ).first()
             parsed_date = latest_date[0] if latest_date else date.today()
         
-        # 获取概念股票排名数据，并连接Stock表获取股票名称
-        rankings = db.query(StockConceptRanking, Stock.stock_name).join(
+        # 获取概念汇总信息
+        concept_summary = db.query(ConceptDailySummary).filter(
+            ConceptDailySummary.concept_name == concept_name,
+            ConceptDailySummary.trading_date == parsed_date
+        ).first()
+        
+        if not concept_summary:
+            return {
+                "concept_name": concept_name,
+                "trading_date": parsed_date.strftime('%Y-%m-%d'),
+                "rankings": [],
+                "concept_info": None,
+                "pagination": {
+                    "page": page,
+                    "size": size,
+                    "total": 0,
+                    "pages": 0
+                }
+            }
+        
+        # 查询股票排名数据
+        query = db.query(StockConceptRanking, Stock.stock_name).outerjoin(
             Stock, StockConceptRanking.stock_code == Stock.stock_code
         ).filter(
             StockConceptRanking.concept_name == concept_name,
             StockConceptRanking.trading_date == parsed_date
-        ).order_by(StockConceptRanking.concept_rank.asc()).all()
+        ).order_by(StockConceptRanking.concept_rank.asc())
         
-        if not rankings:
-            return {
-                "concept_name": concept_name,
-                "trading_date": parsed_date.strftime('%Y-%m-%d'),
-                "rankings": []
-            }
+        # 获取总数
+        total_count = query.count()
+        
+        # 分页
+        offset = (page - 1) * size
+        rankings = query.offset(offset).limit(size).all()
         
         # 构建返回数据
         ranking_data = []
         for ranking, stock_name in rankings:
             ranking_data.append({
                 "stock_code": ranking.stock_code,
-                "stock_name": stock_name or ranking.stock_code,  # 如果没有股票名称则显示股票代码
+                "stock_name": stock_name or f"股票{ranking.stock_code}",
                 "concept_name": ranking.concept_name,
                 "trading_volume": ranking.trading_volume,
                 "concept_rank": ranking.concept_rank,
                 "volume_percentage": round(ranking.volume_percentage, 2),
-                "trading_date": ranking.trading_date.strftime('%Y-%m-%d')
+                "trading_date": ranking.trading_date.strftime('%Y-%m-%d'),
+                "concept_total_volume": ranking.concept_total_volume
             })
         
         return {
             "concept_name": concept_name,
             "trading_date": parsed_date.strftime('%Y-%m-%d'),
-            "total_stocks": len(ranking_data),
-            "rankings": ranking_data
+            "concept_info": {
+                "total_volume": concept_summary.total_volume,
+                "stock_count": concept_summary.stock_count,
+                "avg_volume": round(concept_summary.average_volume, 2),
+                "max_volume": concept_summary.max_volume
+            },
+            "rankings": ranking_data,
+            "pagination": {
+                "page": page,
+                "size": size,
+                "total": total_count,
+                "pages": (total_count + size - 1) // size
+            }
         }
         
     except Exception as e:
@@ -146,37 +247,47 @@ async def get_stock_concepts(
             ).first()
             parsed_date = latest_date[0] if latest_date else date.today()
         
+        # 标准化股票代码（去除前缀）
+        normalized_stock_code = stock_code
+        if stock_code.startswith(('SH', 'SZ', 'BJ')):
+            normalized_stock_code = stock_code[2:]
+        
         # 获取股票基本信息
-        stock = db.query(Stock).filter(Stock.stock_code == stock_code).first()
+        stock = db.query(Stock).filter(Stock.stock_code == normalized_stock_code).first()
         if not stock:
             raise HTTPException(status_code=404, detail="股票不存在")
         
         # 获取股票的交易量数据
         trading_data = db.query(DailyTrading).filter(
-            DailyTrading.stock_code == stock_code,
+            DailyTrading.stock_code == normalized_stock_code,
             DailyTrading.trading_date == parsed_date
         ).first()
         
         if not trading_data:
             raise HTTPException(status_code=404, detail="该日期没有交易数据")
         
-        # 获取股票在各概念中的排名信息
-        concept_rankings = db.query(StockConceptRanking).filter(
-            StockConceptRanking.stock_code == stock_code,
-            StockConceptRanking.trading_date == parsed_date
-        ).order_by(StockConceptRanking.concept_rank.asc()).all()
-        
-        # 构造返回数据
+        # 获取股票在各概念中的排名信息，按交易量从高到低排序
         concepts = []
-        for ranking in concept_rankings:
-            concepts.append({
-                "concept_name": ranking.concept_name,
-                "trading_volume": ranking.trading_volume,
-                "concept_rank": ranking.concept_rank,
-                "concept_total_volume": ranking.concept_total_volume,
-                "volume_percentage": ranking.volume_percentage,
-                "trading_date": trading_date
-            })
+        try:
+            concept_rankings = db.query(StockConceptRanking).filter(
+                StockConceptRanking.stock_code == normalized_stock_code,
+                StockConceptRanking.trading_date == parsed_date
+            ).order_by(StockConceptRanking.trading_volume.desc()).all()
+            
+            # 构造返回数据
+            for ranking in concept_rankings:
+                concepts.append({
+                    "concept_name": ranking.concept_name,
+                    "trading_volume": ranking.trading_volume,
+                    "concept_rank": ranking.concept_rank,
+                    "concept_total_volume": ranking.concept_total_volume,
+                    "volume_percentage": ranking.volume_percentage,
+                    "trading_date": parsed_date.strftime('%Y-%m-%d')
+                })
+        except Exception as e:
+            # 如果概念排名表不存在，返回空的概念列表但不报错
+            logger.warning(f"概念排名表查询失败，可能表不存在: {str(e)}")
+            concepts = []
         
         return {
             "stock_code": stock.stock_code,
