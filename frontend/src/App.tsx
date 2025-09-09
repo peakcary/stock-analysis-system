@@ -122,9 +122,16 @@ const AdminApp: React.FC = () => {
         conceptCount: conceptsCountResponse.data?.total || 0
       });
       
-    } catch (error) {
+    } catch (error: any) {
       console.error('获取导入数据统计失败:', error);
-      // 如果获取失败，设置默认值
+      
+      // 如果是401错误，说明认证失效，不需要额外处理（拦截器会处理）
+      if (error.response?.status === 401) {
+        console.log('认证失效，等待自动跳转...');
+        return;
+      }
+      
+      // 其他错误，设置默认值
       setImportedData({
         stockCount: 0,
         conceptCount: 0
@@ -155,8 +162,16 @@ const AdminApp: React.FC = () => {
       
       setStockList(stocksData);
       setPagination(prev => ({ ...prev, total: stocksData.length }));
-    } catch (error) {
+    } catch (error: any) {
       console.error('获取股票列表失败:', error);
+      
+      // 如果是401错误，说明认证失效，不需要额外处理（拦截器会处理）
+      if (error.response?.status === 401) {
+        console.log('认证失效，等待自动跳转...');
+        return;
+      }
+      
+      // 其他错误，清空列表
       setStockList([]);
     } finally {
       setStockLoading(false);

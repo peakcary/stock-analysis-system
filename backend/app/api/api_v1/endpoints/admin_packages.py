@@ -8,22 +8,17 @@ from typing import Optional, List
 from decimal import Decimal
 
 from app.core.database import get_db
-from app.core.auth import get_current_active_user
-from app.models.user import User
+from app.core.admin_auth import get_current_admin_user
+from app.models.admin_user import AdminUser
 from app.models.payment import PaymentPackage
 from app.schemas.payment import PaymentPackageBase, PaymentPackage as PaymentPackageSchema
 
 router = APIRouter()
 
 
-def check_admin_user(current_user: User = Depends(get_current_active_user)) -> User:
+def check_admin_user(current_admin: AdminUser = Depends(get_current_admin_user)) -> AdminUser:
     """检查当前用户是否为管理员"""
-    if current_user.username != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="权限不足，需要管理员权限"
-        )
-    return current_user
+    return current_admin
 
 
 # ============ 套餐管理相关 Schema ============
@@ -53,7 +48,7 @@ async def get_all_packages(
     skip: int = Query(0, description="跳过的记录数"),
     limit: int = Query(100, description="返回的记录数"),
     is_active: Optional[bool] = Query(None, description="是否启用筛选"),
-    admin_user: User = Depends(check_admin_user),
+    admin_user: AdminUser = Depends(check_admin_user),
     db: Session = Depends(get_db)
 ):
     """获取所有套餐列表（管理员专用）"""
@@ -71,7 +66,7 @@ async def get_all_packages(
 
 @router.get("/packages/stats")
 async def get_package_stats(
-    admin_user: User = Depends(check_admin_user),
+    admin_user: AdminUser = Depends(check_admin_user),
     db: Session = Depends(get_db)
 ):
     """获取套餐统计信息（管理员专用）"""
@@ -102,7 +97,7 @@ async def get_package_stats(
 @router.get("/packages/{package_id}", response_model=PaymentPackageSchema)
 async def get_package_by_id(
     package_id: int,
-    admin_user: User = Depends(check_admin_user),
+    admin_user: AdminUser = Depends(check_admin_user),
     db: Session = Depends(get_db)
 ):
     """根据ID获取套餐详细信息（管理员专用）"""
@@ -120,7 +115,7 @@ async def get_package_by_id(
 @router.post("/packages", response_model=PaymentPackageSchema)
 async def create_package(
     package_create: PaymentPackageCreate,
-    admin_user: User = Depends(check_admin_user),
+    admin_user: AdminUser = Depends(check_admin_user),
     db: Session = Depends(get_db)
 ):
     """创建新套餐（管理员专用）"""
@@ -160,7 +155,7 @@ async def create_package(
 async def update_package(
     package_id: int,
     package_update: PaymentPackageUpdate,
-    admin_user: User = Depends(check_admin_user),
+    admin_user: AdminUser = Depends(check_admin_user),
     db: Session = Depends(get_db)
 ):
     """更新套餐信息（管理员专用）"""
@@ -201,7 +196,7 @@ async def update_package(
 @router.delete("/packages/{package_id}")
 async def delete_package(
     package_id: int,
-    admin_user: User = Depends(check_admin_user),
+    admin_user: AdminUser = Depends(check_admin_user),
     db: Session = Depends(get_db)
 ):
     """删除套餐（管理员专用）"""
@@ -236,7 +231,7 @@ async def delete_package(
 @router.post("/packages/{package_id}/toggle-status")
 async def toggle_package_status(
     package_id: int,
-    admin_user: User = Depends(check_admin_user),
+    admin_user: AdminUser = Depends(check_admin_user),
     db: Session = Depends(get_db)
 ):
     """切换套餐启用/禁用状态（管理员专用）"""
@@ -267,7 +262,7 @@ async def toggle_package_status(
 @router.post("/packages/batch-update-order")
 async def batch_update_package_order(
     package_orders: List[dict],  # [{"id": 1, "sort_order": 1}, ...]
-    admin_user: User = Depends(check_admin_user),
+    admin_user: AdminUser = Depends(check_admin_user),
     db: Session = Depends(get_db)
 ):
     """批量更新套餐排序（管理员专用）"""

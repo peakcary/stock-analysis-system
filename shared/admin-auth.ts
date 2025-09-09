@@ -70,8 +70,23 @@ export class AdminAuthManager {
         if (error.response?.status === 401) {
           // Admin token过期或无效，清除认证信息
           this.removeToken();
-          // 跳转到管理员登录页
-          window.location.href = '/';
+          
+          // 只有在当前不是登录页面且确实是认证问题时才跳转
+          if (typeof window !== 'undefined') {
+            const currentPath = window.location.pathname;
+            const isLoginPage = currentPath === '/' || currentPath.includes('/login');
+            
+            if (!isLoginPage) {
+              console.log('检测到认证失效，准备跳转到登录页面');
+              // 使用setTimeout避免阻塞当前请求的错误处理，给组件一些时间处理错误
+              setTimeout(() => {
+                // 再次检查当前页面，避免在用户已经手动跳转时重复跳转
+                if (!window.location.pathname.includes('/login') && window.location.pathname !== '/') {
+                  window.location.href = '/';
+                }
+              }, 500);
+            }
+          }
         }
         return Promise.reject(error);
       }
