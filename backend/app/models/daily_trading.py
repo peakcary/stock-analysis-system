@@ -8,14 +8,21 @@ class DailyTrading(Base):
     __tablename__ = "daily_trading"
     
     id = Column(Integer, primary_key=True, index=True)
-    stock_code = Column(String(20), nullable=False, index=True)  # 股票代码
-    trading_date = Column(Date, nullable=False, index=True)  # 交易日期
-    trading_volume = Column(Integer, nullable=False)  # 交易量
+    
+    # 股票代码字段 - 支持原始代码和标准化代码
+    original_stock_code = Column(String(20), nullable=False, index=True, comment="原始股票代码 (如: SH600000)")
+    normalized_stock_code = Column(String(10), nullable=False, index=True, comment="标准化股票代码 (如: 600000)")
+    stock_code = Column(String(20), nullable=False, index=True, comment="当前使用的股票代码，默认为标准化代码")  # 向后兼容
+    
+    trading_date = Column(Date, nullable=False, index=True, comment="交易日期")
+    trading_volume = Column(Integer, nullable=False, comment="交易量")
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     
-    # 联合索引，提高查询效率
+    # 优化的索引结构
     __table_args__ = (
-        Index('idx_stock_date', 'stock_code', 'trading_date'),
+        Index('idx_original_stock_date', 'original_stock_code', 'trading_date'),
+        Index('idx_normalized_stock_date', 'normalized_stock_code', 'trading_date'),
+        Index('idx_stock_date', 'stock_code', 'trading_date'),  # 保持兼容
         Index('idx_date_volume', 'trading_date', 'trading_volume'),
     )
 

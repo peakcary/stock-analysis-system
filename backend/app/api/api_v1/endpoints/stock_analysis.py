@@ -753,3 +753,126 @@ async def get_recent_trading_dates(
     except Exception as e:
         logger.error(f"获取交易日期时出错: {e}")
         raise HTTPException(status_code=500, detail=f"查询失败: {str(e)}")
+
+
+@router.get("/concepts/innovation-high")
+async def get_innovation_high_concepts(
+    days: int = Query(10, ge=1, le=365, description="查询天数范围"),
+    trading_date: Optional[str] = Query(None, description="基准交易日期 YYYY-MM-DD，默认为最新日期"),
+    limit: int = Query(20, ge=1, le=100, description="返回概念数量限制"),
+    db: Session = Depends(get_db),
+    current_admin: AdminUser = Depends(get_current_admin_user)
+):
+    """获取创新高的概念及其股票排名
+    
+    查找在指定天数内概念总交易量创新高的概念，并返回这些概念内股票的排名情况
+    """
+    try:
+        # 解析基准日期
+        if trading_date:
+            base_date = datetime.strptime(trading_date, '%Y-%m-%d').date()
+        else:
+            # 获取最新的交易日期
+            latest_date = db.query(ConceptDailySummary.trading_date).order_by(
+                ConceptDailySummary.trading_date.desc()
+            ).first()
+            base_date = latest_date[0] if latest_date else date.today()
+        
+        # 计算查询日期范围
+        start_date = base_date - timedelta(days=days-1)
+        
+        logger.info(f"查询创新高概念: {start_date} 到 {base_date}, 天数: {days}")
+        
+        # 获取每个概念在指定期间内的最大总交易量
+        concept_max_query = db.query(
+            ConceptDailySummary.concept_name,
+            func.max(ConceptDailySummary.total_volume).label('max_volume'),
+            func.max(ConceptDailySummary.trading_date).label('max_date')
+        ).filter(
+            and_(
+                ConceptDailySummary.trading_date >= start_date,
+                ConceptDailySummary.trading_date <= base_date
+            )
+        ).group_by(ConceptDailySummary.concept_name).subquery()
+        
+        # 获取基准日期当天创新高的概念
+        innovation_concepts = db.query(
+            ConceptDailySummary.concept_name,
+            ConceptDailySummary.total_volume,
+            ConceptDailySummary.stock_count,
+            ConceptDailySummary.avg_volume,
+            ConceptDailySummary.trading_date
+        ).join(
+            concept_max_query,
+            and_(
+                ConceptDailySummary.concept_name == concept_max_query.c.concept_name,
+                ConceptDailySummary.total_volume == concept_max_query.c.max_volume,
+                ConceptDailySummary.trading_date == base_date
+            )
+        ).order_by(
+            ConceptDailySummary.total_volume.desc()
+        ).limit(limit).all()
+        
+        if not innovation_concepts:
+            return {
+                "trading_date": base_date.strftime('%Y-%m-%d'),
+                "query_days": days,
+                "innovation_concepts": [],
+                "total_concepts": 0
+            }
+        
+        # 获取这些创新高概念内的股票排名
+        result = []
+        for concept in innovation_concepts:
+            # 获取该概念在基准日期的股票排名
+            stock_rankings = db.query(
+                StockConceptRanking.stock_code,
+                Stock.stock_name,
+                StockConceptRanking.trading_volume,
+                StockConceptRanking.concept_rank,
+                StockConceptRanking.volume_percentage
+            ).join(
+                Stock, StockConceptRanking.stock_code == Stock.stock_code
+            ).filter(
+                and_(
+                    StockConceptRanking.concept_name == concept.concept_name,
+                    StockConceptRanking.trading_date == base_date
+                )
+            ).order_by(
+                StockConceptRanking.concept_rank.asc()
+            ).limit(10).all()  # 每个概念只返回前10名股票
+            
+            concept_data = {
+                "concept_name": concept.concept_name,
+                "total_volume": float(concept.total_volume),
+                "stock_count": concept.stock_count,
+                "avg_volume": float(concept.avg_volume),
+                "trading_date": concept.trading_date.strftime('%Y-%m-%d'),
+                "stocks": []
+            }
+            
+            for stock in stock_rankings:
+                stock_data = {
+                    "stock_code": stock.stock_code,
+                    "stock_name": stock.stock_name,
+                    "trading_volume": float(stock.trading_volume),
+                    "concept_rank": stock.concept_rank,
+                    "volume_percentage": float(stock.volume_percentage) if stock.volume_percentage else 0.0
+                }
+                concept_data["stocks"].append(stock_data)
+            
+            result.append(concept_data)
+        
+        return {
+            "trading_date": base_date.strftime('%Y-%m-%d'),
+            "query_days": days,
+            "start_date": start_date.strftime('%Y-%m-%d'),
+            "innovation_concepts": result,
+            "total_concepts": len(result)
+        }
+        
+    except ValueError:
+        raise HTTPException(status_code=400, detail="日期格式错误，请使用YYYY-MM-DD格式")
+    except Exception as e:
+        logger.error(f"获取创新高概念时出错: {e}")
+        raise HTTPException(status_code=500, detail=f"查询失败: {str(e)}")

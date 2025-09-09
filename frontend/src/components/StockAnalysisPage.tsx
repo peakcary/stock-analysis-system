@@ -10,7 +10,7 @@ import {
   LineChartOutlined, BarChartOutlined
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
-import ReactECharts from 'echarts-for-react';
+import { Line, DualAxes } from '@ant-design/charts';
 
 const { Title, Text } = Typography;
 const { Search } = Input;
@@ -241,93 +241,127 @@ export const StockAnalysisPage: React.FC<StockAnalysisPageProps> = ({ user, trad
     }
   ];
 
-  // 生成图表配置
-  const getChartOption = () => {
+  // 生成图表数据
+  const getChartData = () => {
     if (!stockChartData || stockChartData.length === 0) {
+      return { leftData: [], rightData: [] };
+    }
+
+    // 左轴数据：个股交易量和概念总交易量
+    const leftData: any[] = [];
+    
+    // 个股交易量数据
+    stockChartData.forEach((item: any) => {
+      leftData.push({
+        date: item.date,
+        type: '个股交易量',
+        value: item.trading_volume || 0
+      });
+    });
+    
+    // 概念总交易量数据
+    conceptSummaryData.forEach((item: any) => {
+      leftData.push({
+        date: item.date,
+        type: '概念总交易量', 
+        value: item.total_volume || 0
+      });
+    });
+
+    // 右轴数据：概念内排名
+    const rightData: any[] = [];
+    stockChartData.forEach((item: any) => {
+      if (item.concept_rank) {
+        rightData.push({
+          date: item.date,
+          type: '概念内排名',
+          value: item.concept_rank
+        });
+      }
+    });
+
+    return { leftData, rightData };
+  };
+
+  // 双轴图表配置
+  const getDualAxesConfig = () => {
+    const { leftData, rightData } = getChartData();
+    
+    if (leftData.length === 0 && rightData.length === 0) {
       return null;
     }
 
-    const dates = stockChartData.map((item: any) => item.date);
-    const tradingVolumes = stockChartData.map((item: any) => item.trading_volume || 0);
-    const conceptRanks = stockChartData.map((item: any) => item.concept_rank || null);
-    const conceptTotalVolumes = conceptSummaryData.map((item: any) => item.total_volume || 0);
-
     return {
-      title: {
-        text: `${searchResult?.stock_name || ''} - ${selectedConcept || ''} 分析图表`,
-        left: 'center',
-        textStyle: { fontSize: 16, fontWeight: 'bold' }
+      data: [leftData, rightData],
+      xField: 'date',
+      yField: ['value', 'value'],
+      height: 350,
+      geometryOptions: [
+        {
+          geometry: 'line',
+          seriesField: 'type',
+          smooth: true,
+          lineStyle: {
+            lineWidth: 2,
+          },
+          point: {
+            size: 4,
+            shape: 'circle',
+          },
+          color: ['#1890ff', '#52c41a'],
+        },
+        {
+          geometry: 'line', 
+          seriesField: 'type',
+          smooth: true,
+          lineStyle: {
+            lineWidth: 2,
+            lineDash: [4, 4],
+          },
+          point: {
+            size: 4,
+            shape: 'square',
+          },
+          color: ['#f5222d'],
+        },
+      ],
+      yAxis: {
+        value: {
+          min: 0,
+          title: {
+            text: '交易量',
+            style: {
+              fontSize: 12,
+              fill: '#666',
+            },
+          },
+          label: {
+            formatter: (val: number) => formatNumber(val),
+          },
+        },
       },
-      tooltip: {
-        trigger: 'axis',
-        axisPointer: { type: 'cross' },
-        formatter: (params: any) => {
-          let tooltip = `${params[0].axisValue}<br/>`;
-          params.forEach((param: any) => {
-            tooltip += `${param.seriesName}: ${param.value || 'N/A'}<br/>`;
-          });
-          return tooltip;
-        }
+      meta: {
+        value: {
+          alias: '交易量',
+        },
+        date: {
+          alias: '日期',
+        },
       },
       legend: {
-        data: ['个股交易量', '概念内排名', '概念总交易量'],
-        top: 30
+        position: 'top-right',
+        offsetY: -10,
       },
-      grid: {
-        left: '10%',
-        right: '10%',
-        bottom: '15%',
-        top: '15%',
-        containLabel: true
+      tooltip: {
+        shared: true,
+        showCrosshairs: true,
+        formatter: (datum: any) => {
+          return {
+            name: datum.type,
+            value: datum.type === '概念内排名' ? `第${datum.value}名` : formatNumber(datum.value),
+          };
+        },
       },
-      xAxis: {
-        type: 'category',
-        data: dates,
-        axisLabel: { 
-          rotate: 45,
-          interval: Math.ceil(dates.length / 10) 
-        }
-      },
-      yAxis: [
-        {
-          type: 'value',
-          name: '交易量',
-          position: 'left',
-          axisLabel: { formatter: (value: number) => formatNumber(value) }
-        },
-        {
-          type: 'value',
-          name: '排名',
-          position: 'right',
-          inverse: true,
-          axisLabel: { formatter: '{value}' }
-        }
-      ],
-      series: [
-        {
-          name: '个股交易量',
-          type: 'line',
-          data: tradingVolumes,
-          smooth: true,
-          itemStyle: { color: '#1890ff' },
-          yAxisIndex: 0
-        },
-        {
-          name: '概念内排名',
-          type: 'line',
-          data: conceptRanks,
-          smooth: true,
-          itemStyle: { color: '#f5222d' },
-          yAxisIndex: 1
-        },
-        {
-          name: '概念总交易量',
-          type: 'bar',
-          data: conceptTotalVolumes,
-          itemStyle: { color: '#52c41a', opacity: 0.6 },
-          yAxisIndex: 0
-        }
-      ]
     };
   };
 
@@ -443,9 +477,9 @@ export const StockAnalysisPage: React.FC<StockAnalysisPageProps> = ({ user, trad
             </Row>
           </Card>
 
-          {/* 概念排名表格 */}
+          {/* 概念排名表格和图表 */}
           <Row gutter={16}>
-            <Col span={16}>
+            <Col xs={24} lg={14}>
               <Card 
                 title={
                   <Space>
@@ -482,7 +516,7 @@ export const StockAnalysisPage: React.FC<StockAnalysisPageProps> = ({ user, trad
               </Card>
             </Col>
 
-            <Col span={8}>
+            <Col xs={24} lg={10}>
               {/* 图表区域 */}
               <Card 
                 title={
@@ -511,17 +545,15 @@ export const StockAnalysisPage: React.FC<StockAnalysisPageProps> = ({ user, trad
                 style={{ borderRadius: '12px' }}
               >
                 <Spin spinning={chartLoading}>
-                  {getChartOption() ? (
-                    <ReactECharts 
-                      option={getChartOption()} 
-                      style={{ height: '400px', width: '100%' }}
-                      opts={{ renderer: 'canvas' }}
-                    />
+                  {getDualAxesConfig() ? (
+                    <div style={{ height: '400px' }}>
+                      <DualAxes {...getDualAxesConfig()} />
+                    </div>
                   ) : (
                     <div style={{ textAlign: 'center', padding: 40 }}>
                       <div style={{ fontSize: '48px', marginBottom: 16 }}>📊</div>
                       <Text type="secondary">
-                        {selectedConcept ? '请选择概念查看图表' : '暂无图表数据'}
+                        {selectedConcept ? '暂无该概念的图表数据' : '请选择概念查看图表'}
                       </Text>
                     </div>
                   )}

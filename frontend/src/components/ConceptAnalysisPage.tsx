@@ -6,7 +6,7 @@ import {
 import { 
   SearchOutlined, FireOutlined, TrophyOutlined, 
   CalendarOutlined, InfoCircleOutlined, BarChartOutlined,
-  ReloadOutlined
+  ReloadOutlined, RocketOutlined, ThunderboltOutlined
 } from '@ant-design/icons';
 import { adminApiClient } from '../../../shared/admin-auth';
 import dayjs from 'dayjs';
@@ -20,6 +20,28 @@ interface ConceptSummary {
   stock_count: number;
   trading_date: string;
   avg_volume: number;
+  max_volume: number;
+  volume_percentage: number;
+}
+
+interface ConceptInfo {
+  total_volume: number;
+  stock_count: number;
+  avg_volume: number;
+  max_volume: number;
+}
+
+interface ConceptRankingResponse {
+  concept_name: string;
+  trading_date: string;
+  concept_info: ConceptInfo;
+  rankings: ConceptRanking[];
+  pagination: {
+    page: number;
+    size: number;
+    total: number;
+    pages: number;
+  };
 }
 
 interface ConceptRanking {
@@ -34,19 +56,37 @@ interface ConceptRanking {
 
 const ConceptAnalysisPage: React.FC = () => {
   const [conceptSummaries, setConceptSummaries] = useState<ConceptSummary[]>([]);
-  const [conceptRankings, setConceptRankings] = useState<ConceptRanking[]>([]);
+  const [conceptRankings, setConceptRankings] = useState<{[key: string]: ConceptRankingResponse}>({});
   const [loading, setLoading] = useState(false);
-  const [selectedConcept, setSelectedConcept] = useState<string>('');
+  const [loadingRankings, setLoadingRankings] = useState<{[key: string]: boolean}>({});
+  const [expandedConcepts, setExpandedConcepts] = useState<Set<string>>(new Set());
   const [tradingDate, setTradingDate] = useState<string>(dayjs().format('YYYY-MM-DD'));
   const [searchText, setSearchText] = useState('');
+  const [sortBy, setSortBy] = useState<string>('total_volume');
   const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
+  const [pagination, setPagination] = useState({ page: 1, size: 50 });
   const [recalculating, setRecalculating] = useState(false);
+  
+  // 创新高查询相关状态
+  const [showInnovation, setShowInnovation] = useState(false);
+  const [innovationDays, setInnovationDays] = useState(10);
+  const [innovationLoading, setInnovationLoading] = useState(false);
+  const [innovationConcepts, setInnovationConcepts] = useState<any[]>([]);
 
   // 获取概念每日汇总
   const fetchConceptSummaries = async () => {
     setLoading(true);
     try {
-      const response = await adminApiClient.get(`/api/v1/stock-analysis/concepts/daily-summary?trading_date=${tradingDate}`);
+      const params = new URLSearchParams({
+        trading_date: tradingDate,
+        page: pagination.page.toString(),
+        size: pagination.size.toString(),
+        sort_by: sortBy,
+        sort_order: sortOrder,
+        ...(searchText && { search: searchText })
+      });
+      
+      const response = await adminApiClient.get(`/api/v1/stock-analysis/concepts/daily-summary?${params}`);
       
       if (response.data?.summaries) {
         let summaries = response.data.summaries;
@@ -131,6 +171,44 @@ const ConceptAnalysisPage: React.FC = () => {
       message.error(`重新计算失败: ${error.response?.data?.detail || error.message}`);
     } finally {
       setRecalculating(false);
+    }
+  };
+
+  // 获取创新高概念
+  const fetchInnovationConcepts = async () => {
+    setInnovationLoading(true);
+    try {
+      const params = new URLSearchParams({
+        days: innovationDays.toString(),
+        trading_date: tradingDate,
+        limit: '20'
+      });
+      
+      const response = await adminApiClient.get(`/api/v1/stock-analysis/concepts/innovation-high?${params}`);
+      
+      if (response.data?.innovation_concepts) {
+        setInnovationConcepts(response.data.innovation_concepts);
+        message.success(`找到 ${response.data.total_concepts} 个创新高概念`);
+      } else {
+        setInnovationConcepts([]);
+        message.info('暂无创新高概念数据');
+      }
+    } catch (error: any) {
+      console.error('获取创新高概念失败:', error);
+      message.error(`查询失败: ${error.response?.data?.detail || error.message}`);
+      setInnovationConcepts([]);
+    } finally {
+      setInnovationLoading(false);
+    }
+  };
+
+  // 切换创新高查询模式
+  const toggleInnovationMode = () => {
+    const newShowInnovation = !showInnovation;
+    setShowInnovation(newShowInnovation);
+    
+    if (newShowInnovation) {
+      fetchInnovationConcepts();
     }
   };
 
@@ -363,6 +441,52 @@ const ConceptAnalysisPage: React.FC = () => {
             </Button>
           </Col>
         </Row>
+
+        {/* 创新高查询区域 */}
+        <Divider style={{ margin: '16px 0' }} />
+        <Row gutter={16} align="middle" justify="center">
+          <Col xs={24} sm={6} md={4}>
+            <div style={{ marginBottom: '8px' }}>
+              <Text strong>创新高查询:</Text>
+            </div>
+            <Select
+              value={innovationDays}
+              onChange={(value) => setInnovationDays(value)}
+              style={{ width: '100%' }}
+              placeholder="选择天数"
+            >
+              <Option value={5}>5天内</Option>
+              <Option value={10}>10天内</Option>
+              <Option value={20}>20天内</Option>
+              <Option value={30}>30天内</Option>
+              <Option value={60}>60天内</Option>
+            </Select>
+          </Col>
+          <Col xs={24} sm={6} md={4}>
+            <div style={{ marginBottom: '8px' }}>
+              <Text strong>&nbsp;</Text>
+            </div>
+            <Button 
+              type={showInnovation ? 'primary' : 'default'}
+              icon={<RocketOutlined />}
+              onClick={toggleInnovationMode}
+              loading={innovationLoading}
+              style={{ width: '100%' }}
+              title="查找概念总交易量创新高的概念"
+            >
+              {showInnovation ? '查看全部' : '创新高'}
+            </Button>
+          </Col>
+          {showInnovation && (
+            <Col xs={24} sm={12} md={6}>
+              <div style={{ textAlign: 'center' }}>
+                <Text type="secondary">
+                  找到 <Text strong style={{ color: '#f5222d' }}>{innovationConcepts.length}</Text> 个创新高概念
+                </Text>
+              </div>
+            </Col>
+          )}
+        </Row>
       </Card>
 
       <Row gutter={16}>
@@ -371,48 +495,154 @@ const ConceptAnalysisPage: React.FC = () => {
           <Card 
             title={
               <Space>
-                <FireOutlined style={{ color: '#ff4d4f' }} />
-                <span>概念每日汇总</span>
-                <Tag color="blue">{conceptSummaries.length}个概念</Tag>
-                <Tag color="green">{tradingDate}</Tag>
+                {showInnovation ? (
+                  <>
+                    <ThunderboltOutlined style={{ color: '#f5222d' }} />
+                    <span>创新高概念</span>
+                    <Tag color="red">{innovationConcepts.length}个概念</Tag>
+                    <Tag color="purple">{innovationDays}天内</Tag>
+                  </>
+                ) : (
+                  <>
+                    <FireOutlined style={{ color: '#ff4d4f' }} />
+                    <span>概念每日汇总</span>
+                    <Tag color="blue">{conceptSummaries.length}个概念</Tag>
+                    <Tag color="green">{tradingDate}</Tag>
+                  </>
+                )}
               </Space>
             }
             extra={
-              conceptSummaries.length > 0 && (
-                <Space>
-                  <Text type="secondary">
-                    <InfoCircleOutlined style={{ marginRight: 4 }} />
-                    点击概念名称查看个股排名
-                  </Text>
-                </Space>
-              )
+              <Space>
+                <Text type="secondary">
+                  <InfoCircleOutlined style={{ marginRight: 4 }} />
+                  {showInnovation ? '展开查看创新高概念内股票' : '点击概念名称查看个股排名'}
+                </Text>
+              </Space>
             }
             style={{ marginBottom: '24px', borderRadius: '12px' }}
           >
-            {loading && !selectedConcept ? (
+            {(loading || innovationLoading) && !selectedConcept ? (
               <div style={{ textAlign: 'center', padding: '60px' }}>
-                <Spin size="large" tip="正在加载概念数据..." />
+                <Spin size="large" tip={showInnovation ? "正在查找创新高概念..." : "正在加载概念数据..."} />
               </div>
-            ) : conceptSummaries.length > 0 ? (
-              <Table
-                columns={summaryColumns}
-                dataSource={conceptSummaries}
-                rowKey="concept_name"
-                pagination={{
-                  pageSize: 15,
-                  showSizeChanger: true,
-                  showQuickJumper: true,
-                  showTotal: (total) => `共 ${total} 个概念`,
-                }}
-                scroll={{ x: 800 }}
-                size="middle"
-              />
+            ) : showInnovation ? (
+              // 显示创新高概念数据
+              innovationConcepts.length > 0 ? (
+                <div>
+                  {innovationConcepts.map((concept, index) => (
+                    <Card
+                      key={concept.concept_name}
+                      size="small"
+                      style={{ marginBottom: '16px' }}
+                      title={
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <Space>
+                            <Tag color="red">#{index + 1}</Tag>
+                            <Text strong style={{ color: '#1890ff' }}>{concept.concept_name}</Text>
+                          </Space>
+                          <Space>
+                            <Text type="secondary">总交易量: </Text>
+                            <Text strong style={{ color: '#f5222d' }}>
+                              {(concept.total_volume / 100000000).toFixed(2)}亿
+                            </Text>
+                            <Text type="secondary">股票数: {concept.stock_count}</Text>
+                          </Space>
+                        </div>
+                      }
+                    >
+                      {concept.stocks && concept.stocks.length > 0 ? (
+                        <Table
+                          size="small"
+                          columns={[
+                            {
+                              title: '排名',
+                              dataIndex: 'concept_rank',
+                              width: 60,
+                              render: (rank: number) => (
+                                <Tag color={rank <= 3 ? 'red' : rank <= 5 ? 'orange' : 'default'}>
+                                  #{rank}
+                                </Tag>
+                              ),
+                            },
+                            {
+                              title: '股票代码',
+                              dataIndex: 'stock_code',
+                              width: 100,
+                            },
+                            {
+                              title: '股票名称',
+                              dataIndex: 'stock_name',
+                              width: 120,
+                              render: (name: string) => (
+                                <Text strong style={{ color: '#1890ff' }}>{name}</Text>
+                              ),
+                            },
+                            {
+                              title: '交易量',
+                              dataIndex: 'trading_volume',
+                              width: 120,
+                              render: (volume: number) => (
+                                <Text style={{ color: '#f5222d' }}>
+                                  {volume >= 100000000 ? `${(volume / 100000000).toFixed(2)}亿` : 
+                                   volume >= 10000 ? `${(volume / 10000).toFixed(1)}万` : 
+                                   volume.toLocaleString()}
+                                </Text>
+                              ),
+                            },
+                            {
+                              title: '占比',
+                              dataIndex: 'volume_percentage',
+                              width: 80,
+                              render: (percentage: number) => (
+                                <Text>{percentage ? `${percentage.toFixed(2)}%` : '0%'}</Text>
+                              ),
+                            },
+                          ]}
+                          dataSource={concept.stocks}
+                          rowKey="stock_code"
+                          pagination={false}
+                        />
+                      ) : (
+                        <Text type="secondary">暂无股票数据</Text>
+                      )}
+                    </Card>
+                  ))}
+                </div>
+              ) : (
+                <Empty
+                  description={
+                    <div>
+                      <Text type="secondary">
+                        {tradingDate} 在{innovationDays}天内暂无创新高概念
+                      </Text>
+                    </div>
+                  }
+                  image={Empty.PRESENTED_IMAGE_SIMPLE}
+                />
+              )
             ) : (
-              <Empty
-                description={
-                  <div>
-                    <Text type="secondary">
-                      {tradingDate} 暂无概念汇总数据
+              // 显示常规概念汇总数据
+              conceptSummaries.length > 0 ? (
+                <Table
+                  columns={summaryColumns}
+                  dataSource={conceptSummaries}
+                  rowKey="concept_name"
+                  pagination={{
+                    pageSize: 15,
+                    showSizeChanger: true,
+                    showQuickJumper: true,
+                    showTotal: (total) => `共 ${total} 个概念`,
+                  }}
+                  scroll={{ x: 800 }}
+                  size="middle"
+                />
+              ) : (
+                <Empty
+                  description={
+                    <div>
+                      <Text type="secondary">
+                        {tradingDate} 暂无概念汇总数据
                     </Text>
                     <br />
                     <Text type="secondary" style={{ fontSize: '12px' }}>

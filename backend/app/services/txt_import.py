@@ -21,6 +21,49 @@ class TxtImportService:
     def __init__(self, db: Session):
         self.db = db
     
+    def _normalize_stock_code(self, original_code: str) -> dict:
+        """
+        解析股票代码，提取原始代码和标准化代码
+        
+        Args:
+            original_code: 原始股票代码 (SH600000, SZ000001等)
+            
+        Returns:
+            dict: {
+                'original': '原始代码',
+                'normalized': '标准化代码',
+                'prefix': '市场前缀'
+            }
+        """
+        original = original_code.strip().upper()
+        
+        # 提取前缀和标准化代码
+        if original.startswith('SH'):
+            return {
+                'original': original,
+                'normalized': original[2:],
+                'prefix': 'SH'
+            }
+        elif original.startswith('SZ'):
+            return {
+                'original': original,
+                'normalized': original[2:],
+                'prefix': 'SZ'
+            }
+        elif original.startswith('BJ'):
+            return {
+                'original': original,
+                'normalized': original[2:],
+                'prefix': 'BJ'
+            }
+        else:
+            # 纯数字代码，无前缀
+            return {
+                'original': original,
+                'normalized': original,
+                'prefix': ''
+            }
+    
     def parse_txt_content(self, txt_content: str) -> List[Dict]:
         """解析TXT文件内容
         
@@ -62,10 +105,16 @@ class TxtImportService:
                     logger.warning(f"第{line_num}行交易量格式错误: {volume_str}")
                     continue
                 
+                # 解析股票代码
+                stock_info = self._normalize_stock_code(stock_code)
+                
                 trading_data.append({
-                    'stock_code': stock_code.strip(),
+                    'original_stock_code': stock_info['original'],      # SH600000
+                    'normalized_stock_code': stock_info['normalized'],  # 600000
+                    'stock_code': stock_info['normalized'],            # 使用标准化代码作为默认值
                     'trading_date': trading_date,
-                    'trading_volume': trading_volume
+                    'trading_volume': trading_volume,
+                    'market_prefix': stock_info['prefix']              # SH (可用于统计分析)
                 })
                 
             except Exception as e:
@@ -216,11 +265,13 @@ class TxtImportService:
         logger.info(f"已清理{trading_date}的历史数据")
     
     def insert_daily_trading(self, trading_data: List[Dict]) -> int:
-        """插入每日交易数据"""
+        """插入每日交易数据 - 支持原始代码和标准化代码"""
         count = 0
         for item in trading_data:
             trading_record = DailyTrading(
-                stock_code=item['stock_code'],
+                original_stock_code=item['original_stock_code'],      # 原始代码
+                normalized_stock_code=item['normalized_stock_code'],  # 标准化代码
+                stock_code=item['stock_code'],                       # 默认使用标准化代码
                 trading_date=item['trading_date'],
                 trading_volume=item['trading_volume']
             )
@@ -228,7 +279,7 @@ class TxtImportService:
             count += 1
         
         self.db.commit()
-        logger.info(f"插入{count}条交易数据")
+        logger.info(f"插入{count}条交易数据（原始代码 + 标准化代码）")
         return count
     
     def calculate_concept_summary(self, trading_date: date) -> int:
@@ -257,8 +308,9 @@ class TxtImportService:
                 continue
             
             # 获取这些股票在交易日的数据
+            # 使用标准化代码匹配，解决SH/SZ前缀问题
             trading_records = self.db.query(DailyTrading).filter(
-                DailyTrading.stock_code.in_(stock_codes),
+                DailyTrading.normalized_stock_code.in_(stock_codes),
                 DailyTrading.trading_date == trading_date
             ).all()
             
@@ -325,8 +377,9 @@ class TxtImportService:
             stock_codes = [stock.stock_code for stock in stocks]
             
             # 获取股票交易数据并按交易量排序
+            # 使用标准化代码匹配，解决SH/SZ前缀问题
             trading_records = self.db.query(DailyTrading).filter(
-                DailyTrading.stock_code.in_(stock_codes),
+                DailyTrading.normalized_stock_code.in_(stock_codes),
                 DailyTrading.trading_date == trading_date
             ).order_by(DailyTrading.trading_volume.desc()).all()
             
