@@ -2,13 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { 
   Card, Row, Col, Input, Button, Table, Tag, Space, Tooltip, 
   Alert, Empty, Spin, Typography, Progress, Divider, message,
-  DatePicker
+  DatePicker, Select
 } from 'antd';
 import { 
   SearchOutlined, StockOutlined, FireOutlined, 
-  TrophyOutlined, InfoCircleOutlined, AreaChartOutlined
+  TrophyOutlined, InfoCircleOutlined, AreaChartOutlined,
+  LineChartOutlined, BarChartOutlined
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
+import ReactECharts from 'echarts-for-react';
 
 const { Title, Text } = Typography;
 const { Search } = Input;
@@ -40,6 +42,10 @@ export const StockAnalysisPage: React.FC<StockAnalysisPageProps> = ({ user, trad
   const [chartData, setChartData] = useState<ChartData[]>([]);
   const [searchStock, setSearchStock] = useState('');
   const [currentTradeDate, setCurrentTradeDate] = useState(tradeDate || dayjs().format('YYYY-MM-DD'));
+  const [selectedConcept, setSelectedConcept] = useState<string>('');
+  const [chartLoading, setChartLoading] = useState(false);
+  const [stockChartData, setStockChartData] = useState<any>(null);
+  const [conceptSummaryData, setConceptSummaryData] = useState<any[]>([]);
 
   // 处理股票搜索
   const handleStockSearch = async (stockCode: string) => {
@@ -100,6 +106,12 @@ export const StockAnalysisPage: React.FC<StockAnalysisPageProps> = ({ user, trad
       }
 
       message.success('查询成功');
+      
+      // 如果有概念数据，默认选择第一个概念进行图表展示
+      if (stockData.concepts?.length > 0) {
+        setSelectedConcept(stockData.concepts[0].concept_name);
+        await fetchChartData(stockCode, stockData.concepts[0].concept_name);
+      }
     } catch (error: any) {
       console.error('Stock search error:', error);
       if (error.message.includes('404')) {
@@ -109,8 +121,55 @@ export const StockAnalysisPage: React.FC<StockAnalysisPageProps> = ({ user, trad
       }
       setSearchResult(null);
       setChartData([]);
+      setStockChartData(null);
+      setConceptSummaryData([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // 获取图表数据
+  const fetchChartData = async (stockCode: string, conceptName?: string) => {
+    if (!stockCode) return;
+    
+    setChartLoading(true);
+    try {
+      const token = localStorage.getItem('admin_token') || localStorage.getItem('token');
+      let url = `/api/v1/stock-analysis/stock/${stockCode}/chart-data?days=30`;
+      if (conceptName) {
+        url += `&concept_name=${encodeURIComponent(conceptName)}`;
+      }
+      
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('获取图表数据失败');
+      }
+
+      const chartResult = await response.json();
+      setStockChartData(chartResult.chart_data || []);
+      setConceptSummaryData(chartResult.concept_summary_data || []);
+      
+    } catch (error: any) {
+      console.error('Chart data error:', error);
+      message.error('获取图表数据失败: ' + error.message);
+      setStockChartData(null);
+      setConceptSummaryData([]);
+    } finally {
+      setChartLoading(false);
+    }
+  };
+
+  // 处理概念选择变化
+  const handleConceptChange = async (conceptName: string) => {
+    setSelectedConcept(conceptName);
+    if (searchResult?.stock_code) {
+      await fetchChartData(searchResult.stock_code, conceptName);
     }
   };
 
@@ -181,6 +240,96 @@ export const StockAnalysisPage: React.FC<StockAnalysisPageProps> = ({ user, trad
       )
     }
   ];
+
+  // 生成图表配置
+  const getChartOption = () => {
+    if (!stockChartData || stockChartData.length === 0) {
+      return null;
+    }
+
+    const dates = stockChartData.map((item: any) => item.date);
+    const tradingVolumes = stockChartData.map((item: any) => item.trading_volume || 0);
+    const conceptRanks = stockChartData.map((item: any) => item.concept_rank || null);
+    const conceptTotalVolumes = conceptSummaryData.map((item: any) => item.total_volume || 0);
+
+    return {
+      title: {
+        text: `${searchResult?.stock_name || ''} - ${selectedConcept || ''} 分析图表`,
+        left: 'center',
+        textStyle: { fontSize: 16, fontWeight: 'bold' }
+      },
+      tooltip: {
+        trigger: 'axis',
+        axisPointer: { type: 'cross' },
+        formatter: (params: any) => {
+          let tooltip = `${params[0].axisValue}<br/>`;
+          params.forEach((param: any) => {
+            tooltip += `${param.seriesName}: ${param.value || 'N/A'}<br/>`;
+          });
+          return tooltip;
+        }
+      },
+      legend: {
+        data: ['个股交易量', '概念内排名', '概念总交易量'],
+        top: 30
+      },
+      grid: {
+        left: '10%',
+        right: '10%',
+        bottom: '15%',
+        top: '15%',
+        containLabel: true
+      },
+      xAxis: {
+        type: 'category',
+        data: dates,
+        axisLabel: { 
+          rotate: 45,
+          interval: Math.ceil(dates.length / 10) 
+        }
+      },
+      yAxis: [
+        {
+          type: 'value',
+          name: '交易量',
+          position: 'left',
+          axisLabel: { formatter: (value: number) => formatNumber(value) }
+        },
+        {
+          type: 'value',
+          name: '排名',
+          position: 'right',
+          inverse: true,
+          axisLabel: { formatter: '{value}' }
+        }
+      ],
+      series: [
+        {
+          name: '个股交易量',
+          type: 'line',
+          data: tradingVolumes,
+          smooth: true,
+          itemStyle: { color: '#1890ff' },
+          yAxisIndex: 0
+        },
+        {
+          name: '概念内排名',
+          type: 'line',
+          data: conceptRanks,
+          smooth: true,
+          itemStyle: { color: '#f5222d' },
+          yAxisIndex: 1
+        },
+        {
+          name: '概念总交易量',
+          type: 'bar',
+          data: conceptTotalVolumes,
+          itemStyle: { color: '#52c41a', opacity: 0.6 },
+          yAxisIndex: 0
+        }
+      ]
+    };
+  };
 
   return (
     <div style={{ padding: '24px' }}>
@@ -342,36 +491,54 @@ export const StockAnalysisPage: React.FC<StockAnalysisPageProps> = ({ user, trad
                     <span>概念表现分析</span>
                   </Space>
                 }
+                extra={
+                  searchResult?.concept_rankings?.length > 0 && (
+                    <Select
+                      style={{ width: 150 }}
+                      placeholder="选择概念"
+                      value={selectedConcept}
+                      onChange={handleConceptChange}
+                      size="small"
+                    >
+                      {searchResult.concept_rankings.map((concept: any) => (
+                        <Select.Option key={concept.concept_name} value={concept.concept_name}>
+                          {concept.concept_name}
+                        </Select.Option>
+                      ))}
+                    </Select>
+                  )
+                }
                 style={{ borderRadius: '12px' }}
               >
-                {chartData.length > 0 ? (
-                  <div>
-                    <Title level={5}>{searchResult.stock_name} 走势图</Title>
-                    <div style={{ height: '300px', border: '1px solid #d9d9d9', borderRadius: 6, padding: 16 }}>
-                      <Text type="secondary">📈 图表数据 ({chartData.length} 个数据点)</Text>
-                      <div style={{ marginTop: 16, maxHeight: 240, overflowY: 'auto' }}>
-                        {chartData.slice(0, 10).map((point, index) => (
-                          <div key={index} style={{ marginBottom: 8, fontSize: '12px' }}>
-                            <Text>{point.date}:</Text>
-                            <br />
-                            <Text type="secondary">
-                              交易量: {point.trading_volume ? point.trading_volume.toLocaleString() : 0}
-                              {point.concept_rank && `, 排名: 第${point.concept_rank}名`}
-                            </Text>
-                          </div>
-                        ))}
-                        {chartData.length > 10 && (
-                          <Text type="secondary" style={{ fontSize: '12px' }}>
-                            ... 还有 {chartData.length - 10} 个数据点
-                          </Text>
-                        )}
-                      </div>
+                <Spin spinning={chartLoading}>
+                  {getChartOption() ? (
+                    <ReactECharts 
+                      option={getChartOption()} 
+                      style={{ height: '400px', width: '100%' }}
+                      opts={{ renderer: 'canvas' }}
+                    />
+                  ) : (
+                    <div style={{ textAlign: 'center', padding: 40 }}>
+                      <div style={{ fontSize: '48px', marginBottom: 16 }}>📊</div>
+                      <Text type="secondary">
+                        {selectedConcept ? '请选择概念查看图表' : '暂无图表数据'}
+                      </Text>
                     </div>
-                  </div>
-                ) : (
-                  <div style={{ textAlign: 'center', padding: 40 }}>
-                    <div style={{ fontSize: '48px', marginBottom: 16 }}>📊</div>
-                    <Text type="secondary">暂无图表数据</Text>
+                  )}
+                </Spin>
+                
+                {/* 图表说明 */}
+                {selectedConcept && (
+                  <div style={{ marginTop: 16, padding: 12, backgroundColor: '#f6f6f6', borderRadius: 6 }}>
+                    <Text strong style={{ color: '#1890ff' }}>图表说明：</Text>
+                    <br />
+                    <Text type="secondary" style={{ fontSize: '12px' }}>
+                      • 蓝线：{searchResult?.stock_name}每日交易量趋势
+                      <br />
+                      • 红线：在"{selectedConcept}"概念中的排名变化（越低越好）
+                      <br />
+                      • 绿柱："{selectedConcept}"概念每日总交易量
+                    </Text>
                   </div>
                 )}
               </Card>

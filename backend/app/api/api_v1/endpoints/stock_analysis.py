@@ -532,77 +532,94 @@ async def get_stock_chart_data(
     db: Session = Depends(get_db),
     current_admin: AdminUser = Depends(get_current_admin_user)
 ):
-    """获取股票图表数据（第八条功能）"""
+    """获取股票图表数据，支持个股排名趋势和概念总和数据"""
     try:
+        # 标准化股票代码（去除前缀）
+        normalized_stock_code = stock_code
+        if stock_code.startswith(('SH', 'SZ', 'BJ')):
+            normalized_stock_code = stock_code[2:]
+        
         # 计算日期范围
-        end_date = db.query(DailyTrading.trading_date).order_by(
+        end_date_query = db.query(DailyTrading.trading_date).order_by(
             DailyTrading.trading_date.desc()
         ).first()
-        if not end_date:
+        if not end_date_query:
             raise HTTPException(status_code=404, detail="没有交易数据")
         
-        end_date = end_date[0]
+        end_date = end_date_query[0]
         start_date = end_date - timedelta(days=days)
         
         # 获取股票基本信息
-        stock = db.query(Stock).filter(Stock.stock_code == stock_code).first()
+        stock = db.query(Stock).filter(Stock.stock_code == normalized_stock_code).first()
         if not stock:
             raise HTTPException(status_code=404, detail="股票不存在")
         
         # 获取股票交易数据
         trading_data = db.query(DailyTrading).filter(
-            DailyTrading.stock_code == stock_code,
+            DailyTrading.stock_code == normalized_stock_code,
             DailyTrading.trading_date >= start_date,
             DailyTrading.trading_date <= end_date
         ).order_by(DailyTrading.trading_date.asc()).all()
         
         chart_data = []
         concept_data = []
+        ranking_data = []
+        concept_summary_data = []
         
-        # 如果指定了概念，还要获取概念相关数据
+        # 如果指定了概念，获取概念相关数据
         if concept_name:
-            # 获取股票在指定概念中的排名数据
-            ranking_data = db.query(StockConceptRanking).filter(
-                StockConceptRanking.stock_code == stock_code,
-                StockConceptRanking.concept_name == concept_name,
-                StockConceptRanking.trading_date >= start_date,
-                StockConceptRanking.trading_date <= end_date
-            ).order_by(StockConceptRanking.trading_date.asc()).all()
-            
-            # 获取概念总和数据
-            concept_summary_data = db.query(ConceptDailySummary).filter(
-                ConceptDailySummary.concept_name == concept_name,
-                ConceptDailySummary.trading_date >= start_date,
-                ConceptDailySummary.trading_date <= end_date
-            ).order_by(ConceptDailySummary.trading_date.asc()).all()
-            
-            # 合并数据
-            for trading in trading_data:
-                date_str = trading.trading_date.strftime('%Y-%m-%d')
-                ranking = next((r for r in ranking_data if r.trading_date == trading.trading_date), None)
-                concept_summary = next((c for c in concept_summary_data if c.trading_date == trading.trading_date), None)
+            try:
+                # 获取股票在指定概念中的排名数据
+                ranking_data = db.query(StockConceptRanking).filter(
+                    StockConceptRanking.stock_code == normalized_stock_code,
+                    StockConceptRanking.concept_name == concept_name,
+                    StockConceptRanking.trading_date >= start_date,
+                    StockConceptRanking.trading_date <= end_date
+                ).order_by(StockConceptRanking.trading_date.asc()).all()
                 
-                chart_data.append({
-                    "date": date_str,
-                    "trading_volume": trading.trading_volume,
-                    "concept_rank": ranking.concept_rank if ranking else None,
-                    "volume_percentage": ranking.volume_percentage if ranking else None,
-                    "concept_total_volume": ranking.concept_total_volume if ranking else None
+                # 获取概念每日总和数据
+                concept_summary_data = db.query(ConceptDailySummary).filter(
+                    ConceptDailySummary.concept_name == concept_name,
+                    ConceptDailySummary.trading_date >= start_date,
+                    ConceptDailySummary.trading_date <= end_date
+                ).order_by(ConceptDailySummary.trading_date.asc()).all()
+                
+            except Exception as e:
+                # 如果概念排名表不存在，记录警告但不影响基础数据返回
+                logger.warning(f"概念排名数据查询失败，可能表不存在: {str(e)}")
+                ranking_data = []
+                concept_summary_data = []
+        
+        # 合并所有数据
+        for trading in trading_data:
+            date_str = trading.trading_date.strftime('%Y-%m-%d')
+            ranking = next((r for r in ranking_data if r.trading_date == trading.trading_date), None)
+            concept_summary = next((c for c in concept_summary_data if c.trading_date == trading.trading_date), None)
+            
+            # 基础股票数据
+            stock_data_point = {
+                "date": date_str,
+                "trading_volume": trading.trading_volume
+            }
+            
+            # 如果有概念排名数据，添加排名信息
+            if ranking:
+                stock_data_point.update({
+                    "concept_rank": ranking.concept_rank,
+                    "volume_percentage": ranking.volume_percentage,
+                    "concept_total_volume": ranking.concept_total_volume
                 })
-                
-                if concept_summary:
-                    concept_data.append({
-                        "date": date_str,
-                        "total_volume": concept_summary.total_volume,
-                        "stock_count": concept_summary.stock_count,
-                        "average_volume": concept_summary.average_volume
-                    })
-        else:
-            # 只获取股票交易数据
-            for trading in trading_data:
-                chart_data.append({
-                    "date": trading.trading_date.strftime('%Y-%m-%d'),
-                    "trading_volume": trading.trading_volume
+            
+            chart_data.append(stock_data_point)
+            
+            # 概念总和数据（概念中所有股票的总和）
+            if concept_summary:
+                concept_data.append({
+                    "date": date_str,
+                    "total_volume": concept_summary.total_volume,
+                    "stock_count": concept_summary.stock_count,
+                    "average_volume": concept_summary.average_volume,
+                    "max_volume": concept_summary.max_volume
                 })
         
         return {
@@ -610,11 +627,16 @@ async def get_stock_chart_data(
             "stock_name": stock.stock_name,
             "concept_name": concept_name,
             "chart_data": chart_data,
-            "concept_data": concept_data,
+            "concept_summary_data": concept_data,
             "period": {
                 "start_date": start_date.strftime('%Y-%m-%d'),
                 "end_date": end_date.strftime('%Y-%m-%d'),
                 "days": days
+            },
+            "data_availability": {
+                "has_ranking_data": len(ranking_data) > 0,
+                "has_concept_summary": len(concept_summary_data) > 0,
+                "stock_data_points": len(chart_data)
             }
         }
         
