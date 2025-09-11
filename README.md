@@ -23,6 +23,32 @@
 # 客户端：http://localhost:8005
 ```
 
+### 🔧 环境要求
+
+**必需软件**：
+- **Node.js** 16+ (JavaScript运行环境)
+- **Python** 3.8+ (推荐3.10-3.12，兼容性最佳)
+- **MySQL** 8.0+ (数据库服务)
+
+**一键安装 (macOS)**：
+```bash
+# 安装Node.js和MySQL
+brew install node mysql
+brew services start mysql
+
+# 克隆项目并部署
+git clone <your-repo>
+cd stock-analysis-system
+./deploy.sh
+```
+
+### ⚡ 快速故障排除
+
+**常见问题解决**：
+- **部署卡住**: Python版本过新/过老，建议使用Python 3.10-3.12
+- **MySQL连接失败**: 运行 `mysqladmin ping` 检查MySQL服务状态
+- **端口占用**: 运行 `./stop.sh` 清理进程后重新启动
+
 ## 🛠️ 核心功能
 
 ### 📈 股票分析 ⭐ v2.4.1增强
@@ -159,24 +185,64 @@ cd stock-analysis-system
 
 ## 🚨 故障排除
 
-### 端口被占用
+### 🔧 部署问题
+
+**deploy.sh卡在设置后端**：
+```bash
+# 原因：Python版本兼容性或网络问题
+# 解决方案：
+python3 --version  # 检查Python版本(推荐3.10-3.12)
+
+# 手动创建虚拟环境(如果需要)
+cd backend
+python3 -m venv venv
+source venv/bin/activate
+pip install --upgrade pip
+pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
+```
+
+**MySQL相关问题**：
+```bash
+# 检查MySQL状态
+brew services list | grep mysql
+mysqladmin ping -h127.0.0.1
+
+# 启动MySQL服务
+brew services start mysql
+
+# 设置root密码(首次安装)
+mysql_secure_installation
+```
+
+### 🚀 服务问题
+
+**端口被占用**：
 ```bash
 ./stop.sh  # 停止所有服务
 ./start.sh # 重新启动
 ```
 
-### 数据库连接问题
-```bash
-# 检查MySQL服务
-mysqladmin ping -h127.0.0.1
-
-# 启动MySQL (macOS)
-brew services start mysql
-```
-
-### 查看服务状态
+**服务状态检查**：
 ```bash
 ./status.sh  # 详细的系统状态检查
+```
+
+**前端编译错误**：
+```bash
+# 清理并重新安装前端依赖
+cd frontend && rm -rf node_modules && npm install
+cd ../client && rm -rf node_modules && npm install
+```
+
+### 💡 环境检查
+
+**完整环境检查脚本**：
+```bash
+# 检查所有必需软件
+echo "Node.js: $(node --version 2>/dev/null || echo '❌ 未安装')"
+echo "Python: $(python3 --version 2>/dev/null || echo '❌ 未安装')" 
+echo "MySQL: $(mysql --version 2>/dev/null || echo '❌ 未安装')"
+echo "Git: $(git --version 2>/dev/null || echo '❌ 未安装')"
 ```
 
 ## 📞 支持与反馈

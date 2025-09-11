@@ -79,21 +79,38 @@ source venv/bin/activate
 
 # 依赖安装（迁移模式可选）
 if [ "$MIGRATION_MODE" = false ]; then
-    pip install -r requirements.txt -q
-    log_success "后端依赖完成"
+    # 检查关键包是否已安装
+    if python -c "import fastapi, sqlalchemy, uvicorn" 2>/dev/null; then
+        log_success "后端依赖已存在，跳过安装"
+    else
+        pip install -r requirements.txt -q -i https://pypi.tuna.tsinghua.edu.cn/simple
+        log_success "后端依赖完成"
+    fi
 else
-    # 迁移模式：只安装必要依赖
-    pip install -r requirements.txt -q --upgrade
-    log_success "后端依赖检查完成"
+    # 迁移模式：检查并安装必要依赖
+    if python -c "import fastapi, sqlalchemy, uvicorn" 2>/dev/null; then
+        log_success "后端依赖检查完成"
+    else
+        pip install -r requirements.txt -q --upgrade -i https://pypi.tuna.tsinghua.edu.cn/simple
+        log_success "后端依赖检查完成"
+    fi
 fi
 
 # 创建管理员用户表
 echo "👤 创建管理员用户表..."
-python create_admin_table.py 2>/dev/null || log_warn "管理员表可能已存在"
+if python -c "from app.models.admin_user import AdminUser" 2>/dev/null; then
+    python create_admin_table.py 2>/dev/null || log_warn "管理员表可能已存在"
+else
+    log_warn "管理员模块检查失败，跳过表创建"
+fi
 
 # 创建TXT导入相关数据表
 echo "📊 创建TXT导入数据表..."
-python create_daily_trading_tables.py 2>/dev/null || log_warn "TXT导入表可能已存在"
+if python -c "from app.core.database import engine" 2>/dev/null; then
+    python create_daily_trading_tables.py 2>/dev/null || log_warn "TXT导入表可能已存在"
+else
+    log_warn "数据库连接检查失败，跳过表创建"
+fi
 
 # 股票代码字段升级
 if [ "$STOCK_CODE_UPGRADE" = true ]; then
@@ -155,8 +172,18 @@ fi
 
 # 前端依赖安装（迁移模式跳过）
 if [ "$MIGRATION_MODE" = false ]; then
-    [ ! -d "client/node_modules" ] && { cd client && npm install -q && cd ..; }
-    [ ! -d "frontend/node_modules" ] && { cd frontend && npm install -q && cd ..; }
+    # 检查并安装客户端依赖
+    if [ -f "client/package.json" ] && [ ! -d "client/node_modules" ]; then
+        echo "📦 安装客户端依赖..."
+        cd client && npm install --silent --no-audit --no-fund 2>/dev/null && cd .. || log_warn "客户端依赖安装可能有问题"
+    fi
+    
+    # 检查并安装管理端依赖
+    if [ -f "frontend/package.json" ] && [ ! -d "frontend/node_modules" ]; then
+        echo "📦 安装管理端依赖..."
+        cd frontend && npm install --silent --no-audit --no-fund 2>/dev/null && cd .. || log_warn "管理端依赖安装可能有问题"
+    fi
+    
     log_success "前端依赖完成"
 else
     log_success "迁移模式: 跳过前端依赖安装"

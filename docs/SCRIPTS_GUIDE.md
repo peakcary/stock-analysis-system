@@ -16,7 +16,10 @@
 
 ## 🔧 脚本功能详解
 
-### 1. **deploy.sh** - 环境部署脚本
+### 1. **deploy.sh** - 环境部署脚本 ⭐ v2.4.3优化
+- ✅ **智能依赖检查** - 检测已安装包，避免重复安装
+- ✅ **国内镜像加速** - 使用清华源，大幅提升安装速度  
+- ✅ **容错性增强** - 优雅处理安装失败，提供详细错误提示
 - ✅ 自动创建管理员用户账号 (`admin/admin123`)
 - ✅ **创建TXT导入相关数据表** (新增)
 - ✅ 修复 package.json 中的端口配置问题
@@ -24,6 +27,14 @@
 - ✅ 验证关键服务可用性（MySQL、Node.js、Python）
 - ✅ **验证数据库表创建状态** (新增)
 - ✅ 生成端口配置文件 `ports.env`
+
+**参数选项**：
+```bash
+./deploy.sh                    # 完整部署
+./deploy.sh --migrate         # 仅更新数据库结构  
+./deploy.sh --upgrade-stock-codes # 升级股票代码字段
+./deploy.sh --help            # 显示帮助信息
+```
 
 ### 2. **migrate_database.sh** - 数据库迁移脚本 🆕
 - ✅ 专为现有环境升级设计
@@ -134,7 +145,42 @@ tail -f logs/frontend.log
 
 ## 🚨 故障排除
 
-### 端口被占用
+### 🔧 部署阶段问题
+
+**deploy.sh卡在设置后端** (已解决)：
+```bash
+# 问题原因：
+# 1. Python版本兼容性问题 (Python 3.13过新)
+# 2. pip包下载速度慢 (默认使用国外源)  
+# 3. 重复安装已存在的包
+
+# v2.4.3解决方案：
+# ✅ 智能检查已安装包，避免重复安装
+# ✅ 使用清华镜像源，10倍速度提升
+# ✅ 增强容错性，优雅处理失败
+
+# 手动修复方法(如果仍有问题)：
+cd backend
+python3 -m venv venv  
+source venv/bin/activate
+pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
+```
+
+**MySQL连接问题**：
+```bash
+# 检查MySQL服务状态
+mysqladmin ping -h127.0.0.1
+
+# 启动MySQL (macOS)
+brew services start mysql
+
+# 首次安装设置root密码
+mysql_secure_installation
+```
+
+### 🚀 运行阶段问题
+
+**端口被占用**：
 ```bash
 # 检查端口占用
 lsof -ti:3007,8005,8006

@@ -200,3 +200,27 @@ if [ $RUNNING_SERVICES -gt 0 ]; then
 else
     echo "  (系统未运行，请先启动服务)"
 fi
+
+echo ""
+echo "💻 环境信息:"
+echo "  操作系统: $(uname -s) $(uname -r)"
+echo "  Python: $(python3 --version 2>/dev/null || echo '❌ 未安装')"
+echo "  Node.js: $(node --version 2>/dev/null || echo '❌ 未安装')"
+echo "  MySQL: $(mysql --version 2>/dev/null | cut -d' ' -f6 2>/dev/null || echo '❌ 未安装')"
+
+echo ""
+echo "💡 性能建议:"
+if [ $SERVICE_HEALTH -lt 50 ]; then
+    echo "  🔧 系统状态不佳，建议检查:"
+    echo "     - 运行 ./stop.sh 然后 ./start.sh 重启服务"
+    echo "     - 检查端口是否被其他程序占用"
+    echo "     - 查看日志文件确认错误原因"
+elif [ $SERVICE_HEALTH -lt 100 ]; then
+    echo "  ⚠️  部分服务异常，建议:"
+    echo "     - 查看具体服务日志: tail -f logs/[service].log"
+    echo "     - 重启异常服务或整个系统"
+else
+    echo "  ✅ 系统运行良好！"
+    echo "     - 可以通过管理端进行数据导入和分析"
+    echo "     - 定期备份数据库数据"
+fi
