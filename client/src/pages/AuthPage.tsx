@@ -8,6 +8,7 @@ import {
   LockOutlined, UserOutlined, EyeOutlined, EyeInvisibleOutlined,
   SafetyCertificateOutlined
 } from '@ant-design/icons';
+import { authManager } from '../utils/auth';
 
 const { Title, Text, Link } = Typography;
 const { TabPane } = Tabs;
@@ -20,25 +21,25 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onLoginSuccess }) => {
   const [authType, setAuthType] = useState<'login' | 'register'>('login');
   const [loading, setLoading] = useState(false);
 
-  // 登录处理
+  // 登录处理 - 连接真实API
   const handleLogin = async (values: any) => {
     setLoading(true);
     try {
-      // 这里调用登录API
-      await new Promise(resolve => setTimeout(resolve, 1000)); // 模拟API调用
+      const result = await authManager.login(values.username, values.password);
       
-      const user = {
-        id: 1,
-        name: values.username,
-        username: values.username,
-        memberType: 'free', // free, pro, premium
-        avatar: null
-      };
-      
-      message.success('登录成功！');
-      onLoginSuccess(user);
+      if (result.success && result.user) {
+        message.success('登录成功！');
+        onLoginSuccess(result.user);
+      } else if (result.error) {
+        // 使用用户友好的错误信息
+        const userFriendlyMessage = authManager.getErrorMessage(result.error);
+        message.error(userFriendlyMessage);
+      } else {
+        message.error('登录失败，请稍后重试');
+      }
     } catch (error) {
-      message.error('登录失败，请检查账号密码');
+      console.error('登录异常:', error);
+      message.error('登录过程中发生异常，请稍后重试');
     } finally {
       setLoading(false);
     }

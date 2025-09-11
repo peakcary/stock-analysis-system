@@ -16,6 +16,7 @@ import LoginPage from './components/LoginPage';
 import AdminLayout from './components/AdminLayout';
 import Dashboard from './components/Dashboard';
 import UserManagement from './components/UserManagement';
+import AdminManagement from './components/AdminManagement';
 import PackageManagement from './components/PackageManagement';
 import StockAnalysisPage from './components/StockAnalysisPage';
 import InnovationAnalysisPage from './components/InnovationAnalysisPage';
@@ -1155,7 +1156,8 @@ const AdminApp: React.FC = () => {
               <ConvertibleBondPage />
             )}
 
-        {activeTab === 'user' && <UserManagement />}
+        {activeTab === 'client-users' && <UserManagement />}
+        {activeTab === 'admin-users' && <AdminManagement />}
         {activeTab === 'packages' && <PackageManagement />}
       </div>
 

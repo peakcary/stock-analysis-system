@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
 import { message } from 'antd';
-import { adminAuthManager, adminApiClient, type AdminUser } from '../../../shared/admin-auth';
+import { adminAuthManager, adminApiClient, type AdminUser, type AdminLoginResult } from '../../../shared/admin-auth';
 
 
 interface AuthContextType {
@@ -31,22 +31,28 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
 
-  // 管理员登录函数
+  // 管理员登录函数 - 使用新的错误处理
   const login = async (username: string, password: string): Promise<boolean> => {
     try {
-      const result = await adminAuthManager.login(username, password);
+      const result: AdminLoginResult = await adminAuthManager.login(username, password);
+      
       if (result.success && result.user) {
         setUser(result.user);
         setIsAuthenticated(true);
         message.success('管理员登录成功');
         return true;
+      } else if (result.error) {
+        // 使用用户友好的错误信息
+        const userFriendlyMessage = adminAuthManager.getErrorMessage(result.error);
+        message.error(userFriendlyMessage);
+        return false;
       } else {
-        message.error(result.error || '登录失败');
+        message.error('登录失败，请稍后重试');
         return false;
       }
     } catch (error: any) {
-      console.error('管理员登录失败:', error);
-      message.error(error || '管理员登录失败');
+      console.error('管理员登录异常:', error);
+      message.error('登录过程中发生异常，请稍后重试');
       return false;
     }
   };

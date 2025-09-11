@@ -4,10 +4,23 @@
  */
 
 import axios, { AxiosInstance } from 'axios';
+import { 
+  ADMIN_AUTH_CONFIG, 
+  AuthConfig, 
+  AuthErrorCode 
+} from './auth-config';
+import { 
+  AuthError, 
+  createAuthErrorFromNetworkError, 
+  withRetry, 
+  isTokenExpired, 
+  isTokenExpiringSoon, 
+  secureStorage,
+  formatErrorForUser
+} from './auth-utils';
 
-// 管理员token存储key
-const ADMIN_TOKEN_KEY = 'admin_token';
-const ADMIN_USER_KEY = 'admin_user';
+// 使用统一配置
+const config = ADMIN_AUTH_CONFIG;
 
 export interface AdminUser {
   id: number;
@@ -21,9 +34,16 @@ export interface AdminUser {
 
 export interface AdminAuthResponse {
   access_token: string;
+  refresh_token: string;
   token_type: string;
   expires_in: number;
   admin_info: AdminUser;
+}
+
+export interface AdminLoginResult {
+  success: boolean;
+  user?: AdminUser;
+  error?: AuthError;
 }
 
 export class AdminAuthManager {
@@ -31,64 +51,83 @@ export class AdminAuthManager {
   private apiClient: AxiosInstance;
 
   private constructor() {
-    // 获取API基础URL
-    const getApiBaseUrl = () => {
-      if (typeof window !== 'undefined') {
-        return (import.meta as any)?.env?.VITE_API_URL || 
-               (window as any).REACT_APP_API_URL || 
-               'http://localhost:3007';
-      } else {
-        return process.env.REACT_APP_API_URL || 
-               process.env.VITE_API_URL || 
-               'http://localhost:3007';
-      }
-    };
-
     this.apiClient = axios.create({
-      baseURL: getApiBaseUrl(),
+      baseURL: config.apiBaseUrl,
       headers: {
         'Content-Type': 'application/json'
-      }
+      },
+      timeout: 10000 // 10秒超时
     });
 
     // 初始化token
     this.initToken();
 
-    // 请求拦截器 - 自动添加admin token
-    this.apiClient.interceptors.request.use((config) => {
+    // 请求拦截器 - 自动添加admin token和检查刷新
+    this.apiClient.interceptors.request.use(async (requestConfig) => {
       const token = this.getToken();
-      if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
+      
+      // 检查是否需要刷新token
+      if (config.autoRefresh && this.shouldRefreshToken()) {
+        console.log('Token即将过期，尝试自动刷新...');
+        await this.refreshTokens();
       }
-      return config;
+      
+      // 使用最新的token
+      const currentToken = this.getToken();
+      if (currentToken) {
+        requestConfig.headers.Authorization = `Bearer ${currentToken}`;
+      }
+      
+      return requestConfig;
     });
 
-    // 响应拦截器 - 处理401错误
+    // 响应拦截器 - 统一错误处理和自动刷新
     this.apiClient.interceptors.response.use(
       (response) => response,
       async (error) => {
-        if (error.response?.status === 401) {
-          // Admin token过期或无效，清除认证信息
+        const originalRequest = error.config;
+        
+        // 如果是401错误且还没有重试过
+        if (error.response?.status === 401 && !originalRequest._retry) {
+          originalRequest._retry = true;
+          
+          // 尝试刷新token
+          if (config.autoRefresh && this.getRefreshToken()) {
+            console.log('收到401错误，尝试刷新token...');
+            const refreshed = await this.refreshTokens();
+            
+            if (refreshed) {
+              // 刷新成功，重试原请求
+              const newToken = this.getToken();
+              if (newToken) {
+                originalRequest.headers.Authorization = `Bearer ${newToken}`;
+                return this.apiClient(originalRequest);
+              }
+            }
+          }
+          
+          // 刷新失败或没有refresh token，清除认证信息
           this.removeToken();
           
-          // 只有在当前不是登录页面且确实是认证问题时才跳转
+          // 只有在当前不是登录页面时才跳转
           if (typeof window !== 'undefined') {
             const currentPath = window.location.pathname;
             const isLoginPage = currentPath === '/' || currentPath.includes('/login');
             
             if (!isLoginPage) {
-              console.log('检测到认证失效，准备跳转到登录页面');
-              // 使用setTimeout避免阻塞当前请求的错误处理，给组件一些时间处理错误
+              console.log('管理员认证失效，准备跳转到登录页面');
               setTimeout(() => {
-                // 再次检查当前页面，避免在用户已经手动跳转时重复跳转
                 if (!window.location.pathname.includes('/login') && window.location.pathname !== '/') {
                   window.location.href = '/';
                 }
-              }, 500);
+              }, 100);
             }
           }
         }
-        return Promise.reject(error);
+        
+        // 创建统一的错误对象
+        const authError = createAuthErrorFromNetworkError(error);
+        return Promise.reject(authError);
       }
     );
   }
@@ -100,28 +139,47 @@ export class AdminAuthManager {
     return AdminAuthManager.instance;
   }
 
-  // Token管理
+  // Token管理 - 使用安全存储
   getToken(): string | null {
-    return localStorage.getItem(ADMIN_TOKEN_KEY);
+    return secureStorage.getItem(config.storage.tokenKey);
   }
 
   setToken(token: string): void {
-    localStorage.setItem(ADMIN_TOKEN_KEY, token);
+    secureStorage.setItem(config.storage.tokenKey, token);
+  }
+
+  getRefreshToken(): string | null {
+    return config.storage.refreshTokenKey ? 
+      secureStorage.getItem(config.storage.refreshTokenKey) : null;
+  }
+
+  setRefreshToken(token: string): void {
+    if (config.storage.refreshTokenKey) {
+      secureStorage.setItem(config.storage.refreshTokenKey, token);
+    }
   }
 
   removeToken(): void {
-    localStorage.removeItem(ADMIN_TOKEN_KEY);
-    localStorage.removeItem(ADMIN_USER_KEY);
+    secureStorage.removeItem(config.storage.tokenKey);
+    secureStorage.removeItem(config.storage.userKey);
+    if (config.storage.refreshTokenKey) {
+      secureStorage.removeItem(config.storage.refreshTokenKey);
+    }
   }
 
-  // 管理员数据管理
+  // 管理员数据管理 - 使用安全存储
   getUser(): AdminUser | null {
-    const userData = localStorage.getItem(ADMIN_USER_KEY);
-    return userData ? JSON.parse(userData) : null;
+    const userData = secureStorage.getItem(config.storage.userKey);
+    try {
+      return userData ? JSON.parse(userData) : null;
+    } catch {
+      console.warn('Failed to parse user data from storage');
+      return null;
+    }
   }
 
   setUser(user: AdminUser): void {
-    localStorage.setItem(ADMIN_USER_KEY, JSON.stringify(user));
+    secureStorage.setItem(config.storage.userKey, JSON.stringify(user));
   }
 
   // 初始化token
@@ -132,43 +190,72 @@ export class AdminAuthManager {
     }
   }
 
-  // 管理员登录
-  async login(username: string, password: string): Promise<{ success: boolean; error?: string; user?: AdminUser }> {
+  // 管理员登录 - 使用统一错误处理和重试机制
+  async login(username: string, password: string): Promise<AdminLoginResult> {
     try {
-      const response = await this.apiClient.post<AdminAuthResponse>('/api/v1/admin/auth/login', {
-        username,
-        password
+      const loginRequest = () => this.apiClient.post<AdminAuthResponse>(
+        config.endpoints.login,
+        { username, password }
+      );
+
+      // 使用重试机制
+      const response = await withRetry(loginRequest, {
+        maxAttempts: config.maxRetryAttempts,
+        delay: 1000,
+        backoff: 2
       });
 
       if (response.data.access_token) {
         this.setToken(response.data.access_token);
+        if (response.data.refresh_token) {
+          this.setRefreshToken(response.data.refresh_token);
+        }
         this.setUser(response.data.admin_info);
+        
         return {
           success: true,
           user: response.data.admin_info
         };
       }
 
-      return { success: false, error: '登录失败' };
+      return { 
+        success: false, 
+        error: {
+          code: 'INVALID_CREDENTIALS',
+          message: '登录失败：服务器未返回有效令牌'
+        }
+      };
     } catch (error: any) {
       console.error('管理员登录错误:', error);
+      
+      // 如果已经是 AuthError，直接使用
+      const authError = error.code ? error : createAuthErrorFromNetworkError(error);
+      
       return {
         success: false,
-        error: error.response?.data?.detail || '登录失败'
+        error: authError
       };
     }
   }
 
-  // 检查管理员认证状态
+  // 检查管理员认证状态 - 增强版本
   async checkAuth(): Promise<boolean> {
     const token = this.getToken();
     if (!token) return false;
 
+    // 检查token是否已过期
+    if (isTokenExpired(token)) {
+      console.log('管理员token已过期');
+      this.removeToken();
+      return false;
+    }
+
     try {
-      const response = await this.apiClient.get<AdminUser>('/api/v1/admin/auth/me');
+      const response = await this.apiClient.get<AdminUser>(config.endpoints.me);
       this.setUser(response.data);
       return true;
-    } catch (error) {
+    } catch (error: any) {
+      console.error('管理员认证检查失败:', error);
       this.removeToken();
       return false;
     }
@@ -177,12 +264,54 @@ export class AdminAuthManager {
   // 管理员退出登录
   async logout(): Promise<void> {
     try {
-      await this.apiClient.post('/api/v1/admin/auth/logout');
+      await this.apiClient.post(config.endpoints.logout);
     } catch (error) {
       console.error('登出请求失败:', error);
+      // 即使请求失败也要清除本地状态
     } finally {
       this.removeToken();
     }
+  }
+
+  // 刷新Token
+  async refreshTokens(): Promise<boolean> {
+    const refreshToken = this.getRefreshToken();
+    if (!refreshToken || !config.endpoints.refresh) {
+      return false;
+    }
+
+    try {
+      const response = await this.apiClient.post<AdminAuthResponse>(
+        config.endpoints.refresh,
+        { refresh_token: refreshToken }
+      );
+
+      if (response.data.access_token) {
+        this.setToken(response.data.access_token);
+        if (response.data.refresh_token) {
+          this.setRefreshToken(response.data.refresh_token);
+        }
+        this.setUser(response.data.admin_info);
+        return true;
+      }
+      
+      return false;
+    } catch (error) {
+      console.error('Token刷新失败:', error);
+      this.removeToken(); // 刷新失败，清除所有token
+      return false;
+    }
+  }
+
+  // 检查是否需要刷新token
+  private shouldRefreshToken(): boolean {
+    const token = this.getToken();
+    return token ? isTokenExpiringSoon(token, config.refreshThreshold) : false;
+  }
+
+  // 获取用户友好的错误信息
+  getErrorMessage(error: AuthError): string {
+    return formatErrorForUser(error);
   }
 
   // 获取API客户端

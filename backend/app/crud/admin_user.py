@@ -84,3 +84,111 @@ class AdminUserCRUD:
             self.db.commit()
             return True
         return False
+
+    def get_all_admins(self, skip: int = 0, limit: int = 100, search: str = None, role: str = None) -> List[AdminUser]:
+        """获取所有管理员用户（带搜索和筛选）"""
+        query = self.db.query(AdminUser)
+        
+        if search:
+            search_filter = f"%{search}%"
+            query = query.filter(
+                (AdminUser.username.like(search_filter)) |
+                (AdminUser.email.like(search_filter)) |
+                (AdminUser.full_name.like(search_filter))
+            )
+        
+        if role:
+            # 由于暂时注释了role字段，这里先不做角色筛选
+            pass
+        
+        return query.offset(skip).limit(limit).all()
+
+    def count_admins(self, search: str = None, role: str = None) -> int:
+        """统计管理员数量（带搜索和筛选）"""
+        query = self.db.query(AdminUser)
+        
+        if search:
+            search_filter = f"%{search}%"
+            query = query.filter(
+                (AdminUser.username.like(search_filter)) |
+                (AdminUser.email.like(search_filter)) |
+                (AdminUser.full_name.like(search_filter))
+            )
+        
+        if role:
+            # 由于暂时注释了role字段，这里先不做角色筛选
+            pass
+        
+        return query.count()
+
+    def get_admin_by_id(self, admin_id: int) -> Optional[AdminUser]:
+        """根据ID获取管理员（别名方法）"""
+        return self.get_by_id(admin_id)
+
+    def create_admin(self, admin_create) -> AdminUser:
+        """创建新管理员"""
+        # 检查用户名是否已存在
+        if self.get_by_username(admin_create.username):
+            raise ValueError(f"用户名 '{admin_create.username}' 已存在")
+        
+        # 检查邮箱是否已存在
+        if self.get_by_email(admin_create.email):
+            raise ValueError(f"邮箱 '{admin_create.email}' 已存在")
+        
+        # 创建新管理员
+        password_hash = self.get_password_hash(admin_create.password)
+        admin_user = AdminUser(
+            username=admin_create.username,
+            email=admin_create.email,
+            password_hash=password_hash,
+            full_name=admin_create.full_name,
+            is_active=admin_create.is_active,
+            is_superuser=False  # 默认不是超级管理员
+        )
+        
+        self.db.add(admin_user)
+        self.db.commit()
+        self.db.refresh(admin_user)
+        return admin_user
+
+    def update_admin(self, admin_id: int, admin_update) -> Optional[AdminUser]:
+        """更新管理员信息"""
+        admin_user = self.get_by_id(admin_id)
+        if not admin_user:
+            return None
+        
+        # 更新字段
+        if admin_update.email is not None:
+            # 检查邮箱是否已被其他用户使用
+            existing_admin = self.get_by_email(admin_update.email)
+            if existing_admin and existing_admin.id != admin_id:
+                raise ValueError(f"邮箱 '{admin_update.email}' 已被使用")
+            admin_user.email = admin_update.email
+        
+        if admin_update.full_name is not None:
+            admin_user.full_name = admin_update.full_name
+        
+        if admin_update.is_active is not None:
+            admin_user.is_active = admin_update.is_active
+        
+        if admin_update.password is not None:
+            admin_user.password_hash = self.get_password_hash(admin_update.password)
+        
+        # 暂时跳过role更新，因为数据库字段被注释了
+        # if admin_update.role is not None:
+        #     admin_user.role = admin_update.role
+        
+        admin_user.updated_at = func.now()
+        self.db.commit()
+        self.db.refresh(admin_user)
+        return admin_user
+
+    def delete_admin(self, admin_id: int) -> bool:
+        """删除管理员"""
+        admin_user = self.get_by_id(admin_id)
+        if not admin_user:
+            return False
+        
+        self.db.delete(admin_user)
+        self.db.commit()
+        return True

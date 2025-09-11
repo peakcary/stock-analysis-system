@@ -115,19 +115,8 @@ const LoginPage: React.FC = () => {
         </Form>
 
         <Alert
-          message="管理员账户信息"
-          description={
-            <Space direction="vertical" size="small" style={{ width: '100%' }}>
-              <div>
-                <Text strong>用户名：</Text>
-                <Text code>admin</Text>
-              </div>
-              <div>
-                <Text strong>密码：</Text>
-                <Text code>admin123</Text>
-              </div>
-            </Space>
-          }
+          message="使用说明"
+          description="请使用管理员账户登录后台管理系统。如需账户信息请联系系统管理员。"
           type="info"
           showIcon
           style={{

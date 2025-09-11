@@ -56,7 +56,7 @@ interface ConceptRanking {
 
 const ConceptAnalysisPage: React.FC = () => {
   const [conceptSummaries, setConceptSummaries] = useState<ConceptSummary[]>([]);
-  const [conceptRankings, setConceptRankings] = useState<{[key: string]: ConceptRankingResponse}>({});
+  const [conceptRankings, setConceptRankings] = useState<ConceptRanking[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingRankings, setLoadingRankings] = useState<{[key: string]: boolean}>({});
   const [expandedConcepts, setExpandedConcepts] = useState<Set<string>>(new Set());
@@ -66,6 +66,7 @@ const ConceptAnalysisPage: React.FC = () => {
   const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
   const [pagination, setPagination] = useState({ page: 1, size: 50 });
   const [recalculating, setRecalculating] = useState(false);
+  const [selectedConcept, setSelectedConcept] = useState<string>('');
   
   // 创新高查询相关状态
   const [showInnovation, setShowInnovation] = useState(false);
@@ -643,7 +644,7 @@ const ConceptAnalysisPage: React.FC = () => {
                     <div>
                       <Text type="secondary">
                         {tradingDate} 暂无概念汇总数据
-                    </Text>
+                      </Text>
                     <br />
                     <Text type="secondary" style={{ fontSize: '12px' }}>
                       请确保已导入TXT文件数据，或尝试选择其他日期

@@ -3,7 +3,8 @@ import { Layout, Menu, Button, Avatar, Dropdown, Space, Typography, Tag } from '
 import {
   SearchOutlined, UserOutlined, ApiOutlined, UploadOutlined,
   CloudUploadOutlined, GiftOutlined, SettingOutlined, LogoutOutlined,
-  DashboardOutlined, FireOutlined, DatabaseOutlined, HistoryOutlined
+  DashboardOutlined, FireOutlined, DatabaseOutlined, HistoryOutlined,
+  TeamOutlined, CrownOutlined
 } from '@ant-design/icons';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -56,9 +57,14 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, activeTab, onTabCha
       label: '转债分析',
     },
     {
-      key: 'user',
-      icon: <UserOutlined />,
-      label: '用户管理',
+      key: 'client-users',
+      icon: <TeamOutlined />,
+      label: '客户端用户',
+    },
+    {
+      key: 'admin-users',
+      icon: <CrownOutlined />,
+      label: '管理员账户',
     },
     {
       key: 'packages',

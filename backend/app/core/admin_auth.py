@@ -17,6 +17,7 @@ from app.core.config import settings
 ADMIN_SECRET_KEY = "your-admin-secret-key-here"  # 应该从环境变量读取
 ADMIN_ALGORITHM = "HS256"
 ADMIN_ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24小时
+ADMIN_REFRESH_TOKEN_EXPIRE_DAYS = 7  # 7天
 
 # HTTP Bearer scheme for admin
 admin_security = HTTPBearer()
@@ -30,9 +31,34 @@ def create_admin_access_token(data: dict, expires_delta: Optional[timedelta] = N
     else:
         expire = datetime.utcnow() + timedelta(minutes=ADMIN_ACCESS_TOKEN_EXPIRE_MINUTES)
     
-    to_encode.update({"exp": expire, "type": "admin"})
+    to_encode.update({"exp": expire, "type": "admin_access"})
     encoded_jwt = jwt.encode(to_encode, ADMIN_SECRET_KEY, algorithm=ADMIN_ALGORITHM)
     return encoded_jwt
+
+
+def create_admin_refresh_token(data: dict):
+    """创建管理员刷新令牌"""
+    to_encode = data.copy()
+    expire = datetime.utcnow() + timedelta(days=ADMIN_REFRESH_TOKEN_EXPIRE_DAYS)
+    
+    to_encode.update({"exp": expire, "type": "admin_refresh"})
+    encoded_jwt = jwt.encode(to_encode, ADMIN_SECRET_KEY, algorithm=ADMIN_ALGORITHM)
+    return encoded_jwt
+
+
+def verify_admin_refresh_token(token: str) -> Optional[str]:
+    """验证管理员刷新令牌并返回用户名"""
+    try:
+        payload = jwt.decode(token, ADMIN_SECRET_KEY, algorithms=[ADMIN_ALGORITHM])
+        username: str = payload.get("sub")
+        token_type: str = payload.get("type")
+        
+        if username is None or token_type != "admin_refresh":
+            return None
+        
+        return username
+    except JWTError:
+        return None
 
 
 def get_current_admin_user(
@@ -51,7 +77,7 @@ def get_current_admin_user(
         username: str = payload.get("sub")
         token_type: str = payload.get("type")
         
-        if username is None or token_type != "admin":
+        if username is None or token_type != "admin_access":
             raise credentials_exception
             
     except JWTError:

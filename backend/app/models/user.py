@@ -10,15 +10,14 @@ import enum
 
 
 class MembershipType(enum.Enum):
-    """会员类型枚举"""
-    FREE = "free"
-    PRO = "pro"  # 专业版
-    PREMIUM = "premium"  # 旗舰版
-    SUPER_ADMIN = "super_admin"  # 超级管理员
-    PAID_10 = "paid_10" 
-    MONTHLY = "monthly"
-    QUARTERLY = "quarterly"
-    YEARLY = "yearly"
+    """会员类型枚举 - 仅用于客户端用户"""
+    FREE = "free"              # 免费版
+    PRO = "pro"                # 专业版  
+    PREMIUM = "premium"        # 旗舰版
+    PAID_10 = "paid_10"        # 单次购买10次查询
+    MONTHLY = "monthly"        # 月度会员
+    QUARTERLY = "quarterly"    # 季度会员
+    YEARLY = "yearly"          # 年度会员
 
 
 class QueryType(enum.Enum):
@@ -47,7 +46,7 @@ class PaymentStatus(enum.Enum):
 
 
 class User(Base):
-    """用户表"""
+    """客户端用户表 - 使用股票分析系统的终端用户"""
     __tablename__ = "users"
     
     id = Column(Integer, primary_key=True, index=True, comment="主键ID")
