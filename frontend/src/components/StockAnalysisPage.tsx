@@ -504,7 +504,6 @@ export const StockAnalysisPage: React.FC<StockAnalysisPageProps> = ({ user, trad
                       showTotal: (total) => `共 ${total} 个概念`
                     }}
                     scroll={{ x: 600 }}
-                    defaultSortOrder="descend"
                     size="middle"
                   />
                 ) : (

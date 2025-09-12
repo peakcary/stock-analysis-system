@@ -282,6 +282,50 @@ class TxtImportService:
         logger.info(f"插入{count}条交易数据（原始代码 + 标准化代码）")
         return count
     
+    def _get_stock_trading_records(self, stock_codes: List[str], trading_date: date) -> List[DailyTrading]:
+        """
+        统一的股票代码匹配逻辑，支持多种股票代码格式
+        确保概念汇总和排名数据使用相同的匹配标准
+        """
+        from sqlalchemy import or_
+        
+        if not stock_codes:
+            return []
+        
+        # 生成标准化的股票代码列表
+        normalized_codes = []
+        original_codes = []
+        
+        for stock_code in stock_codes:
+            # 如果stock_code已经是6位数字，直接使用
+            if stock_code.isdigit() and len(stock_code) == 6:
+                normalized_codes.append(stock_code)
+                # 同时尝试带前缀的格式
+                if stock_code.startswith('6'):
+                    original_codes.append(f'SH{stock_code}')
+                elif stock_code.startswith('0') or stock_code.startswith('3'):
+                    original_codes.append(f'SZ{stock_code}')
+            else:
+                # 如果有SH/SZ前缀，提取6位数字
+                if stock_code.startswith(('SH', 'SZ')) and len(stock_code) == 8:
+                    normalized_codes.append(stock_code[2:])
+                    original_codes.append(stock_code)
+                else:
+                    normalized_codes.append(stock_code)
+                    original_codes.append(stock_code)
+        
+        # 使用多种匹配条件
+        trading_records = self.db.query(DailyTrading).filter(
+            DailyTrading.trading_date == trading_date,
+            or_(
+                DailyTrading.normalized_stock_code.in_(normalized_codes),
+                DailyTrading.original_stock_code.in_(original_codes),
+                DailyTrading.stock_code.in_(normalized_codes)
+            )
+        ).all()
+        
+        return trading_records
+    
     def calculate_concept_summary(self, trading_date: date) -> int:
         """计算概念每日汇总数据"""
         # 获取所有概念及其包含的股票
@@ -307,12 +351,12 @@ class TxtImportService:
             if not stock_codes:
                 continue
             
-            # 获取这些股票在交易日的数据
-            # 使用标准化代码匹配，解决SH/SZ前缀问题
-            trading_records = self.db.query(DailyTrading).filter(
-                DailyTrading.normalized_stock_code.in_(stock_codes),
-                DailyTrading.trading_date == trading_date
-            ).all()
+            # 获取这些股票在交易日的数据，使用统一的匹配逻辑
+            trading_records = self._get_stock_trading_records(stock_codes, trading_date)
+            
+            # 记录匹配信息以便调试
+            if len(trading_records) != len(stock_codes):
+                logger.warning(f"概念{concept.concept_name}: 定义了{len(stock_codes)}只股票，但只匹配到{len(trading_records)}只股票的交易数据")
             
             if not trading_records:
                 continue
@@ -376,12 +420,11 @@ class TxtImportService:
             stocks = self.db.query(Stock).filter(Stock.id.in_(stock_ids)).all()
             stock_codes = [stock.stock_code for stock in stocks]
             
-            # 获取股票交易数据并按交易量排序
-            # 使用标准化代码匹配，解决SH/SZ前缀问题
-            trading_records = self.db.query(DailyTrading).filter(
-                DailyTrading.normalized_stock_code.in_(stock_codes),
-                DailyTrading.trading_date == trading_date
-            ).order_by(DailyTrading.trading_volume.desc()).all()
+            # 获取股票交易数据并按交易量排序，使用统一的匹配逻辑
+            trading_records = self._get_stock_trading_records(stock_codes, trading_date)
+            
+            # 按交易量排序
+            trading_records.sort(key=lambda x: x.trading_volume, reverse=True)
             
             # 计算排名
             for rank, record in enumerate(trading_records, 1):

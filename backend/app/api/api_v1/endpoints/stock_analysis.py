@@ -141,7 +141,7 @@ async def get_concept_stock_rankings(
     concept_name: str,
     trading_date: Optional[str] = Query(None, description="交易日期 YYYY-MM-DD"),
     page: int = Query(1, ge=1, description="页码"),
-    size: int = Query(20, ge=1, le=100, description="每页数量"),
+    size: int = Query(20, ge=1, le=10000, description="每页数量"),
     db: Session = Depends(get_db),
     current_admin: AdminUser = Depends(get_current_admin_user)
 ):
@@ -876,3 +876,73 @@ async def get_innovation_high_concepts(
     except Exception as e:
         logger.error(f"获取创新高概念时出错: {e}")
         raise HTTPException(status_code=500, detail=f"查询失败: {str(e)}")
+
+
+@router.get("/validate-data-consistency")
+async def validate_data_consistency(
+    trading_date: str = Query(..., description="交易日期 YYYY-MM-DD"),
+    current_user: AdminUser = Depends(get_current_admin_user),
+    db: Session = Depends(get_db)
+):
+    """验证概念汇总和排名数据的一致性"""
+    try:
+        parsed_date = datetime.strptime(trading_date, "%Y-%m-%d").date()
+        
+        # 获取概念汇总数据
+        summaries = db.query(ConceptDailySummary).filter(
+            ConceptDailySummary.trading_date == parsed_date
+        ).all()
+        
+        validation_results = []
+        total_issues = 0
+        
+        for summary in summaries:
+            # 检查排名数据中的股票数量
+            ranking_count = db.query(StockConceptRanking).filter(
+                StockConceptRanking.concept_name == summary.concept_name,
+                StockConceptRanking.trading_date == parsed_date
+            ).count()
+            
+            # 检查总交易量是否一致
+            ranking_total_volume = db.query(func.sum(StockConceptRanking.trading_volume)).filter(
+                StockConceptRanking.concept_name == summary.concept_name,
+                StockConceptRanking.trading_date == parsed_date
+            ).scalar() or 0
+            
+            is_consistent = (ranking_count == summary.stock_count and 
+                           abs(ranking_total_volume - summary.total_volume) < 1000)  # 允许小的舍入误差
+            
+            result = {
+                "concept_name": summary.concept_name,
+                "summary_stock_count": summary.stock_count,
+                "ranking_stock_count": ranking_count,
+                "summary_total_volume": summary.total_volume,
+                "ranking_total_volume": ranking_total_volume,
+                "is_consistent": is_consistent
+            }
+            
+            if not is_consistent:
+                total_issues += 1
+                result["issues"] = []
+                if ranking_count != summary.stock_count:
+                    result["issues"].append(f"股票数量不一致: 汇总表{summary.stock_count}只 vs 排名表{ranking_count}只")
+                if abs(ranking_total_volume - summary.total_volume) >= 1000:
+                    result["issues"].append(f"总交易量不一致: 汇总表{summary.total_volume} vs 排名表{ranking_total_volume}")
+            
+            validation_results.append(result)
+        
+        return {
+            "trading_date": trading_date,
+            "total_concepts": len(summaries),
+            "consistent_concepts": len(summaries) - total_issues,
+            "inconsistent_concepts": total_issues,
+            "is_all_consistent": total_issues == 0,
+            "validation_results": validation_results
+        }
+        
+    except ValueError:
+        raise HTTPException(status_code=400, detail="日期格式错误，请使用YYYY-MM-DD格式")
+    except Exception as e:
+        logger.error(f"验证数据一致性时出错: {e}")
+        raise HTTPException(status_code=500, detail=f"验证失败: {str(e)}")
+
