@@ -74,7 +74,7 @@ const ConceptAnalysisPage: React.FC = () => {
     setLoading(true);
     try {
       const response = await adminApiClient.get(
-        `/api/v1/stock-analysis/concepts/daily-summary?trading_date=${tradingDate}`
+        `/api/v1/stock-analysis/concepts/daily-summary?trading_date=${tradingDate}&sort_by=total_volume&sort_order=desc&size=1000`
       );
       
       if (response.data?.summaries) {

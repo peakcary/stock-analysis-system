@@ -272,7 +272,7 @@ async def get_stock_concepts(
             concept_rankings = db.query(StockConceptRanking).filter(
                 StockConceptRanking.stock_code == normalized_stock_code,
                 StockConceptRanking.trading_date == parsed_date
-            ).order_by(StockConceptRanking.trading_volume.desc()).all()
+            ).order_by(StockConceptRanking.concept_total_volume.desc()).all()
             
             # 构造返回数据
             for ranking in concept_rankings:
@@ -302,6 +302,103 @@ async def get_stock_concepts(
     except Exception as e:
         logger.error(f"获取股票概念信息时出错: {e}")
         raise HTTPException(status_code=500, detail=f"查询失败: {str(e)}")
+
+@router.get("/stocks/daily-summary")
+async def get_stocks_daily_summary(
+    trading_date: Optional[str] = Query(None, description="交易日期 YYYY-MM-DD"),
+    page: int = Query(1, ge=1, description="页码"),
+    size: int = Query(20, ge=1, le=10000, description="每页数量"),
+    sort_by: str = Query("trading_volume", description="排序字段: trading_volume|stock_code|stock_name"),
+    sort_order: str = Query("desc", description="排序方式: desc|asc"),
+    search: Optional[str] = Query(None, description="股票代码或名称搜索"),
+    db: Session = Depends(get_db),
+    current_admin: AdminUser = Depends(get_current_admin_user)
+):
+    """获取指定日期所有股票的每日汇总"""
+    try:
+        # 解析交易日期
+        if trading_date:
+            parsed_date = datetime.strptime(trading_date, '%Y-%m-%d').date()
+        else:
+            # 获取最新的交易日期
+            latest_date = db.query(DailyTrading.trading_date).order_by(
+                DailyTrading.trading_date.desc()
+            ).first()
+            parsed_date = latest_date[0] if latest_date else date.today()
+        
+        # 构建查询
+        query = db.query(
+            DailyTrading.stock_code,
+            Stock.stock_name,
+            DailyTrading.trading_volume,
+            DailyTrading.trading_date
+        ).join(
+            Stock, DailyTrading.stock_code == Stock.stock_code
+        ).filter(
+            DailyTrading.trading_date == parsed_date
+        )
+        
+        # 添加搜索条件
+        if search:
+            query = query.filter(
+                (Stock.stock_code.like(f"%{search}%")) |
+                (Stock.stock_name.like(f"%{search}%"))
+            )
+        
+        # 排序
+        if sort_by == "trading_volume":
+            order_col = DailyTrading.trading_volume
+        elif sort_by == "stock_code":
+            order_col = Stock.stock_code
+        elif sort_by == "stock_name":
+            order_col = Stock.stock_name
+        else:
+            order_col = DailyTrading.trading_volume
+            
+        if sort_order == "desc":
+            query = query.order_by(desc(order_col))
+        else:
+            query = query.order_by(order_col)
+        
+        # 计算总数
+        total_count = query.count()
+        
+        # 分页
+        stocks = query.offset((page - 1) * size).limit(size).all()
+        
+        # 构造返回数据
+        stock_summaries = []
+        for stock_code, stock_name, trading_volume, trade_date in stocks:
+            # 计算该股票的概念数量
+            concept_count = db.query(StockConceptRanking).filter(
+                StockConceptRanking.stock_code == stock_code,
+                StockConceptRanking.trading_date == parsed_date
+            ).count()
+            
+            stock_summaries.append({
+                "stock_code": stock_code,
+                "stock_name": stock_name,
+                "trading_volume": trading_volume,
+                "trading_date": trade_date.strftime('%Y-%m-%d'),
+                "concept_count": concept_count
+            })
+        
+        return {
+            "trading_date": parsed_date.strftime('%Y-%m-%d'),
+            "summaries": stock_summaries,
+            "pagination": {
+                "page": page,
+                "size": size,
+                "total": total_count,
+                "pages": (total_count + size - 1) // size
+            }
+        }
+        
+    except ValueError:
+        raise HTTPException(status_code=400, detail="日期格式错误，请使用YYYY-MM-DD格式")
+    except Exception as e:
+        logger.error(f"获取股票每日汇总失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"获取股票每日汇总失败: {str(e)}")
 
 @router.get("/concept/{concept_name}/stocks")
 async def get_concept_stocks(
@@ -945,4 +1042,65 @@ async def validate_data_consistency(
     except Exception as e:
         logger.error(f"验证数据一致性时出错: {e}")
         raise HTTPException(status_code=500, detail=f"验证失败: {str(e)}")
+
+@router.get("/debug/concept-volumes")
+async def debug_concept_volumes(
+    trading_date: Optional[str] = Query(None, description="交易日期 YYYY-MM-DD"),
+    limit: int = Query(20, ge=1, le=100, description="显示数量"),
+    db: Session = Depends(get_db),
+    current_admin: AdminUser = Depends(get_current_admin_user)
+):
+    """调试API：查看概念交易量分布"""
+    try:
+        # 解析交易日期
+        if trading_date:
+            parsed_date = datetime.strptime(trading_date, '%Y-%m-%d').date()
+        else:
+            # 获取最新的交易日期
+            latest_date = db.query(ConceptDailySummary.trading_date).order_by(
+                ConceptDailySummary.trading_date.desc()
+            ).first()
+            parsed_date = latest_date[0] if latest_date else date.today()
+        
+        # 获取概念汇总数据，按交易量排序
+        summaries = db.query(ConceptDailySummary).filter(
+            ConceptDailySummary.trading_date == parsed_date
+        ).order_by(ConceptDailySummary.total_volume.desc()).limit(limit).all()
+        
+        debug_data = []
+        volume_counts = {}
+        
+        for summary in summaries:
+            volume = summary.total_volume
+            if volume not in volume_counts:
+                volume_counts[volume] = 0
+            volume_counts[volume] += 1
+            
+            debug_data.append({
+                "concept_name": summary.concept_name,
+                "total_volume": volume,
+                "stock_count": summary.stock_count,
+                "average_volume": round(summary.average_volume, 2),
+                "max_volume": summary.max_volume
+            })
+        
+        # 统计相同交易量的分布
+        duplicate_volumes = {k: v for k, v in volume_counts.items() if v > 1}
+        
+        return {
+            "trading_date": parsed_date.strftime('%Y-%m-%d'),
+            "total_concepts": len(debug_data),
+            "concepts": debug_data,
+            "volume_distribution": {
+                "unique_volumes": len(volume_counts),
+                "duplicate_volumes": duplicate_volumes,
+                "total_duplicates": sum(v for v in duplicate_volumes.values() if v > 1)
+            }
+        }
+        
+    except ValueError:
+        raise HTTPException(status_code=400, detail="日期格式错误，请使用YYYY-MM-DD格式")
+    except Exception as e:
+        logger.error(f"调试概念交易量时出错: {e}")
+        raise HTTPException(status_code=500, detail=f"调试失败: {str(e)}")
 
