@@ -103,13 +103,19 @@ const TxtImportRecords: React.FC<TxtImportRecordsProps> = ({ refreshTrigger }) =
   const handleRecalculate = async (tradingDate: string) => {
     setRecalculating(prev => ({ ...prev, [tradingDate]: true }));
     
+    // 显示进度提示
+    const hideLoading = message.loading(`正在重新计算 ${tradingDate} 的数据，请耐心等待...`, 0);
+    
     try {
-      const response = await adminApiClient.post(`/api/v1/txt-import/recalculate?trading_date=${tradingDate}`);
+      const response = await adminApiClient.post(`/api/v1/txt-import/recalculate?trading_date=${tradingDate}`, {}, {
+        timeout: 180000 // 3分钟超时，专门为重新计算设置
+      });
       
       if (response.data?.success) {
         const stats = response.data.stats;
         message.success(
-          `${tradingDate} 重新计算完成！概念汇总: ${stats.concept_summary_count}个，个股排名: ${stats.ranking_count}条，创新高: ${stats.new_high_count}条`
+          `${tradingDate} 重新计算完成！概念汇总: ${stats.concept_summary_count}个，个股排名: ${stats.ranking_count}条，创新高: ${stats.new_high_count}条`,
+          5
         );
         
         // 重新获取记录
@@ -119,8 +125,15 @@ const TxtImportRecords: React.FC<TxtImportRecordsProps> = ({ refreshTrigger }) =
       }
     } catch (error: any) {
       console.error('重新计算失败:', error);
-      message.error(`重新计算失败: ${error.response?.data?.detail || error.message}`);
+      if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+        message.error('重新计算超时，请检查后端服务状态或稍后重试');
+      } else if (error.response?.status === 401) {
+        message.error('认证失败，请重新登录');
+      } else {
+        message.error(`重新计算失败: ${error.response?.data?.detail || error.message}`);
+      }
     } finally {
+      hideLoading();
       setRecalculating(prev => ({ ...prev, [tradingDate]: false }));
     }
   };
@@ -312,7 +325,7 @@ const TxtImportRecords: React.FC<TxtImportRecordsProps> = ({ refreshTrigger }) =
               onClick={() => handleRecalculate(record.trading_date)}
               block
             >
-              重新计算
+              {recalculating[record.trading_date] ? '计算中...' : '重新计算'}
             </Button>
           </Tooltip>
           {record.error_message && (

@@ -56,7 +56,7 @@ export class AdminAuthManager {
       headers: {
         'Content-Type': 'application/json'
       },
-      timeout: 10000 // 10秒超时
+      timeout: 30000 // 30秒默认超时，长时间操作需要在具体请求中单独设置
     });
 
     // 初始化token

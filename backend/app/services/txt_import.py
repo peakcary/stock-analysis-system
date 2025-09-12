@@ -109,9 +109,7 @@ class TxtImportService:
                 stock_info = self._normalize_stock_code(stock_code)
                 
                 trading_data.append({
-                    'original_stock_code': stock_info['original'],      # SH600000
-                    'normalized_stock_code': stock_info['normalized'],  # 600000
-                    'stock_code': stock_info['normalized'],            # 使用标准化代码作为默认值
+                    'stock_code': stock_info['normalized'],  # 使用标准化代码
                     'trading_date': trading_date,
                     'trading_volume': trading_volume,
                     'market_prefix': stock_info['prefix']              # SH (可用于统计分析)
@@ -185,14 +183,11 @@ class TxtImportService:
             # 导入原始交易数据
             imported_count = self.insert_daily_trading(trading_data)
             
-            # 计算概念汇总数据
-            concept_summary_count = self.calculate_concept_summary(current_date)
-            
-            # 计算股票在概念中的排名
-            ranking_count = self.calculate_stock_concept_ranking(current_date)
-            
-            # 检测概念创新高
-            high_record_count = self.detect_concept_new_highs(current_date)
+            # 使用统一的计算方法
+            calculation_results = self.perform_calculations(current_date)
+            concept_summary_count = calculation_results['concept_summary_count']
+            ranking_count = calculation_results['ranking_count']
+            high_record_count = calculation_results['new_high_count']
             
             # 更新导入记录
             end_time = time.time()
@@ -242,13 +237,9 @@ class TxtImportService:
                 "import_record_id": import_record.id if import_record else None
             }
     
-    def clear_daily_data(self, trading_date: date):
+    def clear_daily_data(self, trading_date: date, keep_trading_data: bool = False):
         """清理指定日期的数据"""
-        # 清理相关表的当天数据
-        self.db.query(DailyTrading).filter(
-            DailyTrading.trading_date == trading_date
-        ).delete()
-        
+        # 清理汇总数据
         self.db.query(ConceptDailySummary).filter(
             ConceptDailySummary.trading_date == trading_date
         ).delete()
@@ -261,17 +252,21 @@ class TxtImportService:
             ConceptHighRecord.trading_date == trading_date
         ).delete()
         
+        # 根据参数决定是否清理基础交易数据
+        if not keep_trading_data:
+            self.db.query(DailyTrading).filter(
+                DailyTrading.trading_date == trading_date
+            ).delete()
+        
         self.db.commit()
-        logger.info(f"已清理{trading_date}的历史数据")
+        logger.info(f"已清理{trading_date}的{'汇总' if keep_trading_data else '所有'}数据")
     
     def insert_daily_trading(self, trading_data: List[Dict]) -> int:
         """插入每日交易数据 - 支持原始代码和标准化代码"""
         count = 0
         for item in trading_data:
             trading_record = DailyTrading(
-                original_stock_code=item['original_stock_code'],      # 原始代码
-                normalized_stock_code=item['normalized_stock_code'],  # 标准化代码
-                stock_code=item['stock_code'],                       # 默认使用标准化代码
+                stock_code=item['stock_code'],
                 trading_date=item['trading_date'],
                 trading_volume=item['trading_volume']
             )
@@ -292,37 +287,41 @@ class TxtImportService:
         if not stock_codes:
             return []
         
-        # 生成标准化的股票代码列表
-        normalized_codes = []
-        original_codes = []
+        # 生成各种可能的股票代码格式进行匹配
+        all_possible_codes = []
         
         for stock_code in stock_codes:
-            # 如果stock_code已经是6位数字，直接使用
+            # 原始代码
+            all_possible_codes.append(stock_code)
+            
+            # 如果是6位数字代码，生成带前缀的版本
             if stock_code.isdigit() and len(stock_code) == 6:
-                normalized_codes.append(stock_code)
-                # 同时尝试带前缀的格式
                 if stock_code.startswith('6'):
-                    original_codes.append(f'SH{stock_code}')
+                    all_possible_codes.append(f'SH{stock_code}')
                 elif stock_code.startswith('0') or stock_code.startswith('3'):
-                    original_codes.append(f'SZ{stock_code}')
-            else:
-                # 如果有SH/SZ前缀，提取6位数字
-                if stock_code.startswith(('SH', 'SZ')) and len(stock_code) == 8:
-                    normalized_codes.append(stock_code[2:])
-                    original_codes.append(stock_code)
-                else:
-                    normalized_codes.append(stock_code)
-                    original_codes.append(stock_code)
+                    all_possible_codes.append(f'SZ{stock_code}')
+            
+            # 如果有SH/SZ前缀，生成无前缀版本
+            elif stock_code.startswith(('SH', 'SZ')) and len(stock_code) == 8:
+                all_possible_codes.append(stock_code[2:])
+            
+            # 如果是类似 "1" 这样的错误格式，尝试通过股票名称反向查找正确代码
+            elif stock_code.isdigit() and len(stock_code) < 6:
+                logger.warning(f"发现异常股票代码格式: {stock_code}")
         
-        # 使用多种匹配条件
+        # 去重
+        all_possible_codes = list(set(all_possible_codes))
+        
+        logger.debug(f"股票代码匹配 - 原始代码: {stock_codes[:5]}{'...' if len(stock_codes) > 5 else ''}")
+        logger.debug(f"生成的匹配代码: {all_possible_codes[:10]}{'...' if len(all_possible_codes) > 10 else ''}")
+        
+        # 查询匹配的交易记录
         trading_records = self.db.query(DailyTrading).filter(
             DailyTrading.trading_date == trading_date,
-            or_(
-                DailyTrading.normalized_stock_code.in_(normalized_codes),
-                DailyTrading.original_stock_code.in_(original_codes),
-                DailyTrading.stock_code.in_(normalized_codes)
-            )
+            DailyTrading.stock_code.in_(all_possible_codes)
         ).all()
+        
+        logger.debug(f"找到匹配的交易记录: {len(trading_records)} 条 (预期: {len(stock_codes)} 条)")
         
         return trading_records
     
@@ -492,66 +491,110 @@ class TxtImportService:
         return len(new_highs)
     
     def recalculate_daily_summary(self, trading_date: date) -> Dict:
-        """重新计算指定日期的概念汇总和排名数据
-        
-        Args:
-            trading_date: 需要重新计算的交易日期
-            
-        Returns:
-            重新计算的结果统计
-        """
+        """重新计算指定日期的概念汇总和排名数据"""
+        # 开始事务
+        transaction = self.db.begin()
         try:
-            # 检查是否有该日期的基础交易数据
+            # 检查是否有基础交易数据
             trading_count = self.db.query(DailyTrading).filter(
                 DailyTrading.trading_date == trading_date
             ).count()
             
             if trading_count == 0:
-                return {
-                    "success": False, 
-                    "message": f"日期{trading_date}没有基础交易数据，无法重新计算"
-                }
+                transaction.rollback()
+                return {"success": False, "message": f"日期{trading_date}没有基础交易数据"}
             
-            # 删除该日期的汇总和排名数据（保留基础交易数据）
-            self.db.query(ConceptDailySummary).filter(
-                ConceptDailySummary.trading_date == trading_date
-            ).delete()
+            # 清理汇总数据，保留基础交易数据
+            self.clear_daily_data(trading_date, keep_trading_data=True)
             
-            self.db.query(StockConceptRanking).filter(
-                StockConceptRanking.trading_date == trading_date
-            ).delete()
+            # 重新计算
+            calculation_results = self.perform_calculations(trading_date)
             
-            self.db.query(ConceptHighRecord).filter(
-                ConceptHighRecord.trading_date == trading_date
-            ).delete()
+            # 更新导入记录
+            self.update_import_record_after_recalculation(trading_date, calculation_results, trading_count)
             
-            self.db.commit()
-            
-            # 重新计算概念汇总数据
-            concept_summary_count = self.calculate_concept_summary(trading_date)
-            
-            # 重新计算股票在概念中的排名
-            ranking_count = self.calculate_stock_concept_ranking(trading_date)
-            
-            # 重新检测概念创新高
-            high_record_count = self.detect_concept_new_highs(trading_date)
+            # 提交事务
+            transaction.commit()
             
             return {
                 "success": True,
-                "message": f"成功重新计算{trading_date}的数据",
+                "message": f"重新计算{trading_date}完成",
                 "stats": {
                     "trading_data_count": trading_count,
-                    "concept_summary_count": concept_summary_count,
-                    "ranking_count": ranking_count,
-                    "new_high_count": high_record_count,
+                    "concept_summary_count": calculation_results['concept_summary_count'],
+                    "ranking_count": calculation_results['ranking_count'],
+                    "new_high_count": calculation_results['new_high_count'],
                     "trading_date": trading_date.strftime('%Y-%m-%d')
                 }
             }
             
         except Exception as e:
-            logger.error(f"重新计算{trading_date}数据时出错: {e}")
-            self.db.rollback()
+            logger.error(f"重新计算失败: {e}")
+            transaction.rollback()
             return {"success": False, "message": f"重新计算失败: {str(e)}"}
+
+    def update_import_record_after_recalculation(self, trading_date: date, 
+                                                calculation_results: Dict[str, int], 
+                                                trading_count: int) -> None:
+        """重新计算后更新导入记录"""
+        latest_record = self.db.query(TxtImportRecord).filter(
+            TxtImportRecord.trading_date == trading_date,
+            TxtImportRecord.import_status == 'success'
+        ).order_by(TxtImportRecord.import_started_at.desc()).first()
+        
+        if latest_record:
+            latest_record.concept_count = calculation_results['concept_summary_count']
+            latest_record.ranking_count = calculation_results['ranking_count']  
+            latest_record.new_high_count = calculation_results['new_high_count']
+            # 添加重新计算备注
+            current_time = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+            if latest_record.notes:
+                latest_record.notes += f"\n重新计算于: {current_time}"
+            else:
+                latest_record.notes = f"重新计算于: {current_time}"
+            self.db.commit()
+
+    def perform_calculations(self, trading_date: date) -> Dict[str, int]:
+        """执行概念计算的统一方法 - 确保导入和重新计算使用相同逻辑
+        
+        Args:
+            trading_date: 交易日期
+            
+        Returns:
+            包含计算结果的字典: {
+                'concept_summary_count': int,
+                'ranking_count': int, 
+                'new_high_count': int
+            }
+        """
+        try:
+            logger.info(f"开始执行 {trading_date} 的概念计算")
+            
+            # 1. 计算概念汇总数据
+            logger.info(f"计算概念汇总数据 for {trading_date}")
+            concept_summary_count = self.calculate_concept_summary(trading_date)
+            logger.info(f"概念汇总数据计算完成: {concept_summary_count}")
+            
+            # 2. 计算股票在概念中的排名
+            logger.info(f"计算股票排名数据 for {trading_date}")
+            ranking_count = self.calculate_stock_concept_ranking(trading_date)
+            logger.info(f"股票排名数据计算完成: {ranking_count}")
+            
+            # 3. 检测概念创新高
+            logger.info(f"检测概念创新高 for {trading_date}")
+            high_record_count = self.detect_concept_new_highs(trading_date)
+            logger.info(f"概念创新高检测完成: {high_record_count}")
+            
+            logger.info(f"{trading_date} 概念计算总结 - 汇总:{concept_summary_count}, 排名:{ranking_count}, 创新高:{high_record_count}")
+            
+            return {
+                'concept_summary_count': concept_summary_count,
+                'ranking_count': ranking_count,
+                'new_high_count': high_record_count
+            }
+        except Exception as e:
+            logger.error(f"执行概念计算时出错 {trading_date}: {e}")
+            raise e
 
     def get_import_records(self, page: int = 1, size: int = 20, 
                           trading_date: Optional[date] = None) -> Dict:
