@@ -19,6 +19,7 @@ import UserManagement from './components/UserManagement';
 import AdminManagement from './components/AdminManagement';
 import PackageManagement from './components/PackageManagement';
 import StockAnalysisPage from './components/StockAnalysisPage';
+import StockListPage from './components/StockListPage';
 import InnovationAnalysisPage from './components/InnovationAnalysisPage';
 import ConvertibleBondPage from './components/ConvertibleBondPage';
 import ConceptAnalysisPage from './components/ConceptAnalysisPage';
@@ -1137,16 +1138,14 @@ const AdminApp: React.FC = () => {
             )}
 
             {/* 股票查询页面 */}
-            {activeTab === 'stocks' && <ConceptAnalysisPage />}
+            {activeTab === 'stocks' && <StockAnalysisPage />}
 
             {/* 概念分析页面 */}
             {activeTab === 'concepts' && <ConceptAnalysisPage />}
 
 
             {/* 新的业务分析页面 */}
-            {activeTab === 'stock-analysis' && (
-              <StockAnalysisPage user={null} tradeDate={new Date().toISOString().split('T')[0]} />
-            )}
+            {activeTab === 'stock-analysis' && <StockListPage />}
 
             {activeTab === 'innovation-analysis' && (
               <InnovationAnalysisPage />
