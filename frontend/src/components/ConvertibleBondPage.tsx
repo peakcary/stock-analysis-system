@@ -89,7 +89,7 @@ const ConvertibleBondPage: React.FC = () => {
       }
       
       const data = await response.json();
-      let concepts = data.concepts || [];
+      const concepts = data.concepts || [];
       
       // 排序
       switch (sortBy) {
