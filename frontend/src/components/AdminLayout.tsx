@@ -32,11 +32,6 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, activeTab, onTabCha
       label: '数据导入',
     },
     {
-      key: 'stocks',
-      icon: <SearchOutlined />,
-      label: '股票查询',
-    },
-    {
       key: 'concepts',
       icon: <ApiOutlined />,
       label: '概念分析',

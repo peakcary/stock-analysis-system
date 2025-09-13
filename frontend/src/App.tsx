@@ -18,7 +18,6 @@ import Dashboard from './components/Dashboard';
 import UserManagement from './components/UserManagement';
 import AdminManagement from './components/AdminManagement';
 import PackageManagement from './components/PackageManagement';
-import StockAnalysisPage from './components/StockAnalysisPage';
 import StockListPage from './components/StockListPage';
 import NewStockAnalysisPage from './components/NewStockAnalysisPage';
 import InnovationAnalysisPage from './components/InnovationAnalysisPage';
@@ -1077,11 +1076,6 @@ const AdminApp: React.FC = () => {
       label: '数据导入',
     },
     {
-      key: 'stocks',
-      icon: <SearchOutlined />,
-      label: '股票查询',
-    },
-    {
       key: 'concepts',
       icon: <ApiOutlined />,
       label: '概念分析',
@@ -1138,8 +1132,6 @@ const AdminApp: React.FC = () => {
               />
             )}
 
-            {/* 股票查询页面 */}
-            {activeTab === 'stocks' && <StockAnalysisPage />}
 
             {/* 概念分析页面 */}
             {activeTab === 'concepts' && <ConceptAnalysisPage />}
