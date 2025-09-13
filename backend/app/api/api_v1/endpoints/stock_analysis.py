@@ -12,7 +12,7 @@ from app.core.admin_auth import get_current_admin_user
 from app.models.admin_user import AdminUser
 from datetime import date, datetime, timedelta
 import logging
-from sqlalchemy import desc, func, and_
+from sqlalchemy import desc, func, and_, or_
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +22,7 @@ router = APIRouter()
 async def get_concepts_daily_summary(
     trading_date: Optional[str] = Query(None, description="交易日期 YYYY-MM-DD"),
     page: int = Query(1, ge=1, description="页码"),
-    size: int = Query(50, ge=1, le=200, description="每页数量"),
+    size: int = Query(50, ge=1, le=2000, description="每页数量"),
     sort_by: str = Query("total_volume", description="排序字段: total_volume|stock_count|avg_volume"),
     sort_order: str = Query("desc", description="排序方式: desc|asc"),
     search: Optional[str] = Query(None, description="概念名称搜索"),
@@ -247,21 +247,36 @@ async def get_stock_concepts(
             ).first()
             parsed_date = latest_date[0] if latest_date else date.today()
         
-        # 标准化股票代码（去除前缀）
-        normalized_stock_code = stock_code
-        if stock_code.startswith(('SH', 'SZ', 'BJ')):
-            normalized_stock_code = stock_code[2:]
+        # 智能股票代码匹配
+        # 尝试多种格式：原始输入、去前缀、加前缀
+        possible_codes = [stock_code]
         
-        # 获取股票基本信息
-        stock = db.query(Stock).filter(Stock.stock_code == normalized_stock_code).first()
+        if stock_code.startswith(('SH', 'SZ', 'BJ')):
+            # 如果输入有前缀，添加去前缀的版本
+            possible_codes.append(stock_code[2:])
+        else:
+            # 如果输入没有前缀，添加各种前缀版本
+            possible_codes.extend([f'SH{stock_code}', f'SZ{stock_code}', f'BJ{stock_code}'])
+        
+        # 在stocks表中查找（通常是纯数字格式）
+        stock = None
+        for code in possible_codes:
+            stock = db.query(Stock).filter(Stock.stock_code == code).first()
+            if stock:
+                break
+        
         if not stock:
             raise HTTPException(status_code=404, detail="股票不存在")
         
-        # 获取股票的交易量数据
-        trading_data = db.query(DailyTrading).filter(
-            DailyTrading.stock_code == normalized_stock_code,
-            DailyTrading.trading_date == parsed_date
-        ).first()
+        # 在daily_trading表中查找（通常是带前缀格式）
+        trading_data = None
+        for code in possible_codes:
+            trading_data = db.query(DailyTrading).filter(
+                DailyTrading.stock_code == code,
+                DailyTrading.trading_date == parsed_date
+            ).first()
+            if trading_data:
+                break
         
         if not trading_data:
             raise HTTPException(status_code=404, detail="该日期没有交易数据")
@@ -269,10 +284,17 @@ async def get_stock_concepts(
         # 获取股票在各概念中的排名信息，按交易量从高到低排序
         concepts = []
         try:
-            concept_rankings = db.query(StockConceptRanking).filter(
-                StockConceptRanking.stock_code == normalized_stock_code,
-                StockConceptRanking.trading_date == parsed_date
-            ).order_by(StockConceptRanking.concept_total_volume.desc()).all()
+            # 尝试多种股票代码格式查找概念排名
+            concept_rankings = []
+            for code in possible_codes:
+                rankings = db.query(StockConceptRanking).filter(
+                    StockConceptRanking.stock_code == code,
+                    StockConceptRanking.trading_date == parsed_date
+                ).order_by(StockConceptRanking.concept_total_volume.desc()).all()
+                
+                if rankings:
+                    concept_rankings = rankings
+                    break
             
             # 构造返回数据
             for ranking in concept_rankings:
@@ -299,6 +321,9 @@ async def get_stock_concepts(
         
     except ValueError:
         raise HTTPException(status_code=400, detail="日期格式错误，请使用YYYY-MM-DD格式")
+    except HTTPException:
+        # 重新抛出HTTP异常（如404）
+        raise
     except Exception as e:
         logger.error(f"获取股票概念信息时出错: {e}")
         raise HTTPException(status_code=500, detail=f"查询失败: {str(e)}")
@@ -326,14 +351,20 @@ async def get_stocks_daily_summary(
             ).first()
             parsed_date = latest_date[0] if latest_date else date.today()
         
-        # 构建查询
+        # 构建查询，处理股票代码格式不一致问题
+        # 使用LEFT JOIN并处理代码格式转换
         query = db.query(
             DailyTrading.stock_code,
             Stock.stock_name,
             DailyTrading.trading_volume,
             DailyTrading.trading_date
-        ).join(
-            Stock, DailyTrading.stock_code == Stock.stock_code
+        ).outerjoin(
+            Stock, 
+            # 尝试多种匹配方式：直接匹配或去前缀匹配
+            or_(
+                DailyTrading.stock_code == Stock.stock_code,
+                func.substring(DailyTrading.stock_code, 3) == Stock.stock_code
+            )
         ).filter(
             DailyTrading.trading_date == parsed_date
         )
@@ -435,12 +466,17 @@ async def get_concept_stocks(
             ConceptDailySummary.trading_date == parsed_date
         ).first()
         
-        # 获取概念股票排名
+        # 获取概念股票排名，使用智能股票代码匹配
         query = db.query(
             StockConceptRanking,
             Stock.stock_name
-        ).join(
-            Stock, StockConceptRanking.stock_code == Stock.stock_code
+        ).outerjoin(
+            Stock, 
+            # 智能匹配：直接匹配或去前缀匹配
+            or_(
+                StockConceptRanking.stock_code == Stock.stock_code,
+                func.substring(StockConceptRanking.stock_code, 3) == Stock.stock_code
+            )
         ).filter(
             StockConceptRanking.concept_name == concept_name,
             StockConceptRanking.trading_date == parsed_date
@@ -844,7 +880,8 @@ async def get_recent_trading_dates(
         ).limit(limit).all()
         
         return {
-            "trading_dates": [date[0].strftime('%Y-%m-%d') for date in dates]
+            "trading_dates": [date[0].strftime('%Y-%m-%d') for date in dates],
+            "latest_date": dates[0][0].strftime('%Y-%m-%d') if dates else None
         }
         
     except Exception as e:

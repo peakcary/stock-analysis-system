@@ -492,8 +492,6 @@ class TxtImportService:
     
     def recalculate_daily_summary(self, trading_date: date) -> Dict:
         """重新计算指定日期的概念汇总和排名数据"""
-        # 开始事务
-        transaction = self.db.begin()
         try:
             # 检查是否有基础交易数据
             trading_count = self.db.query(DailyTrading).filter(
@@ -501,7 +499,6 @@ class TxtImportService:
             ).count()
             
             if trading_count == 0:
-                transaction.rollback()
                 return {"success": False, "message": f"日期{trading_date}没有基础交易数据"}
             
             # 清理汇总数据，保留基础交易数据
@@ -513,8 +510,8 @@ class TxtImportService:
             # 更新导入记录
             self.update_import_record_after_recalculation(trading_date, calculation_results, trading_count)
             
-            # 提交事务
-            transaction.commit()
+            # Session会自动提交
+            self.db.commit()
             
             return {
                 "success": True,
@@ -530,7 +527,7 @@ class TxtImportService:
             
         except Exception as e:
             logger.error(f"重新计算失败: {e}")
-            transaction.rollback()
+            self.db.rollback()
             return {"success": False, "message": f"重新计算失败: {str(e)}"}
 
     def update_import_record_after_recalculation(self, trading_date: date, 

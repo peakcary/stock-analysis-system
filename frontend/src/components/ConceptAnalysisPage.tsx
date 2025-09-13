@@ -60,7 +60,7 @@ interface ConceptRanking {
 const ConceptAnalysisPage: React.FC = () => {
   const [conceptSummaries, setConceptSummaries] = useState<ConceptSummary[]>([]);
   const [loading, setLoading] = useState(false);
-  const [tradingDate, setTradingDate] = useState<string>(dayjs().format('YYYY-MM-DD'));
+  const [tradingDate, setTradingDate] = useState<string>('2025-09-02'); // 使用最新有概念数据的日期
   const [searchText, setSearchText] = useState('');
   
   // 弹窗相关状态

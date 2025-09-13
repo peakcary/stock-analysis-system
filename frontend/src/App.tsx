@@ -20,6 +20,7 @@ import AdminManagement from './components/AdminManagement';
 import PackageManagement from './components/PackageManagement';
 import StockAnalysisPage from './components/StockAnalysisPage';
 import StockListPage from './components/StockListPage';
+import NewStockAnalysisPage from './components/NewStockAnalysisPage';
 import InnovationAnalysisPage from './components/InnovationAnalysisPage';
 import ConvertibleBondPage from './components/ConvertibleBondPage';
 import ConceptAnalysisPage from './components/ConceptAnalysisPage';
@@ -1145,7 +1146,7 @@ const AdminApp: React.FC = () => {
 
 
             {/* 新的业务分析页面 */}
-            {activeTab === 'stock-analysis' && <StockListPage />}
+            {activeTab === 'stock-analysis' && <NewStockAnalysisPage />}
 
             {activeTab === 'innovation-analysis' && (
               <InnovationAnalysisPage />
