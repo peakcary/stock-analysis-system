@@ -13,10 +13,10 @@
 
 ```bash
 # 1️⃣ 环境部署（首次使用）
-./deploy.sh
+./scripts/deployment/deploy.sh
 
 # 2️⃣ 启动服务
-./start.sh
+./scripts/deployment/start.sh
 
 # 3️⃣ 访问系统
 # 管理端：http://localhost:8006 (admin/admin123)
@@ -39,7 +39,7 @@ brew services start mysql
 # 克隆项目并部署
 git clone <your-repo>
 cd stock-analysis-system
-./deploy.sh
+./scripts/deployment/deploy.sh
 ```
 
 ### ⚡ 快速故障排除
@@ -47,7 +47,7 @@ cd stock-analysis-system
 **常见问题解决**：
 - **部署卡住**: Python版本过新/过老，建议使用Python 3.10-3.12
 - **MySQL连接失败**: 运行 `mysqladmin ping` 检查MySQL服务状态
-- **端口占用**: 运行 `./stop.sh` 清理进程后重新启动
+- **端口占用**: 运行 `./scripts/deployment/stop.sh` 清理进程后重新启动
 
 ## 🛠️ 核心功能
 
@@ -98,10 +98,10 @@ cd stock-analysis-system
 
 | 脚本 | 功能 | 使用方式 |
 |------|------|----------|
-| `deploy.sh` | 环境部署 | `./deploy.sh` (完整部署)<br>`./deploy.sh --migrate` (仅迁移) |
-| `start.sh` | 启动服务 | `./start.sh` |
-| `stop.sh` | 停止服务 | `./stop.sh` |
-| `status.sh` | 状态检查 | `./status.sh` |
+| `deploy.sh` | 环境部署 | `./scripts/deployment/deploy.sh` (完整部署)<br>`./scripts/deployment/deploy.sh --migrate` (仅迁移) |
+| `start.sh` | 启动服务 | `./scripts/deployment/start.sh` |
+| `stop.sh` | 停止服务 | `./scripts/deployment/stop.sh` |
+| `status.sh` | 状态检查 | `./scripts/deployment/status.sh` |
 
 ### 🌐 服务地址
 
@@ -119,6 +119,9 @@ cd stock-analysis-system
 ## 📚 详细文档
 
 ### 🔗 快速导航
+- [📚 文档中心](./docs/README.md) - 完整的文档索引和导航
+- [🏗️ 系统设计文档](./docs/architecture/SYSTEM_DESIGN.md) - 完整的系统架构设计
+- [🛠️ 脚本中心](./scripts/README.md) - 所有脚本的使用指南
 - [📖 脚本使用指南](./docs/SCRIPTS_GUIDE.md) - 部署脚本详细说明
 - [📥 TXT导入指南](./docs/TXT_IMPORT_GUIDE.md) - 数据导入功能使用
 - [💳 支付系统配置](./docs/PAYMENT_CONFIG.md) - 微信支付配置指南
@@ -137,19 +140,19 @@ git clone <your-repo>
 cd stock-analysis-system
 
 # 环境检查和部署
-./deploy.sh
+./scripts/deployment/deploy.sh
 
 # 启动服务
-./start.sh
+./scripts/deployment/start.sh
 ```
 
 ### 🔄 现有环境升级
 ```bash
 # 数据库迁移（保留现有数据）
-./deploy.sh --migrate
+./scripts/deployment/deploy.sh --migrate
 
 # 重启服务
-./start.sh
+./scripts/deployment/start.sh
 ```
 
 ## 🆕 版本更新
@@ -179,7 +182,7 @@ cd stock-analysis-system
 
 ### v2.3.0 (2025-09-07)
 - ✅ 集成migrate_database.sh到deploy.sh，简化部署流程
-- ✅ 支持迁移模式 `./deploy.sh --migrate`
+- ✅ 支持迁移模式 `./scripts/deployment/deploy.sh --migrate`
 - ✅ 优化脚本使用体验
 
 ### v2.2.0 (2025-09-06)
@@ -228,13 +231,13 @@ mysql_secure_installation
 
 **端口被占用**：
 ```bash
-./stop.sh  # 停止所有服务
-./start.sh # 重新启动
+./scripts/deployment/stop.sh  # 停止所有服务
+./scripts/deployment/start.sh # 重新启动
 ```
 
 **服务状态检查**：
 ```bash
-./status.sh  # 详细的系统状态检查
+./scripts/deployment/status.sh  # 详细的系统状态检查
 ```
 
 **前端编译错误**：
@@ -258,7 +261,7 @@ echo "Git: $(git --version 2>/dev/null || echo '❌ 未安装')"
 ## 📞 支持与反馈
 
 遇到问题时：
-1. 先运行 `./status.sh` 检查系统状态
+1. 先运行 `./scripts/deployment/status.sh` 检查系统状态
 2. 查看相关日志文件 `logs/` 目录
 3. 提供详细的错误信息和系统状态
 
@@ -301,4 +304,4 @@ echo "Git: $(git --version 2>/dev/null || echo '❌ 未安装')"
 
 ---
 
-💡 **提示**: 首次使用请按顺序运行 `./deploy.sh` → `./start.sh`，日常使用只需 `./start.sh` 启动即可。
+💡 **提示**: 首次使用请按顺序运行 `./scripts/deployment/deploy.sh` → `./scripts/deployment/start.sh`，日常使用只需 `./scripts/deployment/start.sh` 启动即可。
