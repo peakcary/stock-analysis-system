@@ -14,6 +14,8 @@
 - [💳 支付系统配置](./PAYMENT_CONFIG.md) - 支付系统配置和使用说明
 
 ### 💻 开发文档
+- [📊 个股分析功能说明](./development/STOCK_ANALYSIS_FEATURE.md) - 个股分析页面详细功能说明
+- [📋 v2.6.3功能变更日志](./development/CHANGELOG_v2.6.3.md) - 详细的功能变更记录和技术实现
 - [🔧 构建优化文档](./development/BUILD_OPTIMIZATION.md) - 项目构建和性能优化
 - [✨ v2.4.1增强功能](./development/ENHANCED_FEATURES_v2.4.1.md) - 功能增强详细说明
 - [📊 股票代码升级](./development/STOCK_CODE_UPGRADE.md) - 股票代码标准化升级
