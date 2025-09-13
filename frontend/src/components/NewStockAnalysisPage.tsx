@@ -1,70 +1,61 @@
 import React, { useState, useEffect } from 'react';
 import {
   Card, Row, Col, Table, Button, DatePicker, message, Spin, 
-  Typography, Tag, Space, Modal, Empty, Input, Tooltip
+  Typography, Tag, Space, Empty, Input, Modal
 } from 'antd';
 import { 
   SearchOutlined, EyeOutlined, CalendarOutlined, 
-  BarChartOutlined, ReloadOutlined, StockOutlined,
-  TrophyOutlined, FireOutlined, RiseOutlined
+  StockOutlined, ReloadOutlined, InfoCircleOutlined
 } from '@ant-design/icons';
 import { adminApiClient } from '../../../shared/admin-auth';
 import dayjs from 'dayjs';
 
 const { Title, Text } = Typography;
 
-interface ConceptSummary {
-  concept_name: string;
-  total_volume: number;
-  stock_count: number;
-  avg_volume: number;
-  max_volume: number;
-  trading_date: string;
-  volume_percentage: number;
-}
-
-interface StockInfo {
+interface StockSummary {
   stock_code: string;
   stock_name: string;
   trading_volume: number;
-  concept_rank: number;
-  volume_percentage: number;
+  concept_count: number;
+  trading_date: string;
 }
 
-interface ConceptStocksResponse {
+interface ConceptInfo {
   concept_name: string;
+  trading_volume: number;
+  concept_rank: number;
+  concept_total_volume: number;
+  volume_percentage: number;
   trading_date: string;
-  total_volume: number;
-  stock_count: number;
-  total_stocks: number;
-  stocks: StockInfo[];
-  pagination: {
-    offset: number;
-    limit: number;
-    total: number;
-    has_more: boolean;
-  };
+}
+
+interface StockConceptsResponse {
+  stock_code: string;
+  stock_name: string;
+  trading_date: string;
+  total_trading_volume: number;
+  concepts: ConceptInfo[];
 }
 
 const NewStockAnalysisPage: React.FC = () => {
-  const [conceptSummaries, setConceptSummaries] = useState<ConceptSummary[]>([]);
+  const [stockSummaries, setStockSummaries] = useState<StockSummary[]>([]);
   const [loading, setLoading] = useState(false);
-  const [tradingDate, setTradingDate] = useState<string>('2025-09-02'); // 使用最新有数据的日期
+  const [tradingDate, setTradingDate] = useState<string>(dayjs().format('YYYY-MM-DD'));
   const [searchText, setSearchText] = useState('');
   
-  // 股票列表弹窗相关状态
-  const [stockModalVisible, setStockModalVisible] = useState(false);
-  const [selectedConceptName, setSelectedConceptName] = useState<string>('');
-  const [stockList, setStockList] = useState<StockInfo[]>([]);
-  const [stockLoading, setStockLoading] = useState(false);
-  const [conceptStockInfo, setConceptStockInfo] = useState<ConceptStocksResponse | null>(null);
+  // 弹窗相关状态
+  const [conceptModalVisible, setConceptModalVisible] = useState(false);
+  const [selectedStockCode, setSelectedStockCode] = useState<string>('');
+  const [selectedStockName, setSelectedStockName] = useState<string>('');
+  const [conceptList, setConceptList] = useState<ConceptInfo[]>([]);
+  const [conceptLoading, setConceptLoading] = useState(false);
 
-  // 获取概念汇总列表
-  const fetchConceptSummaries = async () => {
+  // 获取股票每日汇总
+  const fetchStockSummaries = async () => {
     setLoading(true);
     try {
       const response = await adminApiClient.get(
-        `/api/v1/stock-analysis/concepts/daily-summary?trading_date=${tradingDate}&sort_by=total_volume&sort_order=desc&size=500`
+        `/api/v1/stock-analysis/stocks/daily-summary?trading_date=${tradingDate}&size=10000`
       );
       
       if (response.data?.summaries) {
@@ -72,83 +63,93 @@ const NewStockAnalysisPage: React.FC = () => {
         
         // 搜索过滤
         if (searchText.trim()) {
-          summaries = summaries.filter((item: ConceptSummary) =>
-            item.concept_name.toLowerCase().includes(searchText.toLowerCase())
+          summaries = summaries.filter((item: StockSummary) =>
+            item.stock_code.toLowerCase().includes(searchText.toLowerCase()) ||
+            item.stock_name.toLowerCase().includes(searchText.toLowerCase())
           );
         }
         
-        // 按总交易量排序
-        summaries = summaries.sort((a: ConceptSummary, b: ConceptSummary) => 
-          b.total_volume - a.total_volume
+        // 按交易量排序
+        summaries = summaries.sort((a: StockSummary, b: StockSummary) => 
+          b.trading_volume - a.trading_volume
         );
         
-        setConceptSummaries(summaries);
+        setStockSummaries(summaries);
       } else {
-        setConceptSummaries([]);
+        setStockSummaries([]);
       }
     } catch (error) {
-      console.error('获取概念汇总失败:', error);
-      message.error('获取概念汇总失败');
-      setConceptSummaries([]);
+      console.error('获取股票汇总失败:', error);
+      message.error('获取股票汇总失败');
+      setStockSummaries([]);
     } finally {
       setLoading(false);
     }
   };
 
-  // 获取概念下的股票列表
-  const fetchConceptStocks = async (conceptName: string) => {
-    setStockLoading(true);
+  // 获取指定股票的概念信息
+  const fetchConceptInfo = async (stockCode: string) => {
+    if (!stockCode) return;
+    
+    setConceptLoading(true);
     try {
       const response = await adminApiClient.get(
-        `/api/v1/stock-analysis/concept/${encodeURIComponent(conceptName)}/stocks?trading_date=${tradingDate}&limit=100`
+        `/api/v1/stock-analysis/stock/${encodeURIComponent(stockCode)}/concepts?trading_date=${tradingDate}`
       );
       
-      if (response.data) {
-        setConceptStockInfo(response.data);
-        setStockList(response.data.stocks || []);
+      if (response.data?.concepts) {
+        // 按概念总交易量排序（从高到低）
+        const sortedConcepts = response.data.concepts.sort((a: ConceptInfo, b: ConceptInfo) => 
+          b.concept_total_volume - a.concept_total_volume
+        );
+        setConceptList(sortedConcepts);
       } else {
-        setStockList([]);
-        setConceptStockInfo(null);
+        setConceptList([]);
+        message.info('该股票暂无概念数据');
       }
     } catch (error) {
-      console.error('获取概念股票失败:', error);
-      message.error('获取概念股票失败');
-      setStockList([]);
-      setConceptStockInfo(null);
+      console.error('获取概念信息失败:', error);
+      message.error('获取概念信息失败');
+      setConceptList([]);
     } finally {
-      setStockLoading(false);
+      setConceptLoading(false);
     }
   };
 
-  // 处理查看股票操作
-  const handleViewStocks = async (conceptName: string) => {
-    setSelectedConceptName(conceptName);
-    setStockModalVisible(true);
-    await fetchConceptStocks(conceptName);
+  // 处理查看概念信息
+  const handleViewConcepts = async (stockCode: string, stockName: string) => {
+    setSelectedStockCode(stockCode);
+    setSelectedStockName(stockName);
+    setConceptModalVisible(true);
+    await fetchConceptInfo(stockCode);
   };
 
-  // 处理日期变化
-  const handleDateChange = (date: any, dateString: string) => {
-    setTradingDate(dateString);
+  // 关闭弹窗
+  const handleCloseModal = () => {
+    setConceptModalVisible(false);
+    setSelectedStockCode('');
+    setSelectedStockName('');
+    setConceptList([]);
   };
 
-  // 处理搜索
-  const handleSearch = (value: string) => {
-    setSearchText(value);
+  // 数字格式化函数
+  const formatNumber = (num: number): string => {
+    if (num >= 100000000) {
+      return `${(num / 100000000).toFixed(2)}亿`;
+    } else if (num >= 10000) {
+      return `${(num / 10000).toFixed(1)}万`;
+    } else {
+      return num.toLocaleString();
+    }
   };
 
   // 页面加载时获取数据
   useEffect(() => {
-    fetchConceptSummaries();
+    fetchStockSummaries();
   }, [tradingDate]);
 
-  // 当搜索条件变化时重新过滤
-  useEffect(() => {
-    fetchConceptSummaries();
-  }, [searchText]);
-
-  // 概念汇总表格列定义
-  const conceptColumns = [
+  // 股票汇总表格列定义
+  const summaryColumns = [
     {
       title: '排名',
       key: 'index',
@@ -162,270 +163,271 @@ const NewStockAnalysisPage: React.FC = () => {
       ),
     },
     {
-      title: '概念名称',
-      dataIndex: 'concept_name',
-      key: 'concept_name',
-      width: 200,
-      render: (name: string) => (
-        <div style={{ fontWeight: 'bold', color: '#1890ff' }}>
-          <StockOutlined style={{ marginRight: 8 }} />
-          {name}
-        </div>
-      ),
-    },
-    {
-      title: '总交易量',
-      dataIndex: 'total_volume',
-      key: 'total_volume',
-      width: 150,
-      render: (volume: number) => (
-        <Text strong style={{ color: '#f50' }}>
-          {volume?.toLocaleString() || 'N/A'}
-        </Text>
-      ),
-      sorter: (a: ConceptSummary, b: ConceptSummary) => a.total_volume - b.total_volume,
-    },
-    {
-      title: '股票数量',
-      dataIndex: 'stock_count',
-      key: 'stock_count',
-      width: 100,
-      render: (count: number) => (
-        <Tag color="green">{count || 0} 只</Tag>
-      ),
-      sorter: (a: ConceptSummary, b: ConceptSummary) => a.stock_count - b.stock_count,
-    },
-    {
-      title: '平均交易量',
-      dataIndex: 'avg_volume',
-      key: 'avg_volume',
-      width: 120,
-      render: (avg: number) => (
-        <Text>{avg?.toLocaleString() || 'N/A'}</Text>
-      ),
-    },
-    {
-      title: '市场占比',
-      dataIndex: 'volume_percentage',
-      key: 'volume_percentage',
-      width: 100,
-      render: (percentage: number) => (
-        <Text style={{ color: '#1890ff' }}>
-          {percentage ? `${percentage.toFixed(2)}%` : 'N/A'}
-        </Text>
-      ),
-    },
-    {
-      title: '操作',
-      key: 'action',
-      width: 120,
-      render: (_: any, record: ConceptSummary) => (
-        <Space size="small">
-          <Button 
-            type="primary" 
-            size="small"
-            icon={<EyeOutlined />}
-            onClick={() => handleViewStocks(record.concept_name)}
-          >
-            查看股票
-          </Button>
-        </Space>
-      ),
-    },
-  ];
-
-  // 股票列表表格列定义
-  const stockColumns = [
-    {
-      title: '排名',
-      dataIndex: 'concept_rank',
-      key: 'concept_rank',
-      width: 80,
-      render: (rank: number) => (
-        <div style={{ textAlign: 'center' }}>
-          <Tag color={rank <= 3 ? 'red' : rank <= 10 ? 'orange' : 'blue'}>
-            #{rank}
-          </Tag>
-        </div>
-      ),
-    },
-    {
       title: '股票代码',
       dataIndex: 'stock_code',
       key: 'stock_code',
-      width: 120,
+      width: 100,
       render: (code: string) => (
-        <Text code style={{ fontWeight: 'bold' }}>{code}</Text>
+        <Text strong style={{ color: '#1890ff' }}>{code}</Text>
       ),
     },
     {
       title: '股票名称',
       dataIndex: 'stock_name',
       key: 'stock_name',
-      width: 150,
       render: (name: string) => (
-        <Text strong style={{ color: '#1890ff' }}>{name || '未知'}</Text>
+        <Text strong>{name}</Text>
+      ),
+    },
+    {
+      title: '交易日期',
+      dataIndex: 'trading_date',
+      key: 'trading_date',
+      width: 120,
+      render: (date: string) => (
+        <Text>{date}</Text>
       ),
     },
     {
       title: '交易量',
       dataIndex: 'trading_volume',
       key: 'trading_volume',
-      width: 150,
+      width: 140,
+      sorter: (a: StockSummary, b: StockSummary) => a.trading_volume - b.trading_volume,
       render: (volume: number) => (
-        <Text strong style={{ color: '#f50' }}>
-          {volume?.toLocaleString() || 'N/A'}
+        <Text strong style={{ color: '#52c41a' }}>
+          {formatNumber(volume)}
         </Text>
       ),
-      sorter: (a: StockInfo, b: StockInfo) => a.trading_volume - b.trading_volume,
     },
     {
-      title: '概念占比',
+      title: '概念数量',
+      dataIndex: 'concept_count',
+      key: 'concept_count',
+      width: 100,
+      render: (count: number) => (
+        <Tag color="blue">{count}个</Tag>
+      ),
+    },
+    {
+      title: '操作',
+      key: 'action',
+      width: 120,
+      render: (_: any, record: StockSummary) => (
+        <Button
+          type="primary"
+          size="small"
+          icon={<EyeOutlined />}
+          onClick={() => handleViewConcepts(record.stock_code, record.stock_name)}
+        >
+          查看概念
+        </Button>
+      ),
+    },
+  ];
+
+  // 概念信息表格列定义
+  const conceptColumns = [
+    {
+      title: '排名',
+      dataIndex: 'concept_rank',
+      key: 'concept_rank',
+      width: 80,
+      render: (rank: number) => (
+        <Tag color={rank <= 3 ? 'red' : rank <= 10 ? 'orange' : 'blue'}>
+          #{rank}
+        </Tag>
+      ),
+    },
+    {
+      title: '概念名称',
+      dataIndex: 'concept_name',
+      key: 'concept_name',
+      render: (name: string) => (
+        <Text strong style={{ color: '#1890ff' }}>{name}</Text>
+      ),
+    },
+    {
+      title: '交易量',
+      dataIndex: 'trading_volume',
+      key: 'trading_volume',
+      sorter: (a: ConceptInfo, b: ConceptInfo) => a.trading_volume - b.trading_volume,
+      render: (volume: number) => (
+        <Text strong style={{ color: '#52c41a' }}>
+          {formatNumber(volume)}
+        </Text>
+      ),
+    },
+    {
+      title: '概念总量',
+      dataIndex: 'concept_total_volume',
+      key: 'concept_total_volume',
+      render: (volume: number) => (
+        <Text style={{ color: '#8c8c8c' }}>
+          {formatNumber(volume)}
+        </Text>
+      ),
+    },
+    {
+      title: '占比',
       dataIndex: 'volume_percentage',
       key: 'volume_percentage',
       width: 100,
       render: (percentage: number) => (
-        <Text style={{ color: '#52c41a' }}>
-          {percentage ? `${percentage.toFixed(2)}%` : 'N/A'}
-        </Text>
+        <Text>{percentage ? `${percentage.toFixed(2)}%` : '0%'}</Text>
       ),
     },
   ];
 
   return (
-    <div style={{ padding: '24px', background: '#f0f2f5', minHeight: '100vh' }}>
-      <div style={{ maxWidth: '1400px', margin: '0 auto' }}>
-        <Card
-          title={
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <Space>
-                <BarChartOutlined style={{ fontSize: '20px', color: '#1890ff' }} />
-                <Title level={3} style={{ margin: 0 }}>股票分析 - 概念驱动视图</Title>
-                <Tag color="blue">{tradingDate}</Tag>
-              </Space>
-              <Space>
-                <Input.Search
-                  placeholder="搜索概念名称..."
-                  allowClear
-                  style={{ width: 200 }}
-                  onSearch={handleSearch}
-                />
-                <DatePicker
-                  value={dayjs(tradingDate)}
-                  onChange={handleDateChange}
-                  format="YYYY-MM-DD"
-                  allowClear={false}
-                />
-                <Button 
-                  icon={<ReloadOutlined />} 
-                  onClick={() => fetchConceptSummaries()}
-                  loading={loading}
-                >
-                  刷新
-                </Button>
-              </Space>
+    <div style={{ padding: '24px' }}>
+      {/* 页面标题 */}
+      <Card style={{ marginBottom: '24px', borderRadius: '12px' }}>
+        <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+          <Title level={2} style={{ margin: '0 0 8px 0', color: '#1f2937' }}>
+            <StockOutlined style={{ marginRight: '8px', color: '#3b82f6' }} />
+            个股列表分析
+          </Title>
+          <Text type="secondary">
+            展示选择日期的所有股票及其交易量和概念信息
+          </Text>
+        </div>
+
+        {/* 控制面板 */}
+        <Row gutter={16} align="middle" justify="center">
+          <Col xs={24} sm={8} md={6}>
+            <div style={{ marginBottom: '8px' }}>
+              <Text strong>交易日期:</Text>
             </div>
-          }
-          style={{ marginBottom: '24px' }}
-        >
-          <div style={{ marginBottom: '16px' }}>
-            <Text type="secondary">
-              显示 {tradingDate} 交易日的所有概念汇总信息，点击"查看股票"可查看概念下的具体股票排名
-            </Text>
+            <DatePicker
+              value={dayjs(tradingDate)}
+              onChange={(date) => setTradingDate(date ? date.format('YYYY-MM-DD') : dayjs().format('YYYY-MM-DD'))}
+              format="YYYY-MM-DD"
+              placeholder="选择日期"
+              style={{ width: '100%' }}
+              suffixIcon={<CalendarOutlined />}
+            />
+          </Col>
+          <Col xs={24} sm={8} md={6}>
+            <div style={{ marginBottom: '8px' }}>
+              <Text strong>股票搜索:</Text>
+            </div>
+            <Input
+              placeholder="输入股票代码或名称"
+              value={searchText}
+              onChange={(e) => setSearchText(e.target.value)}
+              prefix={<SearchOutlined />}
+              allowClear
+            />
+          </Col>
+          <Col xs={24} sm={4} md={3}>
+            <div style={{ marginBottom: '8px' }}>
+              <Text strong>&nbsp;</Text>
+            </div>
+            <Button 
+              type="primary" 
+              icon={<ReloadOutlined />}
+              onClick={fetchStockSummaries}
+              loading={loading}
+              style={{ width: '100%' }}
+            >
+              刷新数据
+            </Button>
+          </Col>
+        </Row>
+      </Card>
+
+      {/* 股票列表 */}
+      <Card 
+        title={
+          <Space>
+            <StockOutlined style={{ color: '#1890ff' }} />
+            <span>股票每日汇总</span>
+            <Tag color="blue">{stockSummaries.length}只股票</Tag>
+            <Tag color="green">{tradingDate}</Tag>
+          </Space>
+        }
+        style={{ borderRadius: '12px' }}
+      >
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: '60px' }}>
+            <Spin size="large" tip="正在加载股票数据..." />
           </div>
-          
+        ) : stockSummaries.length > 0 ? (
           <Table
-            columns={conceptColumns}
-            dataSource={conceptSummaries}
-            rowKey="concept_name"
-            loading={loading}
+            columns={summaryColumns}
+            dataSource={stockSummaries}
+            rowKey="stock_code"
             pagination={{
-              total: conceptSummaries.length,
-              pageSize: 20,
-              showTotal: (total) => `共 ${total} 个概念`,
+              pageSize: 15,
               showSizeChanger: true,
               showQuickJumper: true,
-            }}
-            scroll={{ x: 1000 }}
-            locale={{
-              emptyText: <Empty description="暂无概念数据" />
-            }}
-          />
-        </Card>
-
-        {/* 股票列表弹窗 */}
-        <Modal
-          title={
-            <Space>
-              <StockOutlined style={{ color: '#1890ff' }} />
-              <span>概念股票列表 - {selectedConceptName}</span>
-              {conceptStockInfo && (
-                <Tag color="green">{conceptStockInfo.total_stocks} 只股票</Tag>
-              )}
-            </Space>
-          }
-          open={stockModalVisible}
-          onCancel={() => setStockModalVisible(false)}
-          width={1000}
-          footer={null}
-        >
-          {conceptStockInfo && (
-            <Card size="small" style={{ marginBottom: '16px' }}>
-              <Row gutter={24}>
-                <Col span={6}>
-                  <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: '14px', color: '#666' }}>总交易量</div>
-                    <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#f50' }}>
-                      {conceptStockInfo.total_volume?.toLocaleString()}
-                    </div>
-                  </div>
-                </Col>
-                <Col span={6}>
-                  <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: '14px', color: '#666' }}>股票数量</div>
-                    <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#1890ff' }}>
-                      {conceptStockInfo.stock_count} 只
-                    </div>
-                  </div>
-                </Col>
-                <Col span={6}>
-                  <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: '14px', color: '#666' }}>平均交易量</div>
-                    <div style={{ fontSize: '16px', fontWeight: 'bold' }}>
-                      {((conceptStockInfo.total_volume || 0) / (conceptStockInfo.stock_count || 1)).toLocaleString()}
-                    </div>
-                  </div>
-                </Col>
-                <Col span={6}>
-                  <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: '14px', color: '#666' }}>交易日期</div>
-                    <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#52c41a' }}>
-                      {conceptStockInfo.trading_date}
-                    </div>
-                  </div>
-                </Col>
-              </Row>
-            </Card>
-          )}
-          
-          <Table
-            columns={stockColumns}
-            dataSource={stockList}
-            rowKey="stock_code"
-            loading={stockLoading}
-            pagination={{
-              total: stockList.length,
-              pageSize: 20,
               showTotal: (total) => `共 ${total} 只股票`,
-              showSizeChanger: true,
             }}
             scroll={{ x: 800 }}
-            locale={{
-              emptyText: <Empty description="暂无股票数据" />
-            }}
+            size="middle"
           />
-        </Modal>
-      </div>
+        ) : (
+          <Empty
+            description={
+              <div>
+                <Text type="secondary">
+                  {tradingDate} 暂无股票汇总数据
+                </Text>
+                <br />
+                <Text type="secondary" style={{ fontSize: '12px' }}>
+                  请确保已导入TXT文件数据，或尝试选择其他日期
+                </Text>
+              </div>
+            }
+            image={Empty.PRESENTED_IMAGE_SIMPLE}
+          />
+        )}
+      </Card>
+
+      {/* 概念信息弹窗 */}
+      <Modal
+        title={
+          <Space>
+            <EyeOutlined style={{ color: '#1890ff' }} />
+            <span>{selectedStockName} ({selectedStockCode}) - 概念信息</span>
+            <Tag color="blue">{conceptList.length}个概念</Tag>
+          </Space>
+        }
+        open={conceptModalVisible}
+        onCancel={handleCloseModal}
+        footer={[
+          <Button key="close" onClick={handleCloseModal}>
+            关闭
+          </Button>
+        ]}
+        width={900}
+        style={{ top: 20 }}
+      >
+        {conceptLoading ? (
+          <div style={{ textAlign: 'center', padding: '40px' }}>
+            <Spin size="large" tip="正在加载概念信息..." />
+          </div>
+        ) : conceptList.length > 0 ? (
+          <Table
+            columns={conceptColumns}
+            dataSource={conceptList}
+            rowKey="concept_name"
+            pagination={{
+              pageSize: 10,
+              showSizeChanger: true,
+              showTotal: (total) => `共 ${total} 个概念`,
+            }}
+            scroll={{ x: 700 }}
+            size="small"
+          />
+        ) : (
+          <Empty
+            description={`${selectedStockName} 暂无概念数据`}
+            image={Empty.PRESENTED_IMAGE_SIMPLE}
+          />
+        )}
+      </Modal>
     </div>
   );
 };
