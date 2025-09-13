@@ -43,6 +43,13 @@ const NewStockAnalysisPage: React.FC = () => {
   const [tradingDate, setTradingDate] = useState<string>(dayjs().format('YYYY-MM-DD'));
   const [searchText, setSearchText] = useState('');
   
+  // 分页状态
+  const [pagination, setPagination] = useState({
+    current: 1,
+    pageSize: 50,
+    total: 0
+  });
+  
   // 弹窗相关状态
   const [conceptModalVisible, setConceptModalVisible] = useState(false);
   const [selectedStockCode, setSelectedStockCode] = useState<string>('');
@@ -50,33 +57,30 @@ const NewStockAnalysisPage: React.FC = () => {
   const [conceptList, setConceptList] = useState<ConceptInfo[]>([]);
   const [conceptLoading, setConceptLoading] = useState(false);
 
-  // 获取股票每日汇总
-  const fetchStockSummaries = async () => {
+  // 获取股票每日汇总 - 性能优化版
+  const fetchStockSummaries = async (page: number = 1, pageSize: number = 50) => {
     setLoading(true);
     try {
+      const searchParam = searchText.trim() ? `&search=${encodeURIComponent(searchText.trim())}` : '';
       const response = await adminApiClient.get(
-        `/api/v1/stock-analysis/stocks/daily-summary?trading_date=${tradingDate}&size=10000`
+        `/api/v1/stock-analysis/stocks/daily-summary?trading_date=${tradingDate}&page=${page}&size=${pageSize}&sort_by=trading_volume&sort_order=desc${searchParam}`
       );
       
       if (response.data?.summaries) {
-        let summaries = response.data.summaries;
+        // 后端已经处理了搜索、排序和分页，直接使用返回的数据
+        setStockSummaries(response.data.summaries);
         
-        // 搜索过滤
-        if (searchText.trim()) {
-          summaries = summaries.filter((item: StockSummary) =>
-            item.stock_code.toLowerCase().includes(searchText.toLowerCase()) ||
-            item.stock_name.toLowerCase().includes(searchText.toLowerCase())
-          );
+        // 更新分页信息
+        if (response.data.pagination) {
+          setPagination({
+            current: response.data.pagination.page,
+            pageSize: response.data.pagination.size,
+            total: response.data.pagination.total
+          });
         }
-        
-        // 按交易量排序
-        summaries = summaries.sort((a: StockSummary, b: StockSummary) => 
-          b.trading_volume - a.trading_volume
-        );
-        
-        setStockSummaries(summaries);
       } else {
         setStockSummaries([]);
+        setPagination({ current: 1, pageSize: 50, total: 0 });
       }
     } catch (error) {
       console.error('获取股票汇总失败:', error);
@@ -143,10 +147,36 @@ const NewStockAnalysisPage: React.FC = () => {
     }
   };
 
+  // 处理分页变化
+  const handlePageChange = (page: number, pageSize?: number) => {
+    fetchStockSummaries(page, pageSize || pagination.pageSize);
+  };
+
+  // 处理搜索
+  const handleSearch = () => {
+    // 搜索时重置到第一页
+    setPagination(prev => ({ ...prev, current: 1 }));
+    fetchStockSummaries(1, pagination.pageSize);
+  };
+
   // 页面加载时获取数据
   useEffect(() => {
-    fetchStockSummaries();
+    fetchStockSummaries(1, pagination.pageSize);
   }, [tradingDate]);
+
+  // 搜索防抖处理
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (searchText !== '') {
+        handleSearch();
+      } else if (searchText === '') {
+        // 清空搜索时重新加载
+        fetchStockSummaries(1, pagination.pageSize);
+      }
+    }, 500); // 500ms防抖
+
+    return () => clearTimeout(timer);
+  }, [searchText]);
 
   // 股票汇总表格列定义
   const summaryColumns = [
@@ -327,7 +357,7 @@ const NewStockAnalysisPage: React.FC = () => {
             <Button 
               type="primary" 
               icon={<ReloadOutlined />}
-              onClick={fetchStockSummaries}
+              onClick={() => fetchStockSummaries(pagination.current, pagination.pageSize)}
               loading={loading}
               style={{ width: '100%' }}
             >
@@ -358,11 +388,17 @@ const NewStockAnalysisPage: React.FC = () => {
             columns={summaryColumns}
             dataSource={stockSummaries}
             rowKey="stock_code"
+            loading={loading}
             pagination={{
-              pageSize: 15,
+              current: pagination.current,
+              pageSize: pagination.pageSize,
+              total: pagination.total,
               showSizeChanger: true,
               showQuickJumper: true,
               showTotal: (total) => `共 ${total} 只股票`,
+              pageSizeOptions: ['20', '50', '100'],
+              onChange: handlePageChange,
+              onShowSizeChange: handlePageChange,
             }}
             scroll={{ x: 800 }}
             size="middle"

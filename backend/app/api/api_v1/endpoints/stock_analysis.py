@@ -332,14 +332,14 @@ async def get_stock_concepts(
 async def get_stocks_daily_summary(
     trading_date: Optional[str] = Query(None, description="交易日期 YYYY-MM-DD"),
     page: int = Query(1, ge=1, description="页码"),
-    size: int = Query(20, ge=1, le=10000, description="每页数量"),
+    size: int = Query(50, ge=1, le=1000, description="每页数量"),
     sort_by: str = Query("trading_volume", description="排序字段: trading_volume|stock_code|stock_name"),
     sort_order: str = Query("desc", description="排序方式: desc|asc"),
     search: Optional[str] = Query(None, description="股票代码或名称搜索"),
     db: Session = Depends(get_db),
     current_admin: AdminUser = Depends(get_current_admin_user)
 ):
-    """获取指定日期所有股票的每日汇总"""
+    """获取指定日期所有股票的每日汇总 - 性能优化版"""
     try:
         # 解析交易日期
         if trading_date:
@@ -351,67 +351,87 @@ async def get_stocks_daily_summary(
             ).first()
             parsed_date = latest_date[0] if latest_date else date.today()
         
-        # 构建查询，处理股票代码格式不一致问题
-        # 使用LEFT JOIN并处理代码格式转换
-        query = db.query(
+        # 第一步：优化的主查询 - 使用子查询预计算概念数量
+        concept_count_subquery = db.query(
+            StockConceptRanking.stock_code,
+            func.count().label('concept_count')
+        ).filter(
+            StockConceptRanking.trading_date == parsed_date
+        ).group_by(StockConceptRanking.stock_code).subquery()
+        
+        # 主查询，联接概念数量
+        base_query = db.query(
             DailyTrading.stock_code,
             Stock.stock_name,
             DailyTrading.trading_volume,
-            DailyTrading.trading_date
+            DailyTrading.trading_date,
+            func.coalesce(concept_count_subquery.c.concept_count, 0).label('concept_count')
         ).outerjoin(
             Stock, 
-            # 尝试多种匹配方式：直接匹配或去前缀匹配
+            # 简化股票代码匹配逻辑
             or_(
                 DailyTrading.stock_code == Stock.stock_code,
                 func.substring(DailyTrading.stock_code, 3) == Stock.stock_code
             )
+        ).outerjoin(
+            concept_count_subquery,
+            DailyTrading.stock_code == concept_count_subquery.c.stock_code
         ).filter(
             DailyTrading.trading_date == parsed_date
         )
         
         # 添加搜索条件
         if search:
-            query = query.filter(
-                (Stock.stock_code.like(f"%{search}%")) |
-                (Stock.stock_name.like(f"%{search}%"))
+            search_filter = or_(
+                DailyTrading.stock_code.like(f"%{search}%"),
+                Stock.stock_code.like(f"%{search}%"),
+                Stock.stock_name.like(f"%{search}%")
             )
+            base_query = base_query.filter(search_filter)
         
         # 排序
         if sort_by == "trading_volume":
             order_col = DailyTrading.trading_volume
         elif sort_by == "stock_code":
-            order_col = Stock.stock_code
+            order_col = DailyTrading.stock_code
         elif sort_by == "stock_name":
             order_col = Stock.stock_name
         else:
             order_col = DailyTrading.trading_volume
             
         if sort_order == "desc":
-            query = query.order_by(desc(order_col))
+            base_query = base_query.order_by(desc(order_col))
         else:
-            query = query.order_by(order_col)
+            base_query = base_query.order_by(order_col)
         
-        # 计算总数
-        total_count = query.count()
+        # 计算总数（优化：仅计算当前筛选条件下的总数）
+        count_query = db.query(func.count(DailyTrading.stock_code)).filter(
+            DailyTrading.trading_date == parsed_date
+        )
+        if search:
+            count_query = count_query.outerjoin(
+                Stock,
+                or_(
+                    DailyTrading.stock_code == Stock.stock_code,
+                    func.substring(DailyTrading.stock_code, 3) == Stock.stock_code
+                )
+            ).filter(search_filter)
         
-        # 分页
-        stocks = query.offset((page - 1) * size).limit(size).all()
+        total_count = count_query.scalar()
         
-        # 构造返回数据
+        # 分页查询
+        offset = (page - 1) * size
+        stocks = base_query.offset(offset).limit(size).all()
+        
+        # 构造返回数据（无需额外查询）
         stock_summaries = []
-        for stock_code, stock_name, trading_volume, trade_date in stocks:
-            # 计算该股票的概念数量
-            concept_count = db.query(StockConceptRanking).filter(
-                StockConceptRanking.stock_code == stock_code,
-                StockConceptRanking.trading_date == parsed_date
-            ).count()
-            
+        for stock_code, stock_name, trading_volume, trade_date, concept_count in stocks:
             stock_summaries.append({
                 "stock_code": stock_code,
-                "stock_name": stock_name,
+                "stock_name": stock_name or f"股票{stock_code}",
                 "trading_volume": trading_volume,
                 "trading_date": trade_date.strftime('%Y-%m-%d'),
-                "concept_count": concept_count
+                "concept_count": concept_count or 0
             })
         
         return {
@@ -422,6 +442,10 @@ async def get_stocks_daily_summary(
                 "size": size,
                 "total": total_count,
                 "pages": (total_count + size - 1) // size
+            },
+            "performance_info": {
+                "query_optimization": "使用子查询预计算概念数量，避免N+1查询问题",
+                "returned_count": len(stock_summaries)
             }
         }
         
