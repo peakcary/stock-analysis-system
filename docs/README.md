@@ -12,6 +12,7 @@
 - [🔧 脚本使用指南](./SCRIPTS_GUIDE.md) - 部署和管理脚本详细说明
 - [📥 TXT导入指南](./TXT_IMPORT_GUIDE.md) - 数据导入功能使用指南
 - [💳 支付系统配置](./PAYMENT_CONFIG.md) - 支付系统配置和使用说明
+- [⚡ 数据库优化部署](../scripts/database/README_DEPLOYMENT.md) - **数据库性能优化一键部署** ⭐ v2.6.4
 
 ### 💻 开发文档
 - [📊 个股分析功能说明](./development/STOCK_ANALYSIS_FEATURE.md) - 个股分析页面详细功能说明

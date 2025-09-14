@@ -7,7 +7,7 @@
 -- 1. 统一的每日交易表 (替换 daily_trading 和 daily_stock_data)
 DROP TABLE IF EXISTS daily_trading_unified;
 CREATE TABLE daily_trading_unified (
-    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
+    id BIGINT AUTO_INCREMENT COMMENT '主键ID',
     stock_code VARCHAR(20) NOT NULL COMMENT '股票代码(标准化格式)',
     stock_name VARCHAR(100) NOT NULL COMMENT '股票名称',
     trading_date DATE NOT NULL COMMENT '交易日期',
@@ -22,6 +22,9 @@ CREATE TABLE daily_trading_unified (
     -- 时间戳
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    
+    -- 分区表的主键必须包含分区字段
+    PRIMARY KEY (id, trading_date) COMMENT '主键(包含分区字段)',
     
     -- 优化索引设计
     INDEX idx_date_volume (trading_date, trading_volume DESC) COMMENT '日期+交易量倒序(列表查询)',
@@ -57,7 +60,7 @@ CREATE TABLE daily_trading_unified (
 -- 2. 概念每日指标表 (替换 ConceptDailySummary 和其他重复表)
 DROP TABLE IF EXISTS concept_daily_metrics;
 CREATE TABLE concept_daily_metrics (
-    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
+    id BIGINT AUTO_INCREMENT COMMENT '主键ID',
     concept_name VARCHAR(100) NOT NULL COMMENT '概念名称',
     trading_date DATE NOT NULL COMMENT '交易日期',
     
@@ -81,6 +84,9 @@ CREATE TABLE concept_daily_metrics (
     -- 时间戳
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    
+    -- 分区表的主键必须包含分区字段
+    PRIMARY KEY (id, trading_date) COMMENT '主键(包含分区字段)',
     
     -- 覆盖索引优化 - 避免回表查询
     INDEX idx_date_rank (trading_date, volume_rank) COMMENT '日期+排名(概念排行查询)',
@@ -116,7 +122,7 @@ CREATE TABLE concept_daily_metrics (
 -- 3. 股票概念关系每日快照表 (替换 StockConceptRanking)
 DROP TABLE IF EXISTS stock_concept_daily_snapshot;
 CREATE TABLE stock_concept_daily_snapshot (
-    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
+    id BIGINT AUTO_INCREMENT COMMENT '主键ID',
     stock_code VARCHAR(20) NOT NULL COMMENT '股票代码',
     concept_name VARCHAR(100) NOT NULL COMMENT '概念名称',
     trading_date DATE NOT NULL COMMENT '交易日期',
@@ -132,6 +138,9 @@ CREATE TABLE stock_concept_daily_snapshot (
     
     -- 时间戳
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    
+    -- 分区表的主键必须包含分区字段
+    PRIMARY KEY (id, trading_date) COMMENT '主键(包含分区字段)',
     
     -- 多维度查询优化索引
     INDEX idx_stock_date (stock_code, trading_date) COMMENT '股票概念查询',

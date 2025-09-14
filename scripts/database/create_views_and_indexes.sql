@@ -162,13 +162,14 @@ ALTER TABLE stock_concept_daily_snapshot
 ADD INDEX idx_concept_stocks_covering (concept_name, trading_date, concept_rank, stock_code, trading_volume, volume_percentage);
 
 -- 7. 全文搜索索引 (股票名称搜索优化)
-ALTER TABLE daily_trading_unified 
-ADD FULLTEXT INDEX ft_stock_name (stock_name);
+-- 注意：分区表不支持FULLTEXT索引，使用普通索引替代
+-- ALTER TABLE daily_trading_unified 
+-- ADD FULLTEXT INDEX ft_stock_name (stock_name);
 
 -- 8. 函数索引 (MySQL 8.0+支持)
--- 为常用的日期范围查询创建函数索引
-ALTER TABLE daily_trading_unified 
-ADD INDEX idx_recent_30_days ((CASE WHEN trading_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY) THEN 1 ELSE 0 END));
+-- 注意：某些MySQL版本不支持复杂的函数索引，已禁用
+-- ALTER TABLE daily_trading_unified 
+-- ADD INDEX idx_recent_30_days ((CASE WHEN trading_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY) THEN 1 ELSE 0 END));
 
 -- 9. 分区表统计信息更新
 ANALYZE TABLE daily_trading_unified;
@@ -206,10 +207,11 @@ ORDER BY volume_rank
 LIMIT 50;
 
 -- 测试5: 股票名称搜索 (目标: <100ms)
+-- 注意：由于分区表不支持FULLTEXT索引，使用LIKE替代
 EXPLAIN SELECT stock_code, stock_name, trading_volume, rank_in_date 
 FROM daily_trading_unified 
 WHERE trading_date = '2025-09-02' 
-  AND MATCH(stock_name) AGAINST('平安' IN NATURAL LANGUAGE MODE)
+  AND stock_name LIKE '%平安%'
 ORDER BY rank_in_date;
 
 -- =====================================================
