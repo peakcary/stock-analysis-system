@@ -6,8 +6,10 @@ import datetime
 class DailyTrading(Base):
     """每日交易数据表"""
     __tablename__ = "daily_trading"
-    
+
     id = Column(Integer, primary_key=True, index=True)
+    original_stock_code = Column(String(20), nullable=False, index=True, comment="原始股票代码")
+    normalized_stock_code = Column(String(10), nullable=False, index=True, comment="标准化股票代码")
     stock_code = Column(String(20), nullable=False, index=True, comment="股票代码")
     trading_date = Column(Date, nullable=False, index=True, comment="交易日期")
     trading_volume = Column(Integer, nullable=False, comment="交易量")

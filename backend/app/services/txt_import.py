@@ -109,10 +109,12 @@ class TxtImportService:
                 stock_info = self._normalize_stock_code(stock_code)
                 
                 trading_data.append({
-                    'stock_code': stock_info['normalized'],  # 使用标准化代码
+                    'original_stock_code': stock_info['original'],    # 原始代码
+                    'normalized_stock_code': stock_info['normalized'], # 标准化代码
+                    'stock_code': stock_info['normalized'],           # 股票代码 (保持兼容性)
                     'trading_date': trading_date,
                     'trading_volume': trading_volume,
-                    'market_prefix': stock_info['prefix']              # SH (可用于统计分析)
+                    'market_prefix': stock_info['prefix']             # SH (可用于统计分析)
                 })
                 
             except Exception as e:
@@ -266,13 +268,15 @@ class TxtImportService:
         count = 0
         for item in trading_data:
             trading_record = DailyTrading(
+                original_stock_code=item['original_stock_code'],
+                normalized_stock_code=item['normalized_stock_code'],
                 stock_code=item['stock_code'],
                 trading_date=item['trading_date'],
                 trading_volume=item['trading_volume']
             )
             self.db.add(trading_record)
             count += 1
-        
+
         self.db.commit()
         logger.info(f"插入{count}条交易数据（原始代码 + 标准化代码）")
         return count

@@ -208,7 +208,7 @@ EOF
 mkdir -p logs
 log_success "配置完成"
 
-# 数据库表验证
+# 数据库表验证和模型同步
 echo "🔍 验证数据库表..."
 cd backend
 source venv/bin/activate
@@ -220,7 +220,7 @@ from sqlalchemy import text
 
 tables_to_check = [
     'admin_users',
-    'daily_trading', 
+    'daily_trading',
     'concept_daily_summary',
     'stock_concept_ranking',
     'concept_high_record',
@@ -228,31 +228,63 @@ tables_to_check = [
 ]
 
 print('📋 检查数据表:')
+model_sync_needed = False
 with engine.connect() as conn:
     for table in tables_to_check:
         try:
             result = conn.execute(text(f'SHOW TABLES LIKE \"{table}\"'))
             if result.fetchone():
                 print(f'  ✅ {table}')
-                
+
                 # 特别检查 daily_trading 表的字段结构
                 if table == 'daily_trading':
                     field_result = conn.execute(text('''
-                        SELECT COLUMN_NAME 
-                        FROM information_schema.COLUMNS 
-                        WHERE TABLE_NAME = 'daily_trading' 
+                        SELECT COLUMN_NAME
+                        FROM information_schema.COLUMNS
+                        WHERE TABLE_NAME = 'daily_trading'
                         AND COLUMN_NAME IN ('original_stock_code', 'normalized_stock_code')
                     '''))
                     existing_fields = [row[0] for row in field_result.fetchall()]
                     if len(existing_fields) >= 2:
                         print(f'    ✅ 股票代码字段已升级 ({len(existing_fields)}/2)')
+                        # 检查模型定义是否同步
+                        try:
+                            from app.models.daily_trading import DailyTrading
+                            if not hasattr(DailyTrading, 'original_stock_code'):
+                                print(f'    ⚠️  模型定义需要同步')
+                                model_sync_needed = True
+                            else:
+                                print(f'    ✅ 模型定义已同步')
+                        except Exception:
+                            print(f'    ⚠️  模型定义检查失败')
+                            model_sync_needed = True
                     else:
                         print(f'    ⚠️  股票代码字段需要升级 ({len(existing_fields)}/2)')
             else:
                 print(f'  ❌ {table} - 缺失')
         except Exception as e:
             print(f'  ⚠️  {table} - 检查失败: {str(e)[:30]}...')
+
+if model_sync_needed:
+    print('🔄 需要同步模型定义')
+    import sys
+    sys.exit(1)
 "
+
+# 如果模型定义不同步，自动同步
+if [ $? -ne 0 ]; then
+    echo "🔧 自动同步模型定义..."
+    if [ -f "../scripts/database/sync_model_definitions.py" ]; then
+        python ../scripts/database/sync_model_definitions.py
+        if [ $? -eq 0 ]; then
+            log_success "模型定义同步完成"
+        else
+            log_warn "模型定义同步失败，TXT导入可能有问题"
+        fi
+    else
+        log_warn "模型同步脚本不存在，跳过同步"
+    fi
+fi
 
 cd ..
 log_success "数据库验证完成"
