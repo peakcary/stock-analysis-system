@@ -9,6 +9,7 @@ import {
 } from '@ant-design/icons';
 import { adminApiClient } from '../../../shared/admin-auth';
 import TxtImportRecords from './TxtImportRecords';
+import HistoricalDataImport from './HistoricalDataImport';
 
 const { Title, Text } = Typography;
 const { TabPane } = Tabs;
@@ -562,6 +563,19 @@ const DataImportPage: React.FC<DataImportPageProps> = ({
             key="txt-records"
           >
             <TxtImportRecords refreshTrigger={txtImportRefreshTrigger} />
+          </TabPane>
+
+          {/* 历史数据导入 Tab */}
+          <TabPane
+            tab={
+              <span>
+                <CloudUploadOutlined />
+                历史数据导入
+              </span>
+            }
+            key="historical-import"
+          >
+            <HistoricalDataImport />
           </TabPane>
         </Tabs>
       </Card>

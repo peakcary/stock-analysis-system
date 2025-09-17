@@ -47,6 +47,9 @@ brew services start mysql
 # 系统管理
 ./scripts/deployment/deploy.sh --migrate  # 仅更新数据库
 ./scripts/deployment/deploy.sh --help     # 查看帮助
+
+# 服务器部署
+./scripts/deployment/deploy-to-server.sh  # 一键部署到服务器
 ```
 
 ## 服务地址

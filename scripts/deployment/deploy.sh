@@ -28,6 +28,7 @@ echo ""
 MIGRATION_MODE=false
 STOCK_CODE_UPGRADE=false
 DATABASE_OPTIMIZATION=false
+PRODUCTION_MODE=false
 
 case "$1" in
     --migrate|-m)
@@ -45,12 +46,18 @@ case "$1" in
         echo "⚡ 数据库优化模式: 部署高性能数据库架构"
         echo ""
         ;;
+    --production|-p)
+        PRODUCTION_MODE=true
+        echo "🏭 生产环境模式: 配置生产环境设置"
+        echo ""
+        ;;
     --help|-h)
         echo "📖 使用说明:"
         echo "  ./deploy.sh                    - 完整部署 (包含数据库优化)"
         echo "  ./deploy.sh --migrate         - 仅更新数据库结构"
-        echo "  ./deploy.sh --upgrade-stock-codes - 升级股票代码字段"  
+        echo "  ./deploy.sh --upgrade-stock-codes - 升级股票代码字段"
         echo "  ./deploy.sh --optimize-database   - 仅部署数据库优化"
+        echo "  ./deploy.sh --production       - 生产环境部署"
         echo "  ./deploy.sh --help            - 显示帮助"
         exit 0
         ;;
@@ -204,6 +211,32 @@ BACKEND_PORT=$BACKEND_PORT
 CLIENT_PORT=$CLIENT_PORT
 FRONTEND_PORT=$FRONTEND_PORT
 EOF
+
+# 生产环境配置
+if [ "$PRODUCTION_MODE" = true ]; then
+    echo "🏭 配置生产环境..."
+
+    # 创建生产环境配置文件
+    cat > backend/.env << EOF
+SQLALCHEMY_DATABASE_URI=mysql+pymysql://root:Pp123456@localhost:3306/stock_analysis_dev
+SECRET_KEY=your-secret-key-change-in-production-$(date +%s)
+ENVIRONMENT=production
+DEBUG=False
+ALLOWED_HOSTS=*
+CORS_ORIGINS=http://47.92.236.28:8005,http://47.92.236.28:8006
+EOF
+
+    # 更新前端配置为服务器IP
+    if [ -f "frontend/src/config/api.ts" ]; then
+        sed -i.bak 's/localhost/47.92.236.28/g' frontend/src/config/api.ts
+    fi
+
+    if [ -f "client/src/config/api.ts" ]; then
+        sed -i.bak 's/localhost/47.92.236.28/g' client/src/config/api.ts
+    fi
+
+    log_success "生产环境配置完成"
+fi
 
 mkdir -p logs
 log_success "配置完成"
