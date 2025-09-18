@@ -62,6 +62,8 @@ brew services start mysql
 
 **TXT导入失败**：运行 `./scripts/deployment/deploy.sh --migrate`
 
+**大文件导入**：使用独立脚本 `python scripts/import_large_historical.py your_file.txt --preview-only`
+
 **端口冲突**：检查 3007、8005、8006 端口是否被占用
 
 **数据库连接失败**：确保MySQL服务运行中

@@ -10,6 +10,10 @@ from contextlib import asynccontextmanager
 # 导入路由和配置
 from app.api.api_v1.api import api_router
 from app.api.simple_import import router as simple_import_router
+from app.routers.txt_processors import router as txt_processors_router
+from app.routers.historical_import import router as historical_import_router
+from app.routers.multi_import import router as multi_import_router
+from app.routers.typed_import import router as typed_import_router
 from app.core.config import settings
 from app.core.logging import setup_logging
 from app.core.exception_handlers import setup_exception_handlers
@@ -69,6 +73,10 @@ app.add_middleware(
 # 添加 API 路由 - 统一在 /api/v1 下
 app.include_router(api_router, prefix="/api/v1")
 app.include_router(simple_import_router, prefix="/api/v1/import")
+app.include_router(txt_processors_router)
+app.include_router(historical_import_router)
+app.include_router(multi_import_router)
+app.include_router(typed_import_router)
 
 
 @app.get("/")

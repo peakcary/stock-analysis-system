@@ -1,11 +1,12 @@
 from typing import List, Dict, Optional, Tuple
 from sqlalchemy.orm import Session
 from app.models.daily_trading import (
-    DailyTrading, ConceptDailySummary, 
+    DailyTrading, ConceptDailySummary,
     StockConceptRanking, ConceptHighRecord, TxtImportRecord
 )
 from app.models.stock import Stock
 from app.models.concept import Concept, StockConcept
+from app.services.txt_processors.processor_factory import get_processor_factory
 from datetime import datetime, date, timedelta
 import logging
 import csv
@@ -64,34 +65,90 @@ class TxtImportService:
                 'prefix': ''
             }
     
-    def parse_txt_content(self, txt_content: str) -> List[Dict]:
-        """解析TXT文件内容
-        
+    def parse_txt_content_with_processor(self, txt_content: str, filename: str = None,
+                                       processor_type: str = "auto") -> List[Dict]:
+        """使用处理器工厂解析TXT文件内容
+
         Args:
             txt_content: TXT文件内容
-            
+            filename: 文件名
+            processor_type: 处理器类型
+
+        Returns:
+            解析后的交易数据列表
+        """
+        try:
+            # 获取处理器工厂
+            factory = get_processor_factory()
+
+            # 选择处理器
+            if processor_type == "auto":
+                processor = factory.get_best_processor(txt_content, filename)
+                if not processor:
+                    logger.error("未找到合适的处理器")
+                    return []
+            else:
+                processor = factory.get_processor_by_type(processor_type)
+                if not processor:
+                    logger.error(f"找不到指定的处理器类型: {processor_type}")
+                    return []
+
+            # 使用处理器解析内容
+            result = processor.parse_content(txt_content)
+
+            if not result.success:
+                logger.error(f"处理器解析失败: {result.message}")
+                return []
+
+            # 转换为原始格式以保持兼容性
+            trading_data = []
+            for record in result.records:
+                trading_data.append({
+                    'original_stock_code': record.original_stock_code,
+                    'normalized_stock_code': record.normalized_stock_code,
+                    'stock_code': record.stock_code,
+                    'trading_date': record.trading_date,
+                    'trading_volume': record.trading_volume,
+                    'market_prefix': record.extra_fields.get('market_prefix', ''),
+                    'extra_fields': record.extra_fields
+                })
+
+            logger.info(f"使用处理器 {processor.processor_type} 成功解析{len(trading_data)}条交易数据")
+            return trading_data
+
+        except Exception as e:
+            logger.error(f"使用处理器解析内容时出错: {e}")
+            # 回退到原始解析方法
+            return self.parse_txt_content(txt_content)
+
+    def parse_txt_content(self, txt_content: str) -> List[Dict]:
+        """解析TXT文件内容（原始方法，用作回退）
+
+        Args:
+            txt_content: TXT文件内容
+
         Returns:
             解析后的交易数据列表
         """
         trading_data = []
         lines = txt_content.strip().split('\n')
-        
+
         for line_num, line in enumerate(lines, 1):
             line = line.strip()
             if not line:
                 continue
-                
+
             try:
                 parts = line.split('\t')
                 if len(parts) != 3:
                     logger.warning(f"第{line_num}行格式不正确: {line}")
                     continue
-                
+
                 stock_code, date_str, volume_str = parts
-                
+
                 # 解析日期
                 trading_date = datetime.strptime(date_str, '%Y-%m-%d').date()
-                
+
                 # 解析交易量 (处理空值和浮点数)
                 volume_str = volume_str.strip()
                 if not volume_str:
@@ -123,9 +180,115 @@ class TxtImportService:
         
         logger.info(f"成功解析{len(trading_data)}条交易数据")
         return trading_data
+
+    def _import_historical_data(self, trading_data: List[Dict], filename: str,
+                              file_size: int, imported_by: str) -> Dict:
+        """导入历史多日期数据
+
+        Args:
+            trading_data: 解析后的交易数据
+            filename: 文件名
+            file_size: 文件大小
+            imported_by: 导入人
+
+        Returns:
+            导入结果
+        """
+        start_time = time.time()
+        total_imported = 0
+        total_errors = 0
+        imported_dates = []
+
+        try:
+            # 按日期分组数据
+            data_by_date = defaultdict(list)
+            for item in trading_data:
+                data_by_date[item['trading_date']].append(item)
+
+            logger.info(f"开始导入历史数据，共 {len(data_by_date)} 个交易日期")
+
+            # 逐日期导入
+            for trading_date, daily_data in sorted(data_by_date.items()):
+                try:
+                    logger.info(f"正在导入 {trading_date} 的数据，共 {len(daily_data)} 条记录")
+
+                    # 检查该日期是否已有数据
+                    existing_records = self.db.query(TxtImportRecord).filter(
+                        TxtImportRecord.trading_date == trading_date
+                    ).count()
+
+                    if existing_records > 0:
+                        logger.info(f"检测到{trading_date}已有导入记录，将进行覆盖导入")
+                        self.db.query(TxtImportRecord).filter(
+                            TxtImportRecord.trading_date == trading_date
+                        ).delete()
+                        self.db.commit()
+
+                    # 创建导入记录
+                    import_record = TxtImportRecord(
+                        filename=f"{filename} ({trading_date})",
+                        trading_date=trading_date,
+                        file_size=file_size // len(data_by_date),  # 按日期分摊文件大小
+                        import_status="processing",
+                        imported_by=imported_by,
+                        total_records=len(daily_data),
+                        import_started_at=datetime.utcnow()
+                    )
+                    self.db.add(import_record)
+                    self.db.commit()
+
+                    # 清理当天数据
+                    self.clear_daily_data(trading_date)
+
+                    # 导入交易数据
+                    imported_count = self.insert_daily_trading(daily_data)
+
+                    # 计算汇总数据
+                    calculation_results = self.perform_calculations(trading_date)
+
+                    # 更新导入记录
+                    import_record.import_status = "success"
+                    import_record.success_records = imported_count
+                    import_record.error_records = len(daily_data) - imported_count
+                    import_record.import_completed_at = datetime.utcnow()
+                    import_record.concept_summary_count = calculation_results['concept_summary_count']
+                    import_record.ranking_count = calculation_results['ranking_count']
+                    import_record.new_high_count = calculation_results['new_high_count']
+                    self.db.commit()
+
+                    total_imported += imported_count
+                    imported_dates.append(trading_date)
+                    logger.info(f"完成导入 {trading_date}，成功 {imported_count} 条")
+
+                except Exception as e:
+                    logger.error(f"导入 {trading_date} 数据时出错: {e}")
+                    total_errors += len(daily_data)
+                    if import_record:
+                        import_record.import_status = "failed"
+                        import_record.error_message = str(e)
+                        self.db.commit()
+
+            end_time = time.time()
+            duration = end_time - start_time
+
+            return {
+                "success": True,
+                "message": f"历史数据导入完成",
+                "trading_dates": [d.strftime('%Y-%m-%d') for d in sorted(imported_dates)],
+                "imported_records": total_imported,
+                "error_records": total_errors,
+                "total_dates": len(imported_dates),
+                "duration": f"{duration:.2f}秒",
+                "filename": filename
+            }
+
+        except Exception as e:
+            logger.error(f"历史数据导入失败: {e}")
+            return {"success": False, "message": f"历史数据导入失败: {str(e)}"}
     
-    def import_daily_trading(self, txt_content: str, filename: str = "unknown.txt", 
-                           file_size: int = 0, imported_by: str = "system") -> Dict:
+    def import_daily_trading(self, txt_content: str, filename: str = "unknown.txt",
+                           file_size: int = 0, imported_by: str = "system",
+                           processor_type: str = "auto") -> Dict:
         """导入TXT交易数据并进行汇总计算
         
         Args:
@@ -141,15 +304,24 @@ class TxtImportService:
         start_time = time.time()
         
         try:
-            # 解析数据
-            trading_data = self.parse_txt_content(txt_content)
+            # 使用新的处理器工厂解析数据
+            trading_data = self.parse_txt_content_with_processor(
+                txt_content, filename, processor_type
+            )
             if not trading_data:
                 return {"success": False, "message": "未解析到有效数据"}
             
-            # 获取交易日期（假设所有数据是同一天的）
+            # 获取交易日期
             trading_dates = list(set(item['trading_date'] for item in trading_data))
+
+            # 检查是否为历史多日期文件
             if len(trading_dates) > 1:
-                return {"success": False, "message": "数据包含多个交易日期，请分别导入"}
+                if processor_type in ["historical", "auto"]:
+                    # 历史文件支持多日期导入
+                    logger.info(f"检测到历史多日期文件，包含 {len(trading_dates)} 个交易日期")
+                    return self._import_historical_data(trading_data, filename, file_size, imported_by)
+                else:
+                    return {"success": False, "message": f"数据包含多个交易日期({len(trading_dates)}个)，请使用历史数据导入模式"}
             
             current_date = trading_dates[0]
             

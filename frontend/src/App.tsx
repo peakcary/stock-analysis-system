@@ -100,6 +100,9 @@ const AdminApp: React.FC = () => {
   const [txtOverwriteFile, setTxtOverwriteFile] = useState<File | null>(null);
   const [txtOverwriteDate, setTxtOverwriteDate] = useState<string>('');
   const [txtOverwriteCount, setTxtOverwriteCount] = useState<number>(0);
+  const [txtOverwriteProcessorType, setTxtOverwriteProcessorType] = useState<string>('auto');
+  const [historicalImportLoading, setHistoricalImportLoading] = useState(false);
+  const [multiImportLoading, setMultiImportLoading] = useState<{ [key: string]: boolean }>({});
 
   // 获取已导入的数据统计
   const getImportedDataStats = async () => {
@@ -298,11 +301,12 @@ const AdminApp: React.FC = () => {
     setTxtImportLoading(true);
     
     try {
-      await performTxtImport(txtOverwriteFile);
+      await performTxtImport(txtOverwriteFile, txtOverwriteProcessorType);
     } finally {
       setTxtOverwriteFile(null);
       setTxtOverwriteDate('');
       setTxtOverwriteCount(0);
+      setTxtOverwriteProcessorType('auto');
     }
   };
 
@@ -312,7 +316,206 @@ const AdminApp: React.FC = () => {
     setTxtOverwriteFile(null);
     setTxtOverwriteDate('');
     setTxtOverwriteCount(0);
+    setTxtOverwriteProcessorType('auto');
     setTxtImportLoading(false);
+  };
+
+  // 多类型导入功能
+  const handleMultiImport = async (importType: string) => {
+    if (multiImportLoading[importType]) {
+      message.warning('正在导入中，请稍候...');
+      return;
+    }
+
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = '.txt';
+    fileInput.style.display = 'none';
+
+    fileInput.onchange = async (e: any) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      setMultiImportLoading(prev => ({ ...prev, [importType]: true }));
+      setImportResult(null);
+
+      const hideLoading = message.loading(`${importType}类型数据导入中，请稍候...`, 0);
+
+      try {
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const response = await adminApiClient.post(`/api/v1/typed-import/import/${importType}`, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+          timeout: 1800000 // 30分钟超时
+        });
+
+        console.log(`✅ ${importType}类型导入成功:`, response.data);
+        hideLoading();
+
+        if (response.data.success) {
+          setImportResult({
+            message: response.data.message,
+            imported_records: response.data.imported_records,
+            error_records: response.data.error_records,
+            trading_date: response.data.trading_date,
+            filename: response.data.filename,
+            import_type: response.data.import_type,
+            type_name: response.data.type_name,
+            calculation_results: response.data.calculation_results
+          });
+
+          message.success(`${response.data.type_name}导入成功！导入${response.data.imported_records}条记录`);
+        } else {
+          const errorMsg = response.data.message || `${importType}类型导入失败`;
+          setImportResult({
+            success: false,
+            error: true,
+            message: errorMsg,
+            filename: file.name,
+            import_type: importType
+          });
+          message.error(errorMsg);
+        }
+
+      } catch (error: any) {
+        console.error(`❌ ${importType}类型导入异常:`, error);
+        hideLoading();
+
+        let errorMessage = `${importType}类型导入失败`;
+        if (error.response?.data?.message) {
+          errorMessage = error.response.data.message;
+        } else if (error.message) {
+          errorMessage = error.message;
+        }
+
+        setImportResult({
+          success: false,
+          error: true,
+          message: errorMessage,
+          filename: file.name,
+          import_type: importType
+        });
+
+        message.error(errorMessage);
+      } finally {
+        setMultiImportLoading(prev => ({ ...prev, [importType]: false }));
+        document.body.removeChild(fileInput);
+      }
+    };
+
+    document.body.appendChild(fileInput);
+    fileInput.click();
+  };
+
+  // 历史数据导入功能
+  const handleHistoricalImport = async () => {
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = '.txt';
+    fileInput.style.display = 'none';
+
+    fileInput.onchange = async (e: any) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      setHistoricalImportLoading(true);
+      setImportResult(null);
+
+      // 显示导入开始提示
+      const hideLoading = message.loading('历史数据导入中，正在处理多个交易日期...', 0);
+
+      try {
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const response = await adminApiClient.post('/api/v1/historical-import/import', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+          timeout: 3600000 // 60分钟超时，历史数据可能很大
+        });
+
+        console.log('✅ 历史数据导入成功:', response.data);
+        hideLoading();
+
+        if (response.data.success) {
+          setImportResult({
+            message: response.data.message,
+            filename: response.data.filename,
+            total_dates: response.data.total_dates,
+            date_range: response.data.date_range,
+            imported_records: response.data.imported_records,
+            error_records: response.data.error_records,
+            duration: response.data.duration
+          });
+
+          message.success(`历史数据导入成功！共导入 ${response.data.total_dates} 个交易日期，${response.data.imported_records} 条记录`);
+
+          // 发送全局事件通知历史导入记录组件刷新
+          window.dispatchEvent(new CustomEvent('historicalImportSuccess', {
+            detail: response.data
+          }));
+        } else {
+          const errorMsg = response.data.message || '历史数据导入失败';
+          console.error('❌ 历史数据导入失败:', response.data);
+          hideLoading();
+
+          setImportResult({
+            success: false,
+            error: true,
+            message: errorMsg,
+            filename: file.name,
+            imported_records: 0,
+            total_dates: 0
+          });
+
+          message.error({
+            content: errorMsg,
+            duration: 6,
+            key: 'historical-import-error'
+          });
+        }
+
+      } catch (error: any) {
+        console.error('❌ 历史数据导入异常:', error);
+        hideLoading();
+
+        let errorMessage = '历史数据导入失败';
+
+        if (error.response?.data?.detail) {
+          errorMessage = error.response.data.detail;
+        } else if (error.response?.data?.message) {
+          errorMessage = error.response.data.message;
+        } else if (error.message) {
+          errorMessage = error.message;
+        }
+
+        // 如果是网络超时错误
+        if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+          errorMessage = '导入超时，历史文件可能过大或服务器处理时间过长';
+        }
+
+        setImportResult({
+          success: false,
+          error: true,
+          message: errorMessage,
+          filename: file.name,
+          imported_records: 0,
+          total_dates: 0
+        });
+
+        message.error({
+          content: `历史数据导入失败: ${errorMessage}`,
+          duration: 6,
+          key: 'historical-import-error'
+        });
+      } finally {
+        setHistoricalImportLoading(false);
+        document.body.removeChild(fileInput);
+      }
+    };
+
+    document.body.appendChild(fileInput);
+    fileInput.click();
   };
 
   // 搜索股票列表
@@ -715,7 +918,7 @@ const AdminApp: React.FC = () => {
   };
 
   // 新的TXT导入功能（使用新API）
-  const handleNewTxtImport = async () => {
+  const handleNewTxtImport = async (processorType: string = 'auto') => {
     const fileInput = document.createElement('input');
     fileInput.type = 'file';
     fileInput.accept = '.txt';
@@ -756,11 +959,12 @@ const AdminApp: React.FC = () => {
           setTxtOverwriteFile(file);
           setTxtOverwriteDate(tradingDate);
           setTxtOverwriteCount(checkResponse.data.count);
+          setTxtOverwriteProcessorType(processorType);
           setTxtOverwriteModalVisible(true);
         } else {
           console.log('直接导入，无需覆盖');
           // 直接导入
-          await performTxtImport(file);
+          await performTxtImport(file, processorType);
           document.body.removeChild(fileInput);
         }
         
@@ -777,14 +981,14 @@ const AdminApp: React.FC = () => {
   };
 
   // 执行实际的导入操作
-  const performTxtImport = async (file: File) => {
+  const performTxtImport = async (file: File, processorType: string = 'auto') => {
     const hideLoading = message.loading('TXT文件导入中，正在计算汇总数据...', 0);
     
     try {
       const formData = new FormData();
       formData.append('file', file);
       
-      const response = await adminApiClient.post('/api/v1/txt-import/import', formData, {
+      const response = await adminApiClient.post(`/api/v1/txt-import/import?processor_type=${processorType}`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
         timeout: 1800000 // 30分钟超时
       });
@@ -1115,16 +1319,21 @@ const AdminApp: React.FC = () => {
 
         {/* 数据导入页面 - 使用Tab分离股票列表和导入记录 */}
             {activeTab === 'simple-import' && (
-              <DataImportPage 
+              <DataImportPage
                 stocks={stockList}
                 loading={stockLoading}
                 csvImportLoading={csvImportLoading}
                 txtImportLoading={txtImportLoading}
+                historicalImportLoading={historicalImportLoading}
+                multiImportLoading={multiImportLoading}
                 importStats={importedData}
                 importResult={importResult}
                 onGetAllStocks={getAllStocks}
                 onCsvImport={handleOptimizedCsvImport}
                 onTxtImport={handleNewTxtImport}
+                onHistoricalImport={handleHistoricalImport}
+                historicalImportLoading={historicalImportLoading}
+                onMultiImport={handleMultiImport}
                 onGetStockList={getStockList}
                 searchText={stockSearchText}
                 onSearchTextChange={setStockSearchText}

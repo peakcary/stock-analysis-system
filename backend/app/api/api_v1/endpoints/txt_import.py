@@ -142,6 +142,7 @@ async def check_import_date(
 @router.post("/import", response_model=Dict[str, Any])
 async def import_txt_file(
     file: UploadFile = File(...),
+    processor_type: Optional[str] = Query("auto", description="处理器类型: auto, standard, historical, csv_like"),
     db: Session = Depends(get_db),
     current_admin: AdminUser = Depends(get_current_admin_user)
 ):
@@ -155,13 +156,14 @@ async def import_txt_file(
         content = await file.read()
         txt_content = content.decode('utf-8')
         
-        # 执行导入（传递文件信息）
+        # 执行导入（传递文件信息和处理器类型）
         import_service = TxtImportService(db)
         result = import_service.import_daily_trading(
             txt_content=txt_content,
             filename=file.filename,
             file_size=len(content),
-            imported_by=current_admin.username
+            imported_by=current_admin.username,
+            processor_type=processor_type
         )
         
         return result
@@ -173,6 +175,7 @@ async def import_txt_file(
 @router.post("/import-content", response_model=Dict[str, Any])
 async def import_txt_content(
     request: Dict[str, str],
+    processor_type: Optional[str] = Query("auto", description="处理器类型: auto, standard, historical, csv_like"),
     db: Session = Depends(get_db),
     current_admin: AdminUser = Depends(get_current_admin_user)
 ):
@@ -184,7 +187,10 @@ async def import_txt_content(
         
         # 执行导入
         import_service = TxtImportService(db)
-        result = import_service.import_daily_trading(txt_content)
+        result = import_service.import_daily_trading(
+            txt_content,
+            processor_type=processor_type
+        )
         
         return result
         

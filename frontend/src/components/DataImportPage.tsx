@@ -1,18 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Card, Tabs, Row, Col, Button, message, Upload, Space, Badge, 
-  Typography, Statistic, Progress, Alert, Table, Input, Tag, Tooltip
+  Card, Tabs, Row, Col, Button, message, Upload, Space, Badge,
+  Typography, Statistic, Progress, Alert, Table, Input, Tag, Tooltip,
+  Select, Radio
 } from 'antd';
 import {
   CloudUploadOutlined, UploadOutlined, DatabaseOutlined, SearchOutlined,
-  HistoryOutlined, FileTextOutlined, CheckCircleOutlined, DeleteOutlined
+  HistoryOutlined, FileTextOutlined, CheckCircleOutlined, DeleteOutlined,
+  AppstoreOutlined, BankOutlined, ThunderboltOutlined, RocketOutlined, StarOutlined
 } from '@ant-design/icons';
 import { adminApiClient } from '../../../shared/admin-auth';
 import TxtImportRecords from './TxtImportRecords';
-import HistoricalDataImport from './HistoricalDataImport';
+import MultiImportRecords from './MultiImportRecords';
 
 const { Title, Text } = Typography;
 const { TabPane } = Tabs;
+const { Option } = Select;
 
 interface DataImportPageProps {
   // 从App.tsx传递的原始参数和方法 - 完全保持不变
@@ -20,11 +23,15 @@ interface DataImportPageProps {
   loading: boolean;
   csvImportLoading: boolean;
   txtImportLoading: boolean;
+  historicalImportLoading: boolean;
+  multiImportLoading?: { [key: string]: boolean }; // 多类型导入loading状态
   importStats: any;
   importResult?: any; // 新增：导入结果信息
   onGetAllStocks: () => void;
   onCsvImport: () => void;
-  onTxtImport: () => void;
+  onTxtImport: (processorType?: string) => void;
+  onHistoricalImport: () => void;
+  onMultiImport?: (importType: string) => void; // 新增：多类型导入
   onGetStockList: (searchText?: string) => void;
   searchText: string;
   onSearchTextChange: (value: string) => void;
@@ -37,11 +44,15 @@ const DataImportPage: React.FC<DataImportPageProps> = ({
   loading,
   csvImportLoading,
   txtImportLoading,
+  historicalImportLoading,
+  multiImportLoading = {},
   importStats,
   importResult,
   onGetAllStocks,
   onCsvImport,
   onTxtImport,
+  onHistoricalImport,
+  onMultiImport,
   onGetStockList,
   searchText,
   onSearchTextChange,
@@ -61,6 +72,25 @@ const DataImportPage: React.FC<DataImportPageProps> = ({
     pageSize: 10,
     total: 0
   });
+
+  // 导入相关状态
+  const [availableImportTypes, setAvailableImportTypes] = useState<any>({});
+  const [multiImportRefreshTrigger, setMultiImportRefreshTrigger] = useState(0);
+
+  // 获取可用的导入类型列表
+  const fetchAvailableImportTypes = async () => {
+    try {
+      const response = await adminApiClient.get('/api/v1/typed-import/types');
+      setAvailableImportTypes(response.data?.types || {});
+    } catch (error) {
+      console.error('获取导入类型列表失败:', error);
+    }
+  };
+
+  // 组件加载时获取导入类型列表
+  useEffect(() => {
+    fetchAvailableImportTypes();
+  }, []);
 
   // 获取单个股票的概念信息
   const getStockConcepts = async (stockCode: string) => {
@@ -233,13 +263,18 @@ const DataImportPage: React.FC<DataImportPageProps> = ({
     }));
   }, [filteredStocks.length]);
 
-  // 处理Tab切换，在切换到TXT导入记录时刷新数据
+  // 处理Tab切换，在切换到导入记录时刷新数据
   const handleTabChange = (key: string) => {
     setActiveTab(key);
-    
+
     // 如果切换到TXT导入记录tab，触发刷新
     if (key === 'txt-records') {
       setTxtImportRefreshTrigger(prev => prev + 1);
+    }
+
+    // 如果切换到多类型导入记录tab，触发刷新
+    if (key.includes('multi-records')) {
+      setMultiImportRefreshTrigger(prev => prev + 1);
     }
   };
 
@@ -256,9 +291,10 @@ const DataImportPage: React.FC<DataImportPageProps> = ({
         style={{ marginBottom: '24px', borderRadius: '12px' }}
       >
         <Row gutter={16}>
-          <Col xs={24} md={12}>
-            <div 
-              style={{ 
+          {/* CSV基础数据导入 */}
+          <Col xs={24} md={6}>
+            <div
+              style={{
                 padding: '16px',
                 borderRadius: '8px',
                 background: '#f6ffed',
@@ -275,7 +311,7 @@ const DataImportPage: React.FC<DataImportPageProps> = ({
               <Text type="secondary" style={{ display: 'block', marginBottom: '12px' }}>
                 股票基本信息、概念关系数据
               </Text>
-              <Button 
+              <Button
                 icon={<UploadOutlined />}
                 loading={csvImportLoading}
                 onClick={onCsvImport}
@@ -285,7 +321,7 @@ const DataImportPage: React.FC<DataImportPageProps> = ({
               >
                 {csvImportLoading ? '导入中...' : '选择CSV文件'}
               </Button>
-              
+
               {/* CSV导入结果显示 */}
               {importResult && importResult.filename && importResult.filename.toLowerCase().endsWith('.csv') && (
                 <div style={{ marginTop: '16px' }}>
@@ -313,39 +349,40 @@ const DataImportPage: React.FC<DataImportPageProps> = ({
               )}
             </div>
           </Col>
-          
-          <Col xs={24} md={12}>
-            <div 
-              style={{ 
+
+          {/* 通用TXT导入入口 */}
+          <Col xs={24} md={6}>
+            <div
+              style={{
                 padding: '16px',
                 borderRadius: '8px',
-                background: '#fff7e6',
-                border: '1px solid #ffd591',
+                background: '#f9f0ff',
+                border: '1px solid #d3adf7',
                 textAlign: 'center'
               }}
             >
               <div style={{ marginBottom: '12px' }}>
-                <span style={{ fontSize: '20px', marginRight: '8px' }}>📈</span>
-                <Text strong style={{ color: '#fa8c16', fontSize: '16px' }}>
-                  TXT热度数据导入
+                <span style={{ fontSize: '20px', marginRight: '8px' }}>📄</span>
+                <Text strong style={{ color: '#722ed1', fontSize: '16px' }}>
+                  通用TXT导入
                 </Text>
               </div>
               <Text type="secondary" style={{ display: 'block', marginBottom: '12px' }}>
-                股票每日交易量热度数据
+                股票交易数据TXT文件导入
               </Text>
-              <Button 
+              <Button
                 icon={<UploadOutlined />}
                 loading={txtImportLoading}
-                onClick={onTxtImport}
+                onClick={() => onTxtImport && onTxtImport('auto')}
                 type="primary"
                 size="large"
-                style={{ background: '#fa8c16', borderColor: '#fa8c16' }}
+                style={{ background: '#722ed1', borderColor: '#722ed1' }}
               >
                 {txtImportLoading ? '导入中...' : '选择TXT文件'}
               </Button>
-              
+
               {/* TXT导入结果显示 */}
-              {importResult && importResult.filename && importResult.filename.toLowerCase().endsWith('.txt') && (
+              {importResult && importResult.filename && importResult.filename.toLowerCase().endsWith('.txt') && !importResult.import_type && (
                 <div style={{ marginTop: '16px' }}>
                   <Alert
                     message={importResult.error ? "导入失败" : "导入成功"}
@@ -353,13 +390,13 @@ const DataImportPage: React.FC<DataImportPageProps> = ({
                       <div>
                         <p><strong>文件:</strong> {importResult.filename}</p>
                         <p><strong>结果:</strong> {importResult.message}</p>
-                        {!importResult.error && importResult.trading_date && (
+                        {!importResult.error && (
                           <div style={{ marginTop: '8px' }}>
                             <p><strong>交易日期:</strong> {importResult.trading_date}</p>
                             <p><strong>导入记录:</strong> {importResult.imported_records}条</p>
-                            <p><strong>概念汇总:</strong> {importResult.concept_summaries}个</p>
-                            <p><strong>排名记录:</strong> {importResult.ranking_records}条</p>
-                            <p><strong>创新高:</strong> {importResult.new_high_records}条</p>
+                            {importResult.duration && (
+                              <p><strong>用时:</strong> {importResult.duration}</p>
+                            )}
                           </div>
                         )}
                       </div>
@@ -372,6 +409,95 @@ const DataImportPage: React.FC<DataImportPageProps> = ({
               )}
             </div>
           </Col>
+
+          {/* 动态生成多种业务类型的导入入口 */}
+          {Object.entries(availableImportTypes).map(([typeKey, typeConfig]: [string, any]) => {
+            const getTypeIcon = (type: string) => {
+              switch (type) {
+                case 'type1': return <AppstoreOutlined />;
+                case 'type2': return <BankOutlined />;
+                case 'type3': return <ThunderboltOutlined />;
+                case 'eee': return <RocketOutlined />;
+                case 'ttv': return <StarOutlined />;
+                default: return <FileTextOutlined />;
+              }
+            };
+
+            const getTypeColor = (type: string) => {
+              switch (type) {
+                case 'type1': return { bg: '#fff7e6', border: '#ffd591', button: '#fa8c16' };
+                case 'type2': return { bg: '#f0f9ff', border: '#91d5ff', button: '#1890ff' };
+                case 'type3': return { bg: '#f6ffed', border: '#b7eb8f', button: '#52c41a' };
+                case 'eee': return { bg: '#fff1f0', border: '#ffadd2', button: '#eb2f96' };
+                case 'ttv': return { bg: '#fffbe6', border: '#ffe58f', button: '#faad14' };
+                default: return { bg: '#f9f0ff', border: '#d3adf7', button: '#722ed1' };
+              }
+            };
+
+            const colors = getTypeColor(typeKey);
+            const isLoading = multiImportLoading[typeKey] || false;
+
+            return (
+              <Col xs={24} md={6} key={typeKey}>
+                <div
+                  style={{
+                    padding: '16px',
+                    borderRadius: '8px',
+                    background: colors.bg,
+                    border: `1px solid ${colors.border}`,
+                    textAlign: 'center'
+                  }}
+                >
+                  <div style={{ marginBottom: '12px' }}>
+                    <span style={{ fontSize: '20px', marginRight: '8px' }}>
+                      {getTypeIcon(typeKey)}
+                    </span>
+                    <Text strong style={{ color: colors.button, fontSize: '16px' }}>
+                      {typeConfig.name}
+                    </Text>
+                  </div>
+                  <Text type="secondary" style={{ display: 'block', marginBottom: '12px' }}>
+                    {typeConfig.description}
+                  </Text>
+                  <Button
+                    icon={<UploadOutlined />}
+                    loading={isLoading}
+                    onClick={() => onMultiImport && onMultiImport(typeKey)}
+                    type="primary"
+                    size="large"
+                    style={{ background: colors.button, borderColor: colors.button }}
+                  >
+                    {isLoading ? '导入中...' : '选择TXT文件'}
+                  </Button>
+
+                  {/* 导入结果显示 */}
+                  {importResult && importResult.import_type === typeKey && (
+                    <div style={{ marginTop: '16px' }}>
+                      <Alert
+                        message={importResult.error ? "导入失败" : "导入成功"}
+                        description={
+                          <div>
+                            <p><strong>文件:</strong> {importResult.filename}</p>
+                            <p><strong>结果:</strong> {importResult.message}</p>
+                            {!importResult.error && (
+                              <div style={{ marginTop: '8px' }}>
+                                <p><strong>交易日期:</strong> {importResult.trading_date}</p>
+                                <p><strong>导入记录:</strong> {importResult.imported_records}条</p>
+                                <p><strong>用时:</strong> {importResult.duration}</p>
+                              </div>
+                            )}
+                          </div>
+                        }
+                        type={importResult.error ? "error" : "success"}
+                        showIcon
+                        style={{ textAlign: 'left' }}
+                      />
+                    </div>
+                  )}
+                </div>
+              </Col>
+            );
+          })}
         </Row>
 
       </Card>
@@ -565,18 +691,38 @@ const DataImportPage: React.FC<DataImportPageProps> = ({
             <TxtImportRecords refreshTrigger={txtImportRefreshTrigger} />
           </TabPane>
 
-          {/* 历史数据导入 Tab */}
-          <TabPane
-            tab={
-              <span>
-                <CloudUploadOutlined />
-                历史数据导入
-              </span>
-            }
-            key="historical-import"
-          >
-            <HistoricalDataImport />
-          </TabPane>
+          {/* 动态生成多类型导入记录 Tab */}
+          {Object.entries(availableImportTypes).map(([typeKey, typeConfig]: [string, any]) => {
+            const getTypeIcon = (type: string) => {
+              switch (type) {
+                case 'type1': return <AppstoreOutlined />;
+                case 'type2': return <BankOutlined />;
+                case 'type3': return <ThunderboltOutlined />;
+                case 'eee': return <RocketOutlined />;
+                case 'ttv': return <StarOutlined />;
+                default: return <FileTextOutlined />;
+              }
+            };
+
+            return (
+              <TabPane
+                tab={
+                  <span>
+                    {getTypeIcon(typeKey)}
+                    {typeConfig.name}记录
+                  </span>
+                }
+                key={`multi-records-${typeKey}`}
+              >
+                <MultiImportRecords
+                  importType={typeKey}
+                  typeName={typeConfig.name}
+                  refreshTrigger={multiImportRefreshTrigger}
+                />
+              </TabPane>
+            );
+          })}
+
         </Tabs>
       </Card>
     </div>
