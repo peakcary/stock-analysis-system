@@ -10,6 +10,8 @@ import {
 import { adminApiClient } from '../../../shared/admin-auth';
 import TxtImportRecords from './TxtImportRecords';
 import HistoricalDataImport from './HistoricalDataImport';
+import UniversalImportPage from './UniversalImportPage';
+import FileTypeManagement from './FileTypeManagement';
 
 const { Title, Text } = Typography;
 const { TabPane } = Tabs;
@@ -563,6 +565,34 @@ const DataImportPage: React.FC<DataImportPageProps> = ({
             key="txt-records"
           >
             <TxtImportRecords refreshTrigger={txtImportRefreshTrigger} />
+          </TabPane>
+
+          {/* 通用文件导入 Tab */}
+          <TabPane
+            tab={
+              <span>
+                <FileTextOutlined />
+                通用文件导入
+                <Badge count="New" style={{ backgroundColor: '#52c41a', marginLeft: 8, fontSize: '10px' }} />
+              </span>
+            }
+            key="universal-import"
+          >
+            <UniversalImportPage />
+          </TabPane>
+
+          {/* 文件类型管理 Tab */}
+          <TabPane
+            tab={
+              <span>
+                <DatabaseOutlined />
+                文件类型管理
+                <Badge count="New" style={{ backgroundColor: '#1890ff', marginLeft: 8, fontSize: '10px' }} />
+              </span>
+            }
+            key="file-type-management"
+          >
+            <FileTypeManagement />
           </TabPane>
 
           {/* 历史数据导入 Tab */}

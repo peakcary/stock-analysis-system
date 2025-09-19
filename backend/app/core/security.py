@@ -63,3 +63,9 @@ def validate_token_data(token_data: dict) -> bool:
     """验证令牌数据"""
     required_fields = ["user_id", "username"]
     return all(field in token_data for field in required_fields)
+
+
+def get_current_user() -> str:
+    """获取当前用户 - 临时实现，返回system用户"""
+    # TODO: 实现真正的用户认证逻辑
+    return "system"

@@ -3,7 +3,7 @@ API v1 主路由配置
 """
 
 from fastapi import APIRouter
-from app.api.api_v1.endpoints import stocks, concepts, data_import, auth, client_user_management, admin_management, payment, admin_packages, system, mock_payment, admin_order_management, stock_data, daily_analysis, concept_analysis, chart_data, admin_auth, txt_import, stock_analysis, optimization_status, historical_txt_import
+from app.api.api_v1.endpoints import stocks, concepts, data_import, auth, client_user_management, admin_management, payment, admin_packages, system, mock_payment, admin_order_management, stock_data, daily_analysis, concept_analysis, chart_data, admin_auth, txt_import, stock_analysis, optimization_status, historical_txt_import, file_type_management, universal_import
 # from app.api.api_v1.endpoints import large_file_upload
 from app.api import simple_import
 
@@ -39,5 +39,9 @@ api_router.include_router(stock_analysis.router, prefix="/stock-analysis", tags=
 api_router.include_router(optimization_status.router, prefix="/optimization", tags=["database-optimization"])
 # 新增历史TXT文件导入接口
 api_router.include_router(historical_txt_import.router, prefix="/historical-txt-import", tags=["historical-txt-import"])
+# 新增文件类型管理接口
+api_router.include_router(file_type_management.router, prefix="/file-types", tags=["file-type-management"])
+# 新增通用导入接口
+api_router.include_router(universal_import.router, prefix="/universal-import", tags=["universal-import"])
 # 新增大文件上传接口 (暂时注释，修复后启用)
 # api_router.include_router(large_file_upload.router, prefix="/large-file-upload", tags=["large-file-upload"])

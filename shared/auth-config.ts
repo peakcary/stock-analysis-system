@@ -30,13 +30,13 @@ export interface AuthConfig {
 export const getApiBaseUrl = (): string => {
   if (typeof window !== 'undefined') {
     // 浏览器环境：优先使用 Vite 的环境变量
-    return (import.meta as any)?.env?.VITE_API_URL || 
-           (window as any).REACT_APP_API_URL || 
+    return (import.meta as any)?.env?.VITE_API_URL ||
+           (window as any).REACT_APP_API_URL ||
            'http://localhost:3007';
   } else {
     // Node.js 环境
-    return process.env.REACT_APP_API_URL || 
-           process.env.VITE_API_URL || 
+    return process.env.REACT_APP_API_URL ||
+           process.env.VITE_API_URL ||
            'http://localhost:3007';
   }
 };
