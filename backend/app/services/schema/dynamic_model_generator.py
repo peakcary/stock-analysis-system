@@ -19,6 +19,21 @@ class DynamicModelGenerator:
         self.metadata = MetaData()
         self._model_cache = {}
 
+    def _cleanup_metadata_for_file_type(self, file_type: str, prefix: str):
+        """清理指定文件类型的MetaData表定义"""
+        table_names = [
+            f"{prefix}daily_trading",
+            f"{prefix}concept_daily_summary",
+            f"{prefix}stock_concept_ranking",
+            f"{prefix}concept_high_record",
+            f"{prefix}import_record"
+        ]
+
+        for table_name in table_names:
+            if table_name in self.metadata.tables:
+                self.metadata.remove(self.metadata.tables[table_name])
+                logger.debug(f"从MetaData中移除表定义: {table_name}")
+
     def generate_models_for_file_type(self, file_type: str) -> Dict[str, Type]:
         """为指定文件类型生成所有SQLAlchemy模型"""
 
@@ -29,6 +44,8 @@ class DynamicModelGenerator:
         models = {}
 
         try:
+            # 清理可能存在的表定义
+            self._cleanup_metadata_for_file_type(file_type, prefix)
             # 1. 生成每日交易数据模型
             models['daily_trading'] = self._create_daily_trading_model(file_type, prefix)
 

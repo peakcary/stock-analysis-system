@@ -56,147 +56,165 @@ class UniversalImportService:
 
         logger.info(f"初始化 {file_type} 文件类型的通用导入服务")
 
-    def parse_file_content(self, file_content: str, filename: str) -> Tuple[pd.DataFrame, Dict]:
+    def parse_file_content(self, file_content: str, filename: str) -> List[Dict]:
         """
-        解析文件内容
+        解析文件内容 - 与原始TXT导入逻辑保持一致
 
         Args:
             file_content: 文件内容字符串
             filename: 文件名
 
         Returns:
-            (DataFrame, 解析信息字典)
+            解析后的交易数据列表
         """
         try:
-            # 基于原TXT解析逻辑，使用配置中的列名
+            trading_data = []
             lines = file_content.strip().split('\n')
 
-            if len(lines) < 2:
-                raise ValueError("文件内容不足，至少需要标题行和一行数据")
+            for line_num, line in enumerate(lines, 1):
+                line = line.strip()
+                if not line:
+                    continue
 
-            # 解析标题行
-            header = lines[0].strip()
-            headers = [col.strip() for col in header.split('\t')]
-
-            # 验证必需列是否存在
-            for required_col in self.config.required_columns:
-                if required_col not in headers:
-                    raise ValueError(f"缺少必需列: {required_col}")
-
-            # 解析数据行
-            data_rows = []
-            for i, line in enumerate(lines[1:], start=2):
-                if line.strip():
-                    values = [val.strip() for val in line.split('\t')]
-                    if len(values) != len(headers):
-                        logger.warning(f"第{i}行列数不匹配，跳过: {line[:50]}...")
+                try:
+                    parts = line.split('\t')
+                    if len(parts) != 3:
+                        logger.warning(f"第{line_num}行格式不正确: {line}")
                         continue
-                    data_rows.append(values)
 
-            # 创建DataFrame
-            df = pd.DataFrame(data_rows, columns=headers)
+                    stock_code, date_str, volume_str = parts
 
-            # 数据清理和标准化
-            df = self._clean_and_standardize_data(df)
+                    # 解析日期
+                    trading_date = datetime.strptime(date_str, '%Y-%m-%d').date()
 
-            parse_info = {
-                'filename': filename,
-                'total_lines': len(lines),
-                'header_line': header,
-                'data_rows': len(data_rows),
-                'columns': headers,
-                'parsed_rows': len(df)
-            }
+                    # 解析交易量 (处理空值和浮点数)
+                    volume_str = volume_str.strip()
+                    if not volume_str:
+                        logger.warning(f"第{line_num}行交易量为空: {line}")
+                        continue
 
-            logger.info(f"成功解析 {filename}: {len(df)} 条记录")
-            return df, parse_info
+                    # 支持浮点数格式，转换为整数
+                    try:
+                        trading_volume = int(float(volume_str))
+                    except ValueError:
+                        logger.warning(f"第{line_num}行交易量格式错误: {volume_str}")
+                        continue
+
+                    # 解析股票代码 - 保持与原始TXT导入一致的逻辑
+                    stock_info = self._normalize_stock_code(stock_code)
+
+                    trading_data.append({
+                        'original_stock_code': stock_info['original'],     # 原始代码
+                        'normalized_stock_code': stock_info['normalized'], # 标准化代码
+                        'stock_code': stock_info['normalized'],           # 股票代码 (保持兼容性)
+                        'trading_date': trading_date,
+                        'trading_volume': trading_volume,
+                        'market_prefix': stock_info['prefix']             # 市场前缀 (SH/SZ/BJ)
+                    })
+
+                except Exception as e:
+                    logger.error(f"解析第{line_num}行时出错: {line}, 错误: {e}")
+                    continue
+
+            logger.info(f"成功解析{len(trading_data)}条交易数据")
+            return trading_data
 
         except Exception as e:
             logger.error(f"解析文件内容失败: {e}")
             raise
 
-    def _clean_and_standardize_data(self, df: pd.DataFrame) -> pd.DataFrame:
+
+    def _normalize_stock_code(self, original_code: str) -> dict:
         """
-        清理和标准化数据
-        基于原TXT导入服务的数据处理逻辑
+        解析股票代码，提取原始代码和标准化代码
+        与原始TXT导入服务保持完全一致的逻辑
+
+        Args:
+            original_code: 原始股票代码 (SH600000, SZ000001等)
+
+        Returns:
+            dict: {
+                'original': '原始代码',
+                'normalized': '标准化代码',
+                'prefix': '市场前缀'
+            }
+        """
+        original = original_code.strip().upper()
+
+        # 提取前缀和标准化代码
+        if original.startswith('SH'):
+            return {
+                'original': original,
+                'normalized': original[2:],
+                'prefix': 'SH'
+            }
+        elif original.startswith('SZ'):
+            return {
+                'original': original,
+                'normalized': original[2:],
+                'prefix': 'SZ'
+            }
+        elif original.startswith('BJ'):
+            return {
+                'original': original,
+                'normalized': original[2:],
+                'prefix': 'BJ'
+            }
+        else:
+            # 纯数字代码，无前缀
+            return {
+                'original': original,
+                'normalized': original,
+                'prefix': ''
+            }
+
+    def _clear_daily_data(self, trading_date: date, keep_trading_data: bool = False):
+        """
+        清理指定日期的数据
+        与原始TXT导入服务保持一致的清理逻辑
+
+        Args:
+            trading_date: 要清理的交易日期
+            keep_trading_data: 是否保留交易数据（仅清理汇总数据）
         """
         try:
-            # 获取配置中的列名映射
-            stock_code_col = self.config.stock_code_column
-            volume_col = self.config.volume_column
+            # 清理汇总数据
+            self.db.query(self.ConceptDailySummary).filter(
+                self.ConceptDailySummary.trading_date == trading_date
+            ).delete()
 
-            # 复制数据以避免修改原始数据
-            df = df.copy()
+            self.db.query(self.StockConceptRanking).filter(
+                self.StockConceptRanking.trading_date == trading_date
+            ).delete()
 
-            # 标准化股票代码
-            if stock_code_col in df.columns:
-                df['original_stock_code'] = df[stock_code_col].astype(str)
-                df['normalized_stock_code'] = df[stock_code_col].apply(self._normalize_stock_code)
-                df['stock_code'] = df['normalized_stock_code']
+            self.db.query(self.ConceptHighRecord).filter(
+                self.ConceptHighRecord.trading_date == trading_date
+            ).delete()
 
-            # 处理交易量数据
-            if volume_col in df.columns:
-                df['trading_volume'] = pd.to_numeric(df[volume_col], errors='coerce').fillna(0).astype(int)
+            # 如果不保留交易数据，也删除原始交易数据
+            if not keep_trading_data:
+                self.db.query(self.DailyTrading).filter(
+                    self.DailyTrading.trading_date == trading_date
+                ).delete()
 
-            # 移除无效行
-            initial_count = len(df)
-            df = df.dropna(subset=['stock_code', 'trading_volume'])
-            df = df[df['stock_code'].str.len() > 0]
-            df = df[df['trading_volume'] > 0]
-
-            final_count = len(df)
-            if final_count < initial_count:
-                logger.info(f"数据清理: 移除 {initial_count - final_count} 条无效记录")
-
-            return df
+            self.db.flush()
+            logger.info(f"清理 {trading_date} 数据完成，保留交易数据: {keep_trading_data}")
 
         except Exception as e:
-            logger.error(f"数据清理失败: {e}")
+            logger.error(f"清理 {trading_date} 数据失败: {e}")
             raise
-
-    def _normalize_stock_code(self, code: str) -> str:
-        """
-        标准化股票代码
-        基于原TXT导入服务的标准化逻辑
-        """
-        if pd.isna(code) or not isinstance(code, str):
-            return ""
-
-        # 移除空格和特殊字符
-        code = str(code).strip()
-        code = re.sub(r'[^\w.]', '', code)
-
-        # 处理不同格式的股票代码
-        if '.' in code:
-            # 处理如 "000001.SZ" 格式
-            base_code = code.split('.')[0]
-            if len(base_code) == 6 and base_code.isdigit():
-                return base_code
-
-        # 如果是6位纯数字，直接返回
-        if len(code) == 6 and code.isdigit():
-            return code
-
-        # 尝试提取6位数字
-        digits = re.findall(r'\d+', code)
-        if digits:
-            main_code = digits[0]
-            if len(main_code) == 6:
-                return main_code
-
-        return code
 
     def calculate_file_hash(self, file_content: str) -> str:
         """计算文件内容的MD5哈希值"""
         return hashlib.md5(file_content.encode('utf-8')).hexdigest()
 
-    def import_daily_trading_data(self, df: pd.DataFrame, trading_date: date,
+    def import_daily_trading_data(self, trading_data: List[Dict], trading_date: date,
                                 import_record_id: int, mode: str = "overwrite") -> Dict:
         """
         导入每日交易数据
 
         Args:
-            df: 处理后的数据DataFrame
+            trading_data: 解析后的交易数据列表
             trading_date: 交易日期
             import_record_id: 导入记录ID
             mode: 导入模式 (overwrite, append)
@@ -209,23 +227,20 @@ class UniversalImportService:
             error_count = 0
             duplicate_count = 0
 
-            # 如果是覆盖模式，先删除当日数据
+            # 如果是覆盖模式，先清理当日所有相关数据
             if mode == "overwrite":
-                deleted_count = self.db.query(self.DailyTrading).filter(
-                    self.DailyTrading.trading_date == trading_date
-                ).delete()
-                if deleted_count > 0:
-                    logger.info(f"覆盖模式: 删除了 {deleted_count} 条旧数据")
+                self._clear_daily_data(trading_date)
+                logger.info(f"覆盖模式: 已清理 {trading_date} 的所有相关数据")
 
             # 批量插入数据
-            batch_size = self.config.batch_size
-            total_rows = len(df)
+            batch_size = 1000  # 使用固定批次大小
+            total_rows = len(trading_data)
 
             for i in range(0, total_rows, batch_size):
-                batch_df = df.iloc[i:i + batch_size]
+                batch_data = trading_data[i:i + batch_size]
                 batch_records = []
 
-                for _, row in batch_df.iterrows():
+                for row in batch_data:
                     try:
                         # 检查是否已存在（仅在append模式下）
                         if mode == "append":
@@ -238,7 +253,7 @@ class UniversalImportService:
                                 duplicate_count += 1
                                 continue
 
-                        # 创建记录对象
+                        # 创建记录对象 - 添加市场前缀字段
                         record = self.DailyTrading(
                             original_stock_code=row['original_stock_code'],
                             normalized_stock_code=row['normalized_stock_code'],
@@ -247,6 +262,10 @@ class UniversalImportService:
                             trading_volume=int(row['trading_volume']),
                             created_at=datetime.utcnow()
                         )
+
+                        # 如果动态表支持市场前缀字段，则添加
+                        if hasattr(record, 'market_prefix') and 'market_prefix' in row:
+                            record.market_prefix = row['market_prefix']
 
                         batch_records.append(record)
 
@@ -450,16 +469,46 @@ class UniversalImportService:
             file_hash = self.calculate_file_hash(file_content)
             file_size = len(file_content.encode('utf-8'))
 
+            # 检查是否已有该日期的数据，与原始TXT导入保持一致
+            existing_records = self.db.query(self.ImportRecord).filter(
+                self.ImportRecord.trading_date == trading_date
+            ).count()
+
+            if existing_records > 0:
+                logger.info(f"检测到{trading_date}已有导入记录，将进行覆盖导入")
+                # 删除该日期的所有导入记录
+                self.db.query(self.ImportRecord).filter(
+                    self.ImportRecord.trading_date == trading_date
+                ).delete()
+                self.db.commit()
+
             # 2. 创建导入记录
             import_record_id = self.create_import_record(
                 filename, file_size, file_hash, trading_date, imported_by, mode
             )
 
             # 3. 解析文件内容
-            df, parse_info = self.parse_file_content(file_content, filename)
+            trading_data = self.parse_file_content(file_content, filename)
+
+            # 验证是否有有效数据
+            if not trading_data:
+                raise ValueError("未解析到有效数据")
+
+            # 获取交易日期（假设所有数据是同一天的）
+            trading_dates = list(set(item['trading_date'] for item in trading_data))
+            if len(trading_dates) > 1:
+                raise ValueError("数据包含多个交易日期，请分别导入")
+
+            # 使用文件中的日期而不是用户指定的日期
+            file_trading_date = trading_dates[0]
+
+            # 如果用户指定的日期与文件中的日期不一致，使用文件中的日期
+            if trading_date != file_trading_date:
+                logger.warning(f"用户指定日期 {trading_date} 与文件数据日期 {file_trading_date} 不一致，使用文件数据日期")
+                trading_date = file_trading_date
 
             # 4. 导入交易数据
-            import_result = self.import_daily_trading_data(df, trading_date, import_record_id, mode)
+            import_result = self.import_daily_trading_data(trading_data, trading_date, import_record_id, mode)
 
             # 5. 执行计算
             calculation_result = self.perform_calculations(trading_date, import_record_id)
@@ -468,11 +517,19 @@ class UniversalImportService:
             end_time = datetime.utcnow()
             calculation_time = (end_time - start_time).total_seconds()
 
+            # 创建解析信息
+            parse_info = {
+                'filename': filename,
+                'total_lines': len(file_content.strip().split('\n')),
+                'parsed_rows': len(trading_data),
+                'trading_date': trading_date.isoformat()
+            }
+
             # 7. 更新导入记录为成功
             ImportStatus = self.ImportRecord.ImportStatus
             self.update_import_record(import_record_id, {
                 'import_status': ImportStatus.SUCCESS,
-                'total_records': parse_info['parsed_rows'],
+                'total_records': len(trading_data),
                 'success_records': import_result['success_records'],
                 'error_records': import_result['error_records'],
                 'duplicate_records': import_result['duplicate_records'],
