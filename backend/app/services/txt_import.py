@@ -12,6 +12,7 @@ import csv
 import io
 import time
 from collections import defaultdict
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +21,7 @@ class TxtImportService:
     
     def __init__(self, db: Session):
         self.db = db
+        self.last_parse_errors: List[Dict] = []
     
     def _normalize_stock_code(self, original_code: str) -> dict:
         """
@@ -74,6 +76,7 @@ class TxtImportService:
             解析后的交易数据列表
         """
         trading_data = []
+        self.last_parse_errors = []
         lines = txt_content.strip().split('\n')
         
         for line_num, line in enumerate(lines, 1):
@@ -81,45 +84,77 @@ class TxtImportService:
             if not line:
                 continue
                 
-            try:
-                parts = line.split('\t')
-                if len(parts) != 3:
-                    logger.warning(f"第{line_num}行格式不正确: {line}")
-                    continue
-                
-                stock_code, date_str, volume_str = parts
-                
-                # 解析日期
-                trading_date = datetime.strptime(date_str, '%Y-%m-%d').date()
-                
-                # 解析交易量 (处理空值和浮点数)
-                volume_str = volume_str.strip()
-                if not volume_str:
-                    logger.warning(f"第{line_num}行交易量为空: {line}")
-                    continue
-                    
-                # 支持浮点数格式，转换为整数
-                try:
-                    trading_volume = int(float(volume_str))
-                except ValueError:
-                    logger.warning(f"第{line_num}行交易量格式错误: {volume_str}")
-                    continue
-                
-                # 解析股票代码
-                stock_info = self._normalize_stock_code(stock_code)
-                
-                trading_data.append({
-                    'original_stock_code': stock_info['original'],    # 原始代码
-                    'normalized_stock_code': stock_info['normalized'], # 标准化代码
-                    'stock_code': stock_info['normalized'],           # 股票代码 (保持兼容性)
-                    'trading_date': trading_date,
-                    'trading_volume': trading_volume,
-                    'market_prefix': stock_info['prefix']             # SH (可用于统计分析)
+            parts = line.split('\t')
+            if len(parts) != 3:
+                reason = "格式不正确，应为3列：股票代码\t交易日期\t交易量"
+                logger.warning(f"第{line_num}行{reason}: {line}")
+                self.last_parse_errors.append({
+                    'line_number': line_num,
+                    'reason': reason,
+                    'content': line
                 })
-                
-            except Exception as e:
-                logger.error(f"解析第{line_num}行时出错: {line}, 错误: {e}")
                 continue
+
+            stock_code, date_str, volume_str = parts
+
+            # 解析日期
+            try:
+                trading_date = datetime.strptime(date_str.strip(), '%Y-%m-%d').date()
+            except Exception:
+                reason = f"日期格式错误，应为YYYY-MM-DD，收到: {date_str.strip()}"
+                logger.warning(f"第{line_num}行{reason}: {line}")
+                self.last_parse_errors.append({
+                    'line_number': line_num,
+                    'reason': reason,
+                    'content': line
+                })
+                continue
+
+            # 解析交易量 (处理空值和浮点数)
+            volume_str = volume_str.strip()
+            if not volume_str:
+                reason = "交易量为空"
+                logger.warning(f"第{line_num}行{reason}: {line}")
+                self.last_parse_errors.append({
+                    'line_number': line_num,
+                    'reason': reason,
+                    'content': line
+                })
+                continue
+
+            try:
+                trading_volume = int(float(volume_str))
+            except Exception:
+                reason = f"交易量格式错误，无法解析为数字，收到: {volume_str}"
+                logger.warning(f"第{line_num}行{reason}")
+                self.last_parse_errors.append({
+                    'line_number': line_num,
+                    'reason': reason,
+                    'content': line
+                })
+                continue
+
+            # 解析股票代码
+            try:
+                stock_info = self._normalize_stock_code(stock_code)
+            except Exception as e:
+                reason = f"股票代码解析失败: {str(e)}"
+                logger.warning(f"第{line_num}行{reason}: {line}")
+                self.last_parse_errors.append({
+                    'line_number': line_num,
+                    'reason': reason,
+                    'content': line
+                })
+                continue
+
+            trading_data.append({
+                'original_stock_code': stock_info['original'],    # 原始代码
+                'normalized_stock_code': stock_info['normalized'], # 标准化代码
+                'stock_code': stock_info['normalized'],           # 股票代码 (保持兼容性)
+                'trading_date': trading_date,
+                'trading_volume': trading_volume,
+                'market_prefix': stock_info['prefix']             # SH (可用于统计分析)
+            })
         
         logger.info(f"成功解析{len(trading_data)}条交易数据")
         return trading_data
@@ -142,7 +177,9 @@ class TxtImportService:
         
         try:
             # 解析数据
+            lines_total = len([ln for ln in txt_content.strip().split('\n') if ln.strip()])
             trading_data = self.parse_txt_content(txt_content)
+            parse_error_count = max(0, lines_total - len(trading_data))
             if not trading_data:
                 return {"success": False, "message": "未解析到有效数据"}
             
@@ -182,8 +219,10 @@ class TxtImportService:
             # 清理当天已有的其他数据表
             self.clear_daily_data(current_date)
             
-            # 导入原始交易数据
-            imported_count = self.insert_daily_trading(trading_data)
+            # 导入原始交易数据（内部聚合同日同股，避免唯一键冲突）
+            insert_result = self.insert_daily_trading(trading_data)
+            imported_count = insert_result.get('inserted', insert_result if isinstance(insert_result, int) else 0)
+            internal_duplicates = insert_result.get('duplicates', 0) if isinstance(insert_result, dict) else 0
             
             # 使用统一的计算方法
             calculation_results = self.perform_calculations(current_date)
@@ -196,12 +235,32 @@ class TxtImportService:
             if import_record:
                 import_record.import_status = "success"
                 import_record.success_records = imported_count
-                import_record.error_records = len(trading_data) - imported_count
+                # 仅统计解析失败为错误记录，文件内部重复不计入错误
+                import_record.error_records = parse_error_count
                 import_record.concept_count = concept_summary_count
                 import_record.ranking_count = ranking_count
                 import_record.new_high_count = high_record_count
                 import_record.import_completed_at = datetime.utcnow()
                 import_record.calculation_time = round(end_time - start_time, 2)
+                # 在备注中记录重复与解析错误统计及错误预览
+                try:
+                    preview_limit = 50
+                    errors_preview = []
+                    if hasattr(self, 'last_parse_errors') and isinstance(self.last_parse_errors, list):
+                        for e in self.last_parse_errors[:preview_limit]:
+                            errors_preview.append({
+                                'line_number': e.get('line_number'),
+                                'reason': e.get('reason'),
+                                'content': (e.get('content') or '')[:200]
+                            })
+                    import_record.notes = json.dumps({
+                        'file_internal_duplicates': internal_duplicates,
+                        'parse_error_count': parse_error_count,
+                        'parse_errors': errors_preview,
+                        'parse_errors_truncated': parse_error_count > preview_limit
+                    }, ensure_ascii=False)
+                except Exception:
+                    pass
                 self.db.commit()
             
             return {
@@ -214,7 +273,17 @@ class TxtImportService:
                     "ranking_count": ranking_count,
                     "new_high_count": high_record_count,
                     "trading_date": current_date.strftime('%Y-%m-%d'),
-                    "calculation_time": round(end_time - start_time, 2)
+                    "calculation_time": round(end_time - start_time, 2),
+                    "file_internal_duplicates": internal_duplicates,
+                    "parse_error_count": parse_error_count,
+                    "parse_errors_preview": [
+                        {
+                            "line_number": e.get("line_number"),
+                            "reason": e.get("reason"),
+                            "content": (e.get("content") or "")[:200]
+                        } for e in (self.last_parse_errors[:20] if hasattr(self, 'last_parse_errors') else [])
+                    ],
+                    "parse_errors_truncated": parse_error_count > 20
                 }
             }
             
@@ -263,23 +332,48 @@ class TxtImportService:
         self.db.commit()
         logger.info(f"已清理{trading_date}的{'汇总' if keep_trading_data else '所有'}数据")
     
-    def insert_daily_trading(self, trading_data: List[Dict]) -> int:
-        """插入每日交易数据 - 支持原始代码和标准化代码"""
-        count = 0
+    def insert_daily_trading(self, trading_data: List[Dict]) -> Dict[str, int]:
+        """插入每日交易数据 - 支持原始代码和标准化代码
+        为避免唯一键(stock_code, trading_date)冲突，按同日同股聚合（交易量累加）。
+        返回 {'inserted': X, 'duplicates': Y}
+        """
+        # 聚合同一股票同一天的数据，避免唯一约束冲突
+        from collections import defaultdict
+        aggregated: Dict[Tuple[str, date], Dict] = {}
+
         for item in trading_data:
+            key = (item['stock_code'], item['trading_date'])
+            if key in aggregated:
+                # 累加交易量
+                aggregated[key]['trading_volume'] += int(item['trading_volume'])
+                # 优先保留第一次出现的original/normalized，不覆盖
+            else:
+                aggregated[key] = {
+                    'original_stock_code': item['original_stock_code'],
+                    'normalized_stock_code': item['normalized_stock_code'],
+                    'stock_code': item['stock_code'],
+                    'trading_date': item['trading_date'],
+                    'trading_volume': int(item['trading_volume'])
+                }
+
+        internal_duplicates = max(0, len(trading_data) - len(aggregated))
+
+        # 批量插入
+        count = 0
+        for key, row in aggregated.items():
             trading_record = DailyTrading(
-                original_stock_code=item['original_stock_code'],
-                normalized_stock_code=item['normalized_stock_code'],
-                stock_code=item['stock_code'],
-                trading_date=item['trading_date'],
-                trading_volume=item['trading_volume']
+                original_stock_code=row['original_stock_code'],
+                normalized_stock_code=row['normalized_stock_code'],
+                stock_code=row['stock_code'],
+                trading_date=row['trading_date'],
+                trading_volume=row['trading_volume']
             )
             self.db.add(trading_record)
             count += 1
 
         self.db.commit()
-        logger.info(f"插入{count}条交易数据（原始代码 + 标准化代码）")
-        return count
+        logger.info(f"去重后插入{count}条交易数据（原始行数: {len(trading_data)}, 内部重复: {internal_duplicates}）")
+        return { 'inserted': count, 'duplicates': internal_duplicates }
     
     def _get_stock_trading_records(self, stock_codes: List[str], trading_date: date) -> List[DailyTrading]:
         """
@@ -331,48 +425,26 @@ class TxtImportService:
     
     def calculate_concept_summary(self, trading_date: date) -> int:
         """计算概念每日汇总数据"""
-        # 获取所有概念及其包含的股票
-        concepts = self.db.query(Concept).all()
+        # 预取概念-股票映射，减少数据库往返
+        concept_to_codes = self._build_concept_stock_codes()
         concept_summaries = []
-        
-        for concept in concepts:
-            # 获取概念包含的股票代码 - 需要通过Stock表关联获取
-            stock_concepts = self.db.query(StockConcept).filter(
-                StockConcept.concept_id == concept.id
-            ).all()
-            
-            # 获取stock_id列表，然后查询对应的stock_code
-            stock_ids = [sc.stock_id for sc in stock_concepts]
-            if not stock_ids:
-                continue
-            
-            # 通过stock_id获取stock_code
-            from app.models.stock import Stock
-            stocks = self.db.query(Stock).filter(Stock.id.in_(stock_ids)).all()
-            stock_codes = [stock.stock_code for stock in stocks]
-            
+
+        for concept_name, stock_codes in concept_to_codes.items():
             if not stock_codes:
                 continue
-            
-            # 获取这些股票在交易日的数据，使用统一的匹配逻辑
+
             trading_records = self._get_stock_trading_records(stock_codes, trading_date)
-            
-            # 记录匹配信息以便调试
-            if len(trading_records) != len(stock_codes):
-                logger.warning(f"概念{concept.concept_name}: 定义了{len(stock_codes)}只股票，但只匹配到{len(trading_records)}只股票的交易数据")
-            
             if not trading_records:
                 continue
-            
-            # 计算汇总数据
+
             volumes = [record.trading_volume for record in trading_records]
             total_volume = sum(volumes)
             stock_count = len(volumes)
             average_volume = total_volume / stock_count if stock_count > 0 else 0
             max_volume = max(volumes) if volumes else 0
-            
+
             summary = ConceptDailySummary(
-                concept_name=concept.concept_name,
+                concept_name=concept_name,
                 trading_date=trading_date,
                 total_volume=total_volume,
                 stock_count=stock_count,
@@ -391,48 +463,28 @@ class TxtImportService:
     def calculate_stock_concept_ranking(self, trading_date: date) -> int:
         """计算股票在概念中的排名"""
         rankings = []
-        
+
         # 获取所有概念的汇总数据
         concept_summaries = self.db.query(ConceptDailySummary).filter(
             ConceptDailySummary.trading_date == trading_date
         ).all()
-        
+
+        # 预取概念映射
+        concept_to_codes = self._build_concept_stock_codes()
+
         for summary in concept_summaries:
             concept_name = summary.concept_name
             concept_total_volume = summary.total_volume
-            
-            # 获取概念对应的股票交易数据
-            concept = self.db.query(Concept).filter(
-                Concept.concept_name == concept_name
-            ).first()
-            
-            if not concept:
+
+            stock_codes = concept_to_codes.get(concept_name, [])
+            if not stock_codes:
                 continue
-            
-            stock_concepts = self.db.query(StockConcept).filter(
-                StockConcept.concept_id == concept.id
-            ).all()
-            
-            # 获取stock_id列表，然后查询对应的stock_code
-            stock_ids = [sc.stock_id for sc in stock_concepts]
-            if not stock_ids:
-                continue
-            
-            # 通过stock_id获取stock_code
-            from app.models.stock import Stock
-            stocks = self.db.query(Stock).filter(Stock.id.in_(stock_ids)).all()
-            stock_codes = [stock.stock_code for stock in stocks]
-            
-            # 获取股票交易数据并按交易量排序，使用统一的匹配逻辑
+
             trading_records = self._get_stock_trading_records(stock_codes, trading_date)
-            
-            # 按交易量排序
             trading_records.sort(key=lambda x: x.trading_volume, reverse=True)
-            
-            # 计算排名
+
             for rank, record in enumerate(trading_records, 1):
-                volume_percentage = (record.trading_volume / concept_total_volume * 100) if concept_total_volume > 0 else 0
-                
+                volume_percentage = (record.trading_volume / concept_total_volume * 100) if concept_total_volume else 0
                 ranking = StockConceptRanking(
                     stock_code=record.stock_code,
                     concept_name=concept_name,
@@ -450,6 +502,26 @@ class TxtImportService:
         
         logger.info(f"计算{len(rankings)}条排名数据")
         return len(rankings)
+
+    def _build_concept_stock_codes(self) -> Dict[str, List[str]]:
+        """预取概念->股票代码 映射，减少循环中的数据库查询"""
+        from app.models.concept import Concept, StockConcept
+        from app.models.stock import Stock
+
+        mapping: Dict[str, List[str]] = defaultdict(list)
+
+        rows = (
+            self.db.query(Concept.concept_name, Stock.stock_code)
+            .join(StockConcept, StockConcept.concept_id == Concept.id)
+            .join(Stock, Stock.id == StockConcept.stock_id)
+            .all()
+        )
+
+        for concept_name, stock_code in rows:
+            if stock_code:
+                mapping[concept_name].append(stock_code)
+
+        return mapping
     
     def detect_concept_new_highs(self, trading_date: date, periods: List[int] = [5, 10, 20, 30]) -> int:
         """检测概念创新高"""

@@ -36,11 +36,11 @@ interface ImportRecord {
   notes: string | null;
 }
 
-interface TxtImportRecordsProps {
-  refreshTrigger?: number; // 用于触发刷新的计数器
+interface TtvImportRecordsProps {
+  refreshTrigger?: number;
 }
 
-const TxtImportRecords: React.FC<TxtImportRecordsProps> = ({ refreshTrigger }) => {
+const TtvImportRecords: React.FC<TtvImportRecordsProps> = ({ refreshTrigger }) => {
   const [records, setRecords] = useState<ImportRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [pagination, setPagination] = useState({
@@ -55,84 +55,83 @@ const TxtImportRecords: React.FC<TxtImportRecordsProps> = ({ refreshTrigger }) =
   const [errorModalVisible, setErrorModalVisible] = useState(false);
   const [errorModalData, setErrorModalData] = useState<{ tradingDate?: string; errors: any[]; truncated?: boolean }>({ errors: [] });
 
-  // 获取导入记录
   const fetchRecords = async (page: number = 1, pageSize: number = 20, tradingDate?: string) => {
     setLoading(true);
     try {
-      const params = new URLSearchParams({
-        page: page.toString(),
-        size: pageSize.toString()
-      });
-      
-      if (tradingDate) {
-        params.append('trading_date', tradingDate);
-      }
-      
-      const response = await adminApiClient.get(`/api/v1/txt-import/records?${params}`);
-      
+      // 通用导入记录接口，使用limit/offset，并支持trading_date筛选
+      const limit = pageSize;
+      const offset = (page - 1) * pageSize;
+      const url = new URL(`/api/v1/universal-import/ttv/records`, window.location.origin);
+      url.searchParams.set('limit', String(limit));
+      url.searchParams.set('offset', String(offset));
+      if (tradingDate) url.searchParams.set('trading_date', tradingDate);
+
+      const response = await adminApiClient.get(url.pathname + url.search);
+
       if (response.data?.records) {
-        setRecords(response.data.records);
+        const list = (response.data.records as any[]).map((r: any) => ({
+          ...r,
+          file_size_mb: r.file_size ? r.file_size / 1024 / 1024 : 0
+        }));
+
+        setRecords(list);
         setPagination({
-          current: response.data.pagination.page,
-          pageSize: response.data.pagination.size,
-          total: response.data.pagination.total
+          current: page,
+          pageSize,
+          total: response.data.total || list.length
         });
       } else {
         setRecords([]);
         setPagination(prev => ({ ...prev, total: 0 }));
       }
     } catch (error: any) {
-      console.error('获取导入记录失败:', error);
-      message.error('获取导入记录失败');
+      console.error('获取TTV导入记录失败:', error);
+      message.error('获取TTV导入记录失败');
     } finally {
       setLoading(false);
     }
   };
 
-  // 获取可用日期列表
   const fetchAvailableDates = async () => {
     try {
-      const response = await adminApiClient.get('/api/v1/txt-import/dates');
-      if (response.data?.dates) {
-        setAvailableDates(response.data.dates);
+      const response = await adminApiClient.get('/api/v1/universal-import/ttv/dates?limit=365');
+      if (response.data?.success) {
+        setAvailableDates(response.data.dates || []);
       }
     } catch (error) {
-      console.error('获取日期列表失败:', error);
+      console.error('获取TTV日期列表失败:', error);
     }
   };
 
-  // 重新计算指定日期的数据
   const handleRecalculate = async (tradingDate: string) => {
     setRecalculating(prev => ({ ...prev, [tradingDate]: true }));
     
-    // 显示进度提示
-    const hideLoading = message.loading(`正在重新计算 ${tradingDate} 的数据，请耐心等待...`, 0);
+    const hideLoading = message.loading(`正在重新计算 ${tradingDate} 的TTV数据，请耐心等待...`, 0);
     
     try {
-      const response = await adminApiClient.post(`/api/v1/txt-import/recalculate?trading_date=${tradingDate}`, {}, {
-        timeout: 180000 // 3分钟超时，专门为重新计算设置
+      const response = await adminApiClient.post(`/api/v1/universal-import/ttv/recalculate?trading_date=${tradingDate}`, {}, {
+        timeout: 180000
       });
       
       if (response.data?.success) {
-        const stats = response.data.stats;
+        const stats = response.data.calculation_result || {};
         message.success(
-          `${tradingDate} 重新计算完成！概念汇总: ${stats.concept_summary_count}个，个股排名: ${stats.ranking_count}条，创新高: ${stats.new_high_count}条`,
+          `${tradingDate} TTV重新计算完成！概念汇总: ${stats.concept_count || 0}个，个股排名: ${stats.ranking_count || 0}条，创新高: ${stats.new_high_count || 0}条`,
           5
         );
         
-        // 重新获取记录
         await fetchRecords(pagination.current, pagination.pageSize, selectedDate);
       } else {
-        message.error(response.data?.message || '重新计算失败');
+        message.error(response.data?.message || 'TTV重新计算失败');
       }
     } catch (error: any) {
-      console.error('重新计算失败:', error);
+      console.error('TTV重新计算失败:', error);
       if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
-        message.error('重新计算超时，请检查后端服务状态或稍后重试');
+        message.error('TTV重新计算超时，请检查后端服务状态或稍后重试');
       } else if (error.response?.status === 401) {
         message.error('认证失败，请重新登录');
       } else {
-        message.error(`重新计算失败: ${error.response?.data?.detail || error.message}`);
+        message.error(`TTV重新计算失败: ${error.response?.data?.detail || error.message}`);
       }
     } finally {
       hideLoading();
@@ -140,43 +139,35 @@ const TxtImportRecords: React.FC<TxtImportRecordsProps> = ({ refreshTrigger }) =
     }
   };
 
-  // 页面加载时获取数据
   useEffect(() => {
     fetchRecords();
     fetchAvailableDates();
   }, []);
 
-  // 监听刷新触发器
   useEffect(() => {
     if (refreshTrigger && refreshTrigger > 0) {
-      // 刷新记录和日期列表
       fetchRecords();
       fetchAvailableDates();
     }
   }, [refreshTrigger]);
 
-  // 监听全局TXT导入成功事件
   useEffect(() => {
-    const handleTxtImportSuccess = (event: any) => {
-      console.log('收到TXT导入成功事件，刷新记录列表', event.detail);
-      // 延迟一点时间确保后端已经完成数据写入
+    const handleTtvImportSuccess = (event: any) => {
+      console.log('收到TTV导入成功事件，刷新记录列表', event.detail);
       setTimeout(() => {
         fetchRecords();
         fetchAvailableDates();
       }, 1000);
     };
 
-    window.addEventListener('txtImportSuccess', handleTxtImportSuccess);
+    window.addEventListener('ttvImportSuccess', handleTtvImportSuccess);
     
-    // 清理事件监听器
     return () => {
-      window.removeEventListener('txtImportSuccess', handleTxtImportSuccess);
+      window.removeEventListener('ttvImportSuccess', handleTtvImportSuccess);
     };
   }, []);
 
-  // 组件可见性检测和定期刷新
   useEffect(() => {
-    // 创建Intersection Observer来检测组件是否可见
     const observer = new IntersectionObserver(
       ([entry]) => {
         setIsVisible(entry.isIntersecting);
@@ -184,20 +175,18 @@ const TxtImportRecords: React.FC<TxtImportRecordsProps> = ({ refreshTrigger }) =
       { threshold: 0.1 }
     );
 
-    // 获取组件的DOM元素
-    const element = document.getElementById('txt-import-records-container');
+    const element = document.getElementById('ttv-import-records-container');
     if (element) {
       observer.observe(element);
     }
 
-    // 定期刷新数据（当组件可见时）
     const interval = setInterval(() => {
       if (isVisible) {
-        console.log('定期刷新TXT导入记录');
+        console.log('定期刷新TTV导入记录');
         fetchRecords(pagination.current, pagination.pageSize, selectedDate);
         fetchAvailableDates();
       }
-    }, 30000); // 每30秒刷新一次
+    }, 30000);
 
     return () => {
       if (element) {
@@ -207,12 +196,10 @@ const TxtImportRecords: React.FC<TxtImportRecordsProps> = ({ refreshTrigger }) =
     };
   }, [isVisible, pagination.current, pagination.pageSize, selectedDate]);
 
-  // 当日期过滤改变时重新获取数据
   useEffect(() => {
     fetchRecords(1, pagination.pageSize, selectedDate);
   }, [selectedDate]);
 
-  // 状态标签渲染
   const renderStatus = (status: string) => {
     const statusMap = {
       success: { color: 'success', icon: <CheckCircleOutlined />, text: '成功' },
@@ -229,7 +216,6 @@ const TxtImportRecords: React.FC<TxtImportRecordsProps> = ({ refreshTrigger }) =
     );
   };
 
-  // 表格列定义 - 去掉文件名列，优化计算结果显示
   const columns = [
     {
       title: '交易日期',
@@ -237,7 +223,7 @@ const TxtImportRecords: React.FC<TxtImportRecordsProps> = ({ refreshTrigger }) =
       key: 'trading_date',
       width: 120,
       render: (date: string) => (
-        <Tag color="blue" icon={<CalendarOutlined />}>
+        <Tag color="purple" icon={<CalendarOutlined />}>
           {date}
         </Tag>
       )
@@ -262,22 +248,20 @@ const TxtImportRecords: React.FC<TxtImportRecordsProps> = ({ refreshTrigger }) =
       width: 120,
       render: (record: ImportRecord) => {
         let extras: any = {};
-        try {
-          extras = record.notes ? JSON.parse(record.notes) : {};
-        } catch {}
+        try { extras = (record as any).notes ? JSON.parse((record as any).notes) : {}; } catch {}
         return (
           <div>
             <div style={{ fontSize: '12px', color: '#52c41a' }}>
               ✓ 成功: {record.success_records || 0}
             </div>
-            {(record.error_records || 0) > 0 && (
+            {extras.parse_error_count > 0 && (
               <div style={{ fontSize: '12px', color: '#ff4d4f' }}>
-                ✗ 解析失败: {record.error_records}
+                ✗ 解析失败: {extras.parse_error_count}
               </div>
             )}
-            {typeof extras.file_internal_duplicates === 'number' && (
+            {(record as any).duplicate_records !== undefined && (
               <div style={{ fontSize: '12px', color: '#faad14' }}>
-                ≈ 重复合并: {extras.file_internal_duplicates}
+                ≈ 重复: {(record as any).duplicate_records || 0}
               </div>
             )}
             <div style={{ fontSize: '12px', color: '#666' }}>
@@ -330,12 +314,12 @@ const TxtImportRecords: React.FC<TxtImportRecordsProps> = ({ refreshTrigger }) =
       width: 120,
       render: (record: ImportRecord) => {
         let extras: any = {};
-        try { extras = record.notes ? JSON.parse(record.notes) : {}; } catch {}
+        try { extras = (record as any).notes ? JSON.parse((record as any).notes) : {}; } catch {}
         const parseErrorCount = extras.parse_error_count || 0;
         const showErrorBtn = parseErrorCount > 0 || !!record.error_message;
         return (
           <Space size="small" direction="vertical">
-            <Tooltip title="重新计算该日期的汇总数据">
+            <Tooltip title="重新计算该日期的TTV汇总数据">
               <Button
                 size="small"
                 icon={<ReloadOutlined />}
@@ -372,20 +356,18 @@ const TxtImportRecords: React.FC<TxtImportRecordsProps> = ({ refreshTrigger }) =
     }
   ];
 
-  // 分页处理
   const handleTableChange = (page: number, pageSize?: number) => {
     fetchRecords(page, pageSize || pagination.pageSize, selectedDate);
   };
 
   return (
-    <div id="txt-import-records-container" style={{ padding: '24px' }}>
-      {/* 简化的查询区域 */}
+    <div id="ttv-import-records-container" style={{ padding: '24px' }}>
       <Card style={{ marginBottom: '16px', borderRadius: '8px' }} bodyStyle={{ padding: '16px' }}>
         <Row gutter={[8, 8]} align="middle">
           <Col flex="auto" style={{ minWidth: '60px' }}>
             <Space>
               <HistoryOutlined />
-              <Text strong>TXT导入记录筛选:</Text>
+              <Text strong>TTV导入记录筛选:</Text>
             </Space>
           </Col>
           
@@ -433,7 +415,6 @@ const TxtImportRecords: React.FC<TxtImportRecordsProps> = ({ refreshTrigger }) =
         </Row>
       </Card>
 
-      {/* 导入记录表格 */}
       <Card style={{ borderRadius: '8px' }}>
         <Table
           columns={columns}
@@ -447,7 +428,7 @@ const TxtImportRecords: React.FC<TxtImportRecordsProps> = ({ refreshTrigger }) =
             showSizeChanger: true,
             showQuickJumper: true,
             showTotal: (total, range) => 
-              `显示 ${range[0]}-${range[1]} 条，共 ${total} 条记录`,
+              `显示 ${range[0]}-${range[1]} 条，共 ${total} 条TTV记录`,
             onChange: handleTableChange,
             onShowSizeChange: handleTableChange
           }}
@@ -485,4 +466,4 @@ const TxtImportRecords: React.FC<TxtImportRecordsProps> = ({ refreshTrigger }) =
   );
 };
 
-export default TxtImportRecords;
+export default TtvImportRecords;

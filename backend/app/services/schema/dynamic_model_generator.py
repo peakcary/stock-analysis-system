@@ -85,7 +85,7 @@ class DynamicModelGenerator:
                 Index(f'idx_{prefix}original_code', 'original_stock_code'),
                 Index(f'idx_{prefix}normalized_code', 'normalized_stock_code'),
                 UniqueConstraint('stock_code', 'trading_date', name=f'uk_{prefix}stock_date'),
-                {'comment': f'{prefix.upper() if prefix else "TXT"}每日交易数据表'}
+                {'comment': f'{prefix.upper() if prefix else "TXT"}每日交易数据表', 'extend_existing': True}
             ),
             'id': Column(Integer, primary_key=True, index=True),
             'original_stock_code': Column(String(20), nullable=False, index=True, comment='原始股票代码'),
@@ -117,7 +117,7 @@ class DynamicModelGenerator:
                 Index(f'idx_{prefix}date_total', 'trading_date', 'total_volume'),
                 Index(f'idx_{prefix}concept_volume', 'concept_name', 'total_volume'),
                 UniqueConstraint('concept_name', 'trading_date', name=f'uk_{prefix}concept_date'),
-                {'comment': f'{prefix.upper() if prefix else "TXT"}概念每日汇总表'}
+                {'comment': f'{prefix.upper() if prefix else "TXT"}概念每日汇总表', 'extend_existing': True}
             ),
             'id': Column(Integer, primary_key=True, index=True),
             'concept_name': Column(String(100), nullable=False, index=True, comment='概念名称'),
@@ -153,7 +153,7 @@ class DynamicModelGenerator:
                 Index(f'idx_{prefix}stock_date_rank', 'stock_code', 'trading_date', 'concept_rank'),
                 Index(f'idx_{prefix}date_volume_desc', 'trading_date', 'trading_volume'),
                 UniqueConstraint('stock_code', 'concept_name', 'trading_date', name=f'uk_{prefix}stock_concept_date'),
-                {'comment': f'{prefix.upper() if prefix else "TXT"}股票概念排名表'}
+                {'comment': f'{prefix.upper() if prefix else "TXT"}股票概念排名表', 'extend_existing': True}
             ),
             'id': Column(Integer, primary_key=True, index=True),
             'stock_code': Column(String(20), nullable=False, index=True, comment='股票代码'),
@@ -197,7 +197,7 @@ class DynamicModelGenerator:
                 Index(f'idx_{prefix}concept_active', 'concept_name', 'is_active'),
                 Index(f'idx_{prefix}period_volume', 'days_period', 'total_volume'),
                 UniqueConstraint('concept_name', 'trading_date', 'days_period', name=f'uk_{prefix}concept_date_period'),
-                {'comment': f'{prefix.upper() if prefix else "TXT"}概念创新高记录表'}
+                {'comment': f'{prefix.upper() if prefix else "TXT"}概念创新高记录表', 'extend_existing': True}
             ),
             'id': Column(Integer, primary_key=True, index=True),
             'concept_name': Column(String(100), nullable=False, index=True, comment='概念名称'),
@@ -249,16 +249,16 @@ class DynamicModelGenerator:
                 Index(f'idx_{prefix}filename', 'filename'),
                 Index(f'idx_{prefix}status_date', 'import_status', 'import_started_at'),
                 Index(f'idx_{prefix}file_hash', 'file_hash'),
-                {'comment': f'{prefix.upper() if prefix else "TXT"}文件导入记录表'}
+                {'comment': f'{prefix.upper() if prefix else "TXT"}文件导入记录表', 'extend_existing': True}
             ),
             'id': Column(Integer, primary_key=True, index=True),
             'filename': Column(String(255), nullable=False, comment='原始文件名'),
             'trading_date': Column(Date, nullable=False, index=True, comment='数据交易日期'),
             'file_size': Column(BigInteger, nullable=False, comment='文件大小(字节)'),
             'file_hash': Column(String(64), nullable=True, index=True, comment='文件MD5哈希值'),
-            'import_status': Column(Enum(ImportStatus, name=status_enum_name), nullable=False, default=ImportStatus.PROCESSING),
+            'import_status': Column(Enum(ImportStatus, name=status_enum_name, values_callable=lambda x: [e.value for e in x]), nullable=False, default=ImportStatus.PROCESSING),
             'imported_by': Column(String(50), nullable=False, comment='导入用户'),
-            'import_mode': Column(Enum(ImportMode, name=mode_enum_name), default=ImportMode.OVERWRITE, comment='导入模式'),
+            'import_mode': Column(Enum(ImportMode, name=mode_enum_name, values_callable=lambda x: [e.value for e in x]), default=ImportMode.OVERWRITE, comment='导入模式'),
             'total_records': Column(Integer, default=0, comment='文件总记录数'),
             'success_records': Column(Integer, default=0, comment='成功导入记录数'),
             'error_records': Column(Integer, default=0, comment='错误记录数'),

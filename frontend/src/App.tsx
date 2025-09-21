@@ -792,7 +792,7 @@ const AdminApp: React.FC = () => {
       console.log('✅ 新TXT导入成功:', response.data);
       hideLoading();
       
-      if (response.data.success) {
+        if (response.data.success) {
         const stats = response.data.stats;
         setImportResult({
           message: response.data.message,
@@ -804,7 +804,31 @@ const AdminApp: React.FC = () => {
           filename: file.name
         });
         
-        message.success(`TXT导入成功！交易数据${stats?.trading_data_count || 0}条，概念汇总${stats?.concept_summary_count || 0}个`);
+        const parseFail = stats?.parse_error_count || 0;
+        const extra = parseFail > 0 ? `，解析失败${parseFail}条` : '';
+        message.success(`TXT导入成功！交易数据${stats?.trading_data_count || 0}条，概念汇总${stats?.concept_summary_count || 0}个${extra}`);
+        // 若存在解析失败，弹出预览详情
+        if ((stats?.parse_error_count || 0) > 0 && stats?.parse_errors_preview?.length) {
+          Modal.info({
+            title: `解析失败 ${stats.parse_error_count} 条（仅显示前${stats.parse_errors_preview.length}条）`,
+            width: 720,
+            content: (
+              <div style={{ maxHeight: 360, overflowY: 'auto' }}>
+                {stats.parse_errors_preview.map((e: any, idx: number) => (
+                  <div key={idx} style={{ padding: '6px 0', borderBottom: '1px solid #f0f0f0' }}>
+                    <div style={{ color: '#fa541c' }}>第 {e.line_number} 行：{e.reason}</div>
+                    <div style={{ fontFamily: 'monospace', whiteSpace: 'pre-wrap', color: '#555' }}>{e.content}</div>
+                  </div>
+                ))}
+                {stats.parse_errors_truncated && (
+                  <div style={{ marginTop: 8 }}>
+                    <Tag color="warning">仅显示前{stats.parse_errors_preview.length}条</Tag>
+                  </div>
+                )}
+              </div>
+            )
+          });
+        }
         
         // 发送全局事件通知TXT导入记录组件刷新
         window.dispatchEvent(new CustomEvent('txtImportSuccess', {

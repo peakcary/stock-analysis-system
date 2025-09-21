@@ -7,11 +7,11 @@ import {
   CloudUploadOutlined, UploadOutlined, DatabaseOutlined, SearchOutlined,
   HistoryOutlined, FileTextOutlined, CheckCircleOutlined, DeleteOutlined
 } from '@ant-design/icons';
+import dayjs from 'dayjs';
 import { adminApiClient } from '../../../shared/admin-auth';
 import TxtImportRecords from './TxtImportRecords';
-import HistoricalDataImport from './HistoricalDataImport';
-import UniversalImportPage from './UniversalImportPage';
-import FileTypeManagement from './FileTypeManagement';
+import TtvImportRecords from './TtvImportRecords';
+import EeeImportRecords from './EeeImportRecords';
 
 const { Title, Text } = Typography;
 const { TabPane } = Tabs;
@@ -22,11 +22,15 @@ interface DataImportPageProps {
   loading: boolean;
   csvImportLoading: boolean;
   txtImportLoading: boolean;
+  ttvImportLoading?: boolean;
+  eeeImportLoading?: boolean;
   importStats: any;
   importResult?: any; // 新增：导入结果信息
   onGetAllStocks: () => void;
   onCsvImport: () => void;
   onTxtImport: () => void;
+  onTtvImport?: () => void;
+  onEeeImport?: () => void;
   onGetStockList: (searchText?: string) => void;
   searchText: string;
   onSearchTextChange: (value: string) => void;
@@ -39,11 +43,15 @@ const DataImportPage: React.FC<DataImportPageProps> = ({
   loading,
   csvImportLoading,
   txtImportLoading,
+  ttvImportLoading = false,
+  eeeImportLoading = false,
   importStats,
   importResult,
   onGetAllStocks,
   onCsvImport,
   onTxtImport,
+  onTtvImport,
+  onEeeImport,
   onGetStockList,
   searchText,
   onSearchTextChange,
@@ -52,6 +60,10 @@ const DataImportPage: React.FC<DataImportPageProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState('stocks');
   const [txtImportRefreshTrigger, setTxtImportRefreshTrigger] = useState(0);
+  const [ttvImportRefreshTrigger, setTtvImportRefreshTrigger] = useState(0);
+  const [eeeImportRefreshTrigger, setEeeImportRefreshTrigger] = useState(0);
+  const [localTtvImportLoading, setLocalTtvImportLoading] = useState(false);
+  const [localEeeImportLoading, setLocalEeeImportLoading] = useState(false);
   const [searchFilters, setSearchFilters] = useState({
     code: '',
     name: '',
@@ -235,13 +247,138 @@ const DataImportPage: React.FC<DataImportPageProps> = ({
     }));
   }, [filteredStocks.length]);
 
-  // 处理Tab切换，在切换到TXT导入记录时刷新数据
+  // TTV文件导入处理 - 与TXT导入保持一致
+  const handleTtvImport = () => {
+    console.log('TTV导入按钮被点击');
+    try {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '.txt,.ttv';
+      input.onchange = async (e) => {
+        console.log('TTV文件被选择');
+        try {
+          const file = (e.target as HTMLInputElement).files?.[0];
+          if (file) {
+            console.log('选择的TTV文件:', file.name);
+            await executeFileImport('ttv', file);
+          } else {
+            console.log('没有选择文件');
+          }
+        } catch (error) {
+          console.error('TTV文件选择处理错误:', error);
+        }
+      };
+      console.log('准备触发文件选择器');
+      input.click();
+      console.log('文件选择器已触发');
+    } catch (error) {
+      console.error('TTV导入处理错误:', error);
+      message.error('TTV文件选择失败');
+    }
+  };
+
+  // EEE文件导入处理 - 与TXT导入保持一致
+  const handleEeeImport = () => {
+    console.log('EEE导入按钮被点击');
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.txt,.eee';
+    input.onchange = async (e) => {
+      console.log('EEE文件被选择');
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (file) {
+        console.log('选择的EEE文件:', file.name);
+        await executeFileImport('eee', file);
+      }
+    };
+    input.click();
+  };
+
+  // 执行文件导入 - 简化版本，与TXT导入保持一致
+  const executeFileImport = async (fileType: 'ttv' | 'eee', file: File) => {
+    console.log(`开始执行${fileType.toUpperCase()}文件导入:`, file.name);
+    
+    // 设置loading状态
+    if (fileType === 'ttv') {
+      setLocalTtvImportLoading(true);
+    } else {
+      setLocalEeeImportLoading(true);
+    }
+    
+    let hideLoading: (() => void) | undefined;
+    try {
+      hideLoading = message.loading(`正在导入${fileType.toUpperCase()}文件...`, 0);
+      
+      // 从文件名中提取日期（假设文件名包含日期）或使用今天日期
+      const today = dayjs().format('YYYY-MM-DD');
+      
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('file_type', fileType);
+      formData.append('trading_date', today);
+
+      const response = await adminApiClient.post('/api/v1/universal-import/import', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+        timeout: 120000,
+      });
+
+      if (hideLoading) hideLoading();
+
+      if (response.data?.success) {
+        const result = response.data;
+        message.success(
+          `${fileType.toUpperCase()}文件导入成功！导入${result.import_result?.success_records || 0}条记录`,
+          5
+        );
+        
+        // 刷新对应的记录列表
+        if (fileType === 'ttv') {
+          setTtvImportRefreshTrigger(prev => prev + 1);
+        } else {
+          setEeeImportRefreshTrigger(prev => prev + 1);
+        }
+
+        // 触发全局事件
+        window.dispatchEvent(new CustomEvent(`${fileType}ImportSuccess`, {
+          detail: result
+        }));
+      } else {
+        message.error(response.data?.message || `${fileType.toUpperCase()}文件导入失败`);
+      }
+    } catch (error: any) {
+      if (hideLoading) hideLoading();
+      console.error(`${fileType.toUpperCase()}文件导入失败:`, error);
+      
+      if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+        message.error(`${fileType.toUpperCase()}文件导入超时，请检查文件大小或网络状况`);
+      } else if (error.response?.status === 401) {
+        message.error('认证失败，请重新登录');
+      } else {
+        message.error(`${fileType.toUpperCase()}文件导入失败: ${error.response?.data?.detail || error.message}`);
+      }
+    } finally {
+      // 重置loading状态
+      if (fileType === 'ttv') {
+        setLocalTtvImportLoading(false);
+      } else {
+        setLocalEeeImportLoading(false);
+      }
+    }
+  };
+
+  // 处理Tab切换，在切换到相应导入记录时刷新数据
   const handleTabChange = (key: string) => {
     setActiveTab(key);
     
-    // 如果切换到TXT导入记录tab，触发刷新
+    // 根据切换的tab触发相应的刷新
     if (key === 'txt-records') {
       setTxtImportRefreshTrigger(prev => prev + 1);
+    } else if (key === 'ttv-records') {
+      setTtvImportRefreshTrigger(prev => prev + 1);
+    } else if (key === 'eee-records') {
+      setEeeImportRefreshTrigger(prev => prev + 1);
     }
   };
 
@@ -348,6 +485,133 @@ const DataImportPage: React.FC<DataImportPageProps> = ({
               
               {/* TXT导入结果显示 */}
               {importResult && importResult.filename && importResult.filename.toLowerCase().endsWith('.txt') && (
+                <div style={{ marginTop: '16px' }}>
+                  <Alert
+                    message={importResult.error ? "导入失败" : "导入成功"}
+                    description={
+                      <div>
+                        <p><strong>文件:</strong> {importResult.filename}</p>
+                        <p><strong>结果:</strong> {importResult.message}</p>
+                        {!importResult.error && importResult.trading_date && (
+                          <div style={{ marginTop: '8px' }}>
+                            <p><strong>交易日期:</strong> {importResult.trading_date}</p>
+                            <p><strong>导入记录:</strong> {importResult.imported_records}条</p>
+                            <p><strong>概念汇总:</strong> {importResult.concept_summaries}个</p>
+                            <p><strong>排名记录:</strong> {importResult.ranking_records}条</p>
+                            <p><strong>创新高:</strong> {importResult.new_high_records}条</p>
+                          </div>
+                        )}
+                      </div>
+                    }
+                    type={importResult.error ? "error" : "success"}
+                    showIcon
+                    style={{ textAlign: 'left' }}
+                  />
+                </div>
+              )}
+            </div>
+          </Col>
+        </Row>
+
+        {/* 新增TTV和EEE导入区域 */}
+        <Row gutter={16} style={{ marginTop: '16px' }}>
+          <Col xs={24} md={12}>
+            <div 
+              style={{ 
+                padding: '16px',
+                borderRadius: '8px',
+                background: '#f6f7ff',
+                border: '1px solid #adc6ff',
+                textAlign: 'center'
+              }}
+            >
+              <div style={{ marginBottom: '12px' }}>
+                <span style={{ fontSize: '20px', marginRight: '8px' }}>📺</span>
+                <Text strong style={{ color: '#597ef7', fontSize: '16px' }}>
+                  TTV视频数据导入
+                </Text>
+              </div>
+              <Text type="secondary" style={{ display: 'block', marginBottom: '12px' }}>
+                股票视频热度相关数据
+              </Text>
+              <Button 
+                icon={<UploadOutlined />}
+                loading={localTtvImportLoading}
+                onClick={() => {
+                  console.log('TTV按钮点击事件触发');
+                  handleTtvImport();
+                }}
+                type="primary"
+                size="large"
+                style={{ background: '#597ef7', borderColor: '#597ef7' }}
+              >
+                {ttvImportLoading ? '导入中...' : '选择TTV文件'}
+              </Button>
+              
+              {/* TTV导入结果显示 */}
+              {importResult && importResult.filename && importResult.filename.toLowerCase().endsWith('.ttv') && (
+                <div style={{ marginTop: '16px' }}>
+                  <Alert
+                    message={importResult.error ? "导入失败" : "导入成功"}
+                    description={
+                      <div>
+                        <p><strong>文件:</strong> {importResult.filename}</p>
+                        <p><strong>结果:</strong> {importResult.message}</p>
+                        {!importResult.error && importResult.trading_date && (
+                          <div style={{ marginTop: '8px' }}>
+                            <p><strong>交易日期:</strong> {importResult.trading_date}</p>
+                            <p><strong>导入记录:</strong> {importResult.imported_records}条</p>
+                            <p><strong>概念汇总:</strong> {importResult.concept_summaries}个</p>
+                            <p><strong>排名记录:</strong> {importResult.ranking_records}条</p>
+                            <p><strong>创新高:</strong> {importResult.new_high_records}条</p>
+                          </div>
+                        )}
+                      </div>
+                    }
+                    type={importResult.error ? "error" : "success"}
+                    showIcon
+                    style={{ textAlign: 'left' }}
+                  />
+                </div>
+              )}
+            </div>
+          </Col>
+          
+          <Col xs={24} md={12}>
+            <div 
+              style={{ 
+                padding: '16px',
+                borderRadius: '8px',
+                background: '#fff8e6',
+                border: '1px solid #ffe58f',
+                textAlign: 'center'
+              }}
+            >
+              <div style={{ marginBottom: '12px' }}>
+                <span style={{ fontSize: '20px', marginRight: '8px' }}>⚡</span>
+                <Text strong style={{ color: '#faad14', fontSize: '16px' }}>
+                  EEE能源数据导入
+                </Text>
+              </div>
+              <Text type="secondary" style={{ display: 'block', marginBottom: '12px' }}>
+                股票能源效率相关数据
+              </Text>
+              <Button 
+                icon={<UploadOutlined />}
+                loading={localEeeImportLoading}
+                onClick={() => {
+                  console.log('EEE按钮点击事件触发');
+                  handleEeeImport();
+                }}
+                type="primary"
+                size="large"
+                style={{ background: '#faad14', borderColor: '#faad14' }}
+              >
+                {eeeImportLoading ? '导入中...' : '选择EEE文件'}
+              </Button>
+              
+              {/* EEE导入结果显示 */}
+              {importResult && importResult.filename && importResult.filename.toLowerCase().endsWith('.eee') && (
                 <div style={{ marginTop: '16px' }}>
                   <Alert
                     message={importResult.error ? "导入失败" : "导入成功"}
@@ -567,48 +831,36 @@ const DataImportPage: React.FC<DataImportPageProps> = ({
             <TxtImportRecords refreshTrigger={txtImportRefreshTrigger} />
           </TabPane>
 
-          {/* 通用文件导入 Tab */}
+          {/* TTV导入记录 Tab */}
           <TabPane
             tab={
               <span>
-                <FileTextOutlined />
-                通用文件导入
-                <Badge count="New" style={{ backgroundColor: '#52c41a', marginLeft: 8, fontSize: '10px' }} />
+                <HistoryOutlined />
+                TTV导入记录
+                <Badge count="New" style={{ backgroundColor: '#597ef7', marginLeft: 8, fontSize: '10px' }} />
               </span>
             }
-            key="universal-import"
+            key="ttv-records"
           >
-            <UniversalImportPage />
+            <TtvImportRecords refreshTrigger={ttvImportRefreshTrigger} />
           </TabPane>
 
-          {/* 文件类型管理 Tab */}
+          {/* EEE导入记录 Tab */}
           <TabPane
             tab={
               <span>
-                <DatabaseOutlined />
-                文件类型管理
-                <Badge count="New" style={{ backgroundColor: '#1890ff', marginLeft: 8, fontSize: '10px' }} />
+                <HistoryOutlined />
+                EEE导入记录
+                <Badge count="New" style={{ backgroundColor: '#faad14', marginLeft: 8, fontSize: '10px' }} />
               </span>
             }
-            key="file-type-management"
+            key="eee-records"
           >
-            <FileTypeManagement />
-          </TabPane>
-
-          {/* 历史数据导入 Tab */}
-          <TabPane
-            tab={
-              <span>
-                <CloudUploadOutlined />
-                历史数据导入
-              </span>
-            }
-            key="historical-import"
-          >
-            <HistoricalDataImport />
+            <EeeImportRecords refreshTrigger={eeeImportRefreshTrigger} />
           </TabPane>
         </Tabs>
       </Card>
+
     </div>
   );
 };

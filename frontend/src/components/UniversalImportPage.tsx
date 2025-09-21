@@ -191,9 +191,32 @@ const UniversalImportPage: React.FC = () => {
       if (info.file.status === 'done') {
         setUploading(false);
         if (info.file.response?.success) {
-          message.success('文件导入成功');
+          const res = info.file.response;
+          const internalDup = res?.import_result?.file_internal_duplicates || 0;
+          const parseFail = res?.parse_info?.parse_error_count || 0;
+          if (internalDup > 0 || parseFail > 0) {
+            const parts: string[] = [];
+            if (internalDup > 0) parts.push(`重复合并${internalDup}条`);
+            if (parseFail > 0) parts.push(`解析失败${parseFail}条`);
+            message.success(`文件导入成功（${parts.join('，')}）`);
+          } else {
+            message.success('文件导入成功');
+          }
           fetchImportRecords(selectedFileType);
           fetchStatistics(selectedFileType);
+          // 通知对应记录列表组件刷新
+          const eventName = selectedFileType === 'ttv' ? 'ttvImportSuccess' : selectedFileType === 'eee' ? 'eeeImportSuccess' : '';
+          if (eventName) {
+            try {
+              window.dispatchEvent(new CustomEvent(eventName, {
+                detail: {
+                  fileType: selectedFileType,
+                  tradingDate: res?.trading_date || res?.parse_info?.trading_date,
+                  result: res
+                }
+              }));
+            } catch {}
+          }
         } else {
           message.error(info.file.response?.error || '文件导入失败');
         }

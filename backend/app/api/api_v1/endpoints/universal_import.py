@@ -73,6 +73,24 @@ def get_registry(db: Session = Depends(get_db)) -> FileTypeRegistry:
     engine = get_engine()
     return FileTypeRegistry(engine, db)
 
+def ensure_file_type_ready(file_type: str, registry: FileTypeRegistry) -> None:
+    """确保文件类型的表与模型处于健康状态。必要时自动修复模型。"""
+    try:
+        health = registry.validate_file_type_health(file_type)
+        # 条件：配置存在、表存在、模型已生成
+        config_ok = health.get('config_valid', True)
+        tables_ok = health.get('tables_exist', True)
+        models_ok = health.get('models_generated', True)
+        if not (config_ok and tables_ok and models_ok):
+            # 只重建模型，避免有数据时重建表
+            registry.repair_file_type(file_type, {
+                'rebuild_models': True,
+                'rebuild_tables': False,
+                'force': False
+            })
+    except Exception as e:
+        logger.warning(f"文件类型 {file_type} 健康检查失败，继续尝试: {e}")
+
 # ========================= API 端点 =========================
 
 @router.get("/supported-types", response_model=Dict[str, Any], summary="获取支持的文件类型")
@@ -187,12 +205,15 @@ async def get_import_records(
     file_type: str,
     limit: int = 50,
     offset: int = 0,
+    trading_date: Optional[date] = None,
     db: Session = Depends(get_db)
 ):
     """获取指定文件类型的导入记录"""
     try:
+        registry = get_registry(db)
+        ensure_file_type_ready(file_type, registry)
         import_service = get_universal_import_service(file_type, db)
-        result = import_service.get_import_records(limit=limit, offset=offset)
+        result = import_service.get_import_records(limit=limit, offset=offset, trading_date=trading_date)
 
         if not result['success']:
             raise HTTPException(
@@ -209,6 +230,33 @@ async def get_import_records(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"获取导入记录失败: {str(e)}"
+        )
+
+@router.get("/{file_type}/dates", response_model=Dict[str, Any], summary="获取可用交易日期")
+async def get_available_dates(
+    file_type: str,
+    limit: int = 365,
+    db: Session = Depends(get_db)
+):
+    """获取指定文件类型的可用交易日期列表"""
+    try:
+        registry = get_registry(db)
+        ensure_file_type_ready(file_type, registry)
+        import_service = get_universal_import_service(file_type, db)
+        result = import_service.get_available_dates(limit=limit)
+        if not result['success']:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=result['message']
+            )
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"获取日期列表失败: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"获取日期列表失败: {str(e)}"
         )
 
 @router.post("/{file_type}/recalculate", response_model=Dict[str, Any], summary="重新计算指定日期数据")
@@ -350,4 +398,80 @@ async def get_file_type_statistics(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"获取统计信息失败: {str(e)}"
+        )
+
+@router.get("/{file_type}/debug/check", response_model=Dict[str, Any], summary="调试: 校验指定文件类型的数据写入")
+async def debug_check_file_type(
+    file_type: str,
+    trading_date: Optional[date] = None,
+    limit: int = 3,
+    db: Session = Depends(get_db)
+):
+    """
+    调试用接口：核对指定文件类型的数据写入是否正常。
+    返回导入记录计数、各相关表在给定日期的数据条数，以及最近的导入记录与日期列表。
+    """
+    try:
+        svc = get_universal_import_service(file_type, db)
+
+        # 动态模型
+        ImportRecord = svc.ImportRecord
+        DailyTrading = svc.DailyTrading
+        ConceptSummary = svc.ConceptDailySummary
+        Ranking = svc.StockConceptRanking
+        HighRecord = svc.ConceptHighRecord
+
+        # 统计整体
+        total_import_records = db.query(ImportRecord).count()
+
+        # 统计指定日期
+        date_counts = None
+        if trading_date:
+            date_counts = {
+                'import_records': db.query(ImportRecord).filter(ImportRecord.trading_date == trading_date).count(),
+                'daily_trading': db.query(DailyTrading).filter(DailyTrading.trading_date == trading_date).count(),
+                'concept_summary': db.query(ConceptSummary).filter(ConceptSummary.trading_date == trading_date).count(),
+                'ranking': db.query(Ranking).filter(Ranking.trading_date == trading_date).count(),
+                'high_record': db.query(HighRecord).filter(HighRecord.trading_date == trading_date).count(),
+            }
+
+        # 最近导入记录
+        recent = db.query(ImportRecord).order_by(ImportRecord.import_started_at.desc()).limit(limit).all()
+        recent_records = [
+            {
+                'id': r.id,
+                'filename': r.filename,
+                'trading_date': r.trading_date.isoformat(),
+                'status': r.import_status.value if hasattr(r.import_status, 'value') else str(r.import_status),
+                'total_records': r.total_records,
+                'success_records': r.success_records,
+                'error_records': r.error_records,
+                'concept_count': getattr(r, 'concept_count', 0),
+                'ranking_count': getattr(r, 'ranking_count', 0),
+                'new_high_count': getattr(r, 'new_high_count', 0),
+                'started_at': r.import_started_at.isoformat(),
+                'completed_at': r.import_completed_at.isoformat() if r.import_completed_at else None,
+            }
+            for r in recent
+        ]
+
+        # 日期列表
+        dates_result = svc.get_available_dates(limit=365)
+
+        return {
+            'success': True,
+            'file_type': file_type,
+            'total_import_records': total_import_records,
+            'date_counts': date_counts,
+            'recent_records': recent_records,
+            'dates': dates_result.get('dates', []),
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"调试检查失败: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"调试检查失败: {str(e)}"
         )

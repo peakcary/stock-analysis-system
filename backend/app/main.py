@@ -17,6 +17,8 @@ from app.middleware.request_middleware import (
     RequestLoggingMiddleware,
     RateLimitMiddleware
 )
+from app.core.database import SessionLocal, get_engine
+from app.services.schema import FileTypeRegistry
 
 
 @asynccontextmanager
@@ -30,6 +32,23 @@ async def lifespan(app: FastAPI):
     )
     print("🚀 股票分析系统启动中...")
     print("📊 日志系统已初始化")
+    # 确保默认文件类型(eee/ttv)的动态表与模型可用
+    try:
+      engine = get_engine()
+      db = SessionLocal()
+      registry = FileTypeRegistry(engine, db)
+      for ft in ["ttv", "eee"]:
+          try:
+              # 如果表不存在则创建，并确保模型生成
+              if not registry.table_manager._tables_exist(ft):
+                  registry.table_manager.create_file_type_tables(ft)
+              registry.model_generator.generate_models_for_file_type(ft)
+          except Exception as se:
+              print(f"⚠️ 初始化文件类型 {ft} 失败: {se}")
+      db.close()
+      print("✅ 默认文件类型(eee/ttv)已初始化")
+    except Exception as e:
+      print(f"⚠️ 启动初始化文件类型失败: {e}")
     yield
     # 关闭时执行
     print("🛑 股票分析系统已关闭")

@@ -47,6 +47,7 @@ interface FileTypeConfig {
   enabled: boolean;
   file_extensions: string[];
   max_file_size: number;
+  date_format?: string;
   created_at?: string;
   updated_at?: string;
 }
@@ -98,7 +99,9 @@ const FileTypeManagement: React.FC = () => {
     try {
       const response = await adminApiClient.get('/api/v1/file-types');
       if (response.data.success) {
-        setFileTypes(response.data.file_types);
+        const map = response.data.file_types || {};
+        const list = Object.values(map) as FileTypeConfig[];
+        setFileTypes(list);
       }
     } catch (error) {
       console.error('获取文件类型列表失败:', error);
@@ -136,7 +139,8 @@ const FileTypeManagement: React.FC = () => {
     if (fileType) {
       form.setFieldsValue({
         ...fileType,
-        file_extensions: fileType.file_extensions.join(', ')
+        file_extensions: fileType.file_extensions.join(', '),
+        date_format: fileType.date_format || ''
       });
     } else {
       form.resetFields();
@@ -147,11 +151,16 @@ const FileTypeManagement: React.FC = () => {
   // 保存文件类型
   const saveFileType = async (values: any) => {
     try {
-      const payload = {
+      const payload: any = {
         ...values,
         file_extensions: values.file_extensions.split(',').map((ext: string) => ext.trim()),
         max_file_size: parseInt(values.max_file_size)
       };
+
+      // 清理空字符串字段
+      if (!payload.date_format) {
+        delete payload.date_format;
+      }
 
       if (editingType) {
         // 更新
@@ -216,6 +225,13 @@ const FileTypeManagement: React.FC = () => {
       key: 'file_type',
       width: 120,
       render: (type: string) => <Text code>{type}</Text>
+    },
+    {
+      title: '日期格式',
+      dataIndex: 'date_format',
+      key: 'date_format',
+      width: 120,
+      render: (fmt: string | undefined) => <Text code>{fmt || '-'}</Text>
     },
     {
       title: '显示名称',
@@ -483,6 +499,14 @@ const FileTypeManagement: React.FC = () => {
             rules={[{ required: true, message: '请输入支持的文件扩展名' }]}
           >
             <Input placeholder="例如: .ttv, .txt (用逗号分隔)" />
+          </Form.Item>
+
+          <Form.Item
+            name="date_format"
+            label="日期格式"
+            tooltip="用于解析文件中的日期，如 %Y-%m-%d 或 %Y%m%d"
+          >
+            <Input placeholder="例如: %Y-%m-%d 或 %Y%m%d（留空则使用默认解析）" />
           </Form.Item>
 
           <Form.Item

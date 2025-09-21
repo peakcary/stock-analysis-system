@@ -12,6 +12,7 @@ import hashlib
 import logging
 from datetime import datetime, date
 import re
+import json
 from pathlib import Path
 
 from app.services.schema import FileTypeRegistry, FileTypeConfig
@@ -42,8 +43,16 @@ class UniversalImportService:
         if not self.config:
             raise ValueError(f"文件类型 {file_type} 未注册或配置不存在")
 
-        # 获取动态模型
-        self.models = self.registry.model_generator.get_models_for_file_type(file_type)
+        # 确保动态表存在
+        try:
+            if not self.registry.table_manager._tables_exist(file_type):
+                self.registry.table_manager.create_file_type_tables(file_type)
+        except Exception:
+            pass
+
+        # 获取动态模型（为避免缓存失效，主动重建一次）
+        self.registry.model_generator.clear_model_cache(file_type)
+        self.models = self.registry.model_generator.generate_models_for_file_type(file_type)
         if not self.models:
             raise ValueError(f"文件类型 {file_type} 的数据模型未生成")
 
@@ -55,6 +64,7 @@ class UniversalImportService:
         self.ImportRecord = self.models['import_record']
 
         logger.info(f"初始化 {file_type} 文件类型的通用导入服务")
+        self.last_parse_errors: List[Dict[str, Any]] = []
 
     def parse_file_content(self, file_content: str, filename: str) -> List[Dict]:
         """
@@ -68,7 +78,8 @@ class UniversalImportService:
             解析后的交易数据列表
         """
         try:
-            trading_data = []
+            trading_data: List[Dict[str, Any]] = []
+            self.last_parse_errors = []
             lines = file_content.strip().split('\n')
 
             for line_num, line in enumerate(lines, 1):
@@ -76,52 +87,123 @@ class UniversalImportService:
                 if not line:
                     continue
 
-                try:
-                    parts = line.split('\t')
-                    if len(parts) != 3:
-                        logger.warning(f"第{line_num}行格式不正确: {line}")
-                        continue
-
-                    stock_code, date_str, volume_str = parts
-
-                    # 解析日期
-                    trading_date = datetime.strptime(date_str, '%Y-%m-%d').date()
-
-                    # 解析交易量 (处理空值和浮点数)
-                    volume_str = volume_str.strip()
-                    if not volume_str:
-                        logger.warning(f"第{line_num}行交易量为空: {line}")
-                        continue
-
-                    # 支持浮点数格式，转换为整数
-                    try:
-                        trading_volume = int(float(volume_str))
-                    except ValueError:
-                        logger.warning(f"第{line_num}行交易量格式错误: {volume_str}")
-                        continue
-
-                    # 解析股票代码 - 保持与原始TXT导入一致的逻辑
-                    stock_info = self._normalize_stock_code(stock_code)
-
-                    trading_data.append({
-                        'original_stock_code': stock_info['original'],     # 原始代码
-                        'normalized_stock_code': stock_info['normalized'], # 标准化代码
-                        'stock_code': stock_info['normalized'],           # 股票代码 (保持兼容性)
-                        'trading_date': trading_date,
-                        'trading_volume': trading_volume,
-                        'market_prefix': stock_info['prefix']             # 市场前缀 (SH/SZ/BJ)
+                parts = line.split('\t')
+                if len(parts) != 3:
+                    self.last_parse_errors.append({
+                        'line_number': line_num,
+                        'reason': '格式不正确，应为3列：股票代码\t交易日期\t交易量',
+                        'content': line
                     })
-
-                except Exception as e:
-                    logger.error(f"解析第{line_num}行时出错: {line}, 错误: {e}")
+                    logger.warning(f"第{line_num}行格式不正确: {line}")
                     continue
 
-            logger.info(f"成功解析{len(trading_data)}条交易数据")
+                stock_code, date_str, volume_str = parts
+
+                # 解析日期（优先使用配置的date_format，回退常见格式）
+                trading_date = None
+                preferred_formats = []
+                if getattr(self.config, 'date_format', None):
+                    preferred_formats.append(self.config.date_format)
+                preferred_formats.extend(['%Y-%m-%d', '%Y%m%d'])
+                for fmt in preferred_formats:
+                    try:
+                        trading_date = datetime.strptime(date_str.strip(), fmt).date()
+                        break
+                    except Exception:
+                        pass
+                if trading_date is None:
+                    self.last_parse_errors.append({
+                        'line_number': line_num,
+                        'reason': f"日期格式错误，尝试格式: {preferred_formats}，收到: {date_str.strip()}",
+                        'content': line
+                    })
+                    logger.warning(f"第{line_num}行日期解析失败: {date_str}")
+                    continue
+
+                # 解析交易量 (处理空值和浮点数)
+                volume_str = volume_str.strip()
+                if not volume_str:
+                    self.last_parse_errors.append({
+                        'line_number': line_num,
+                        'reason': '交易量为空',
+                        'content': line
+                    })
+                    logger.warning(f"第{line_num}行交易量为空: {line}")
+                    continue
+                try:
+                    trading_volume = int(float(volume_str))
+                except Exception:
+                    self.last_parse_errors.append({
+                        'line_number': line_num,
+                        'reason': f"交易量格式错误，无法解析为数字，收到: {volume_str}",
+                        'content': line
+                    })
+                    logger.warning(f"第{line_num}行交易量格式错误: {volume_str}")
+                    continue
+
+                # 解析股票代码 - 保持与原始TXT导入一致的逻辑
+                try:
+                    stock_info = self._normalize_stock_code(stock_code)
+                except Exception as e:
+                    self.last_parse_errors.append({
+                        'line_number': line_num,
+                        'reason': f"股票代码解析失败: {str(e)}",
+                        'content': line
+                    })
+                    logger.warning(f"第{line_num}行股票代码解析失败: {line}")
+                    continue
+
+                trading_data.append({
+                    'original_stock_code': stock_info['original'],     # 原始代码
+                    'normalized_stock_code': stock_info['normalized'], # 标准化代码
+                    'stock_code': stock_info['normalized'],           # 股票代码 (保持兼容性)
+                    'trading_date': trading_date,
+                    'trading_volume': trading_volume,
+                    'market_prefix': stock_info['prefix']             # 市场前缀 (SH/SZ/BJ)
+                })
+
+            logger.info(f"成功解析{len(trading_data)}条交易数据，解析失败{len(self.last_parse_errors)}条")
             return trading_data
 
         except Exception as e:
             logger.error(f"解析文件内容失败: {e}")
             raise
+
+    def _get_stock_trading_records(self, stock_codes: List[str], trading_date: date) -> List[Any]:
+        """
+        统一的股票代码匹配逻辑，支持多种股票代码格式。
+        使用动态DailyTrading模型查询数据。
+        """
+        if not stock_codes:
+            return []
+
+        all_possible_codes: List[str] = []
+        for stock_code in stock_codes:
+            code = (stock_code or '').strip().upper()
+            if not code:
+                continue
+            all_possible_codes.append(code)
+
+            # 数字6位 -> 生成带前缀版本
+            if code.isdigit() and len(code) == 6:
+                if code.startswith('6'):
+                    all_possible_codes.append(f'SH{code}')
+                elif code.startswith('0') or code.startswith('3'):
+                    all_possible_codes.append(f'SZ{code}')
+            # 前缀SH/SZ/BJ + 6位 -> 生成无前缀版本
+            elif code.startswith(('SH', 'SZ', 'BJ')) and len(code) == 8:
+                all_possible_codes.append(code[2:])
+
+        # 去重
+        all_possible_codes = list(set(all_possible_codes))
+
+        # 查询
+        trading_records = self.db.query(self.DailyTrading).filter(
+            self.DailyTrading.trading_date == trading_date,
+            self.DailyTrading.stock_code.in_(all_possible_codes)
+        ).all()
+
+        return trading_records
 
 
     def _normalize_stock_code(self, original_code: str) -> dict:
@@ -232,12 +314,36 @@ class UniversalImportService:
                 self._clear_daily_data(trading_date)
                 logger.info(f"覆盖模式: 已清理 {trading_date} 的所有相关数据")
 
-            # 批量插入数据
+            # 先对同一(stock_code, trading_date)的数据进行聚合，避免唯一键冲突
+            aggregated_map = {}
+            for row in trading_data:
+                key = (row['stock_code'], trading_date)
+                if key in aggregated_map:
+                    try:
+                        aggregated_map[key]['trading_volume'] += int(row['trading_volume'])
+                    except Exception:
+                        # 容错：无法解析则忽略该行的累加
+                        pass
+                else:
+                    aggregated_map[key] = {
+                        'original_stock_code': row.get('original_stock_code'),
+                        'normalized_stock_code': row.get('normalized_stock_code'),
+                        'stock_code': row.get('stock_code'),
+                        'trading_date': trading_date,
+                        'trading_volume': int(row.get('trading_volume', 0)),
+                        'market_prefix': row.get('market_prefix')
+                    }
+
+            aggregated_data = list(aggregated_map.values())
+            internal_duplicate_count = max(0, len(trading_data) - len(aggregated_data))
+            duplicate_count += internal_duplicate_count
+
+            # 批量插入数据（基于聚合后的数据集）
             batch_size = 1000  # 使用固定批次大小
-            total_rows = len(trading_data)
+            total_rows = len(aggregated_data)
 
             for i in range(0, total_rows, batch_size):
-                batch_data = trading_data[i:i + batch_size]
+                batch_data = aggregated_data[i:i + batch_size]
                 batch_records = []
 
                 for row in batch_data:
@@ -255,16 +361,16 @@ class UniversalImportService:
 
                         # 创建记录对象 - 添加市场前缀字段
                         record = self.DailyTrading(
-                            original_stock_code=row['original_stock_code'],
-                            normalized_stock_code=row['normalized_stock_code'],
-                            stock_code=row['stock_code'],
+                            original_stock_code=row.get('original_stock_code'),
+                            normalized_stock_code=row.get('normalized_stock_code'),
+                            stock_code=row.get('stock_code'),
                             trading_date=trading_date,
-                            trading_volume=int(row['trading_volume']),
+                            trading_volume=int(row.get('trading_volume', 0)),
                             created_at=datetime.utcnow()
                         )
 
                         # 如果动态表支持市场前缀字段，则添加
-                        if hasattr(record, 'market_prefix') and 'market_prefix' in row:
+                        if hasattr(record, 'market_prefix') and row.get('market_prefix') is not None:
                             record.market_prefix = row['market_prefix']
 
                         batch_records.append(record)
@@ -289,6 +395,7 @@ class UniversalImportService:
                 'success_records': success_count,
                 'error_records': error_count,
                 'duplicate_records': duplicate_count,
+                'file_internal_duplicates': internal_duplicate_count,
                 'total_processed': success_count + error_count + duplicate_count
             }
 
@@ -346,19 +453,54 @@ class UniversalImportService:
     def _calculate_concept_summary(self, trading_date: date) -> Dict:
         """计算概念每日汇总 - 基于原TXT服务逻辑"""
         try:
-            # 这里需要实现概念映射逻辑
-            # 由于原系统复杂性，这里提供框架，具体实现需要根据概念映射文件来完成
+            # 使用系统已有的概念与股票映射关系
+            from app.models.concept import Concept, StockConcept
+            from app.models.stock import Stock
 
-            concept_count = 0
-            # TODO: 实现具体的概念汇总计算逻辑
-            # 1. 读取概念映射文件
-            # 2. 为每只股票分配概念
-            # 3. 按概念计算汇总数据
-            # 4. 插入概念汇总表
+            concepts = self.db.query(Concept).all()
+            # 预取概念->股票代码映射，减少循环查询
+            concept_to_codes: Dict[str, List[str]] = {}
+            rows = (
+                self.db.query(Concept.concept_name, Stock.stock_code)
+                .join(StockConcept, StockConcept.concept_id == Concept.id)
+                .join(Stock, Stock.id == StockConcept.stock_id)
+                .all()
+            )
+            for concept_name, stock_code in rows:
+                concept_to_codes.setdefault(concept_name, []).append(stock_code)
+            summaries: List[Any] = []
 
-            logger.info("概念汇总计算需要进一步实现具体逻辑")
+            for concept in concepts:
+                stock_codes = concept_to_codes.get(concept.concept_name, [])
+                if not stock_codes:
+                    continue
 
-            return {'count': concept_count}
+                trading_records = self._get_stock_trading_records(stock_codes, trading_date)
+                if not trading_records:
+                    continue
+
+                volumes = [rec.trading_volume for rec in trading_records]
+                total_volume = sum(volumes)
+                stock_count = len(volumes)
+                average_volume = (total_volume / stock_count) if stock_count > 0 else 0
+                max_volume = max(volumes) if volumes else 0
+
+                summary = self.ConceptDailySummary(
+                    concept_name=concept.concept_name,
+                    trading_date=trading_date,
+                    total_volume=int(total_volume),
+                    stock_count=int(stock_count),
+                    average_volume=average_volume,
+                    max_volume=int(max_volume)
+                )
+                summaries.append(summary)
+
+            if summaries:
+                self.db.add_all(summaries)
+                self.db.flush()
+
+            logger.info(f"概念汇总计算完成: {len(summaries)}")
+            return {'count': len(summaries)}
 
         except Exception as e:
             logger.error(f"概念汇总计算失败: {e}")
@@ -367,15 +509,59 @@ class UniversalImportService:
     def _calculate_rankings(self, trading_date: date) -> Dict:
         """计算股票概念排名 - 基于原TXT服务逻辑"""
         try:
-            ranking_count = 0
-            # TODO: 实现排名计算逻辑
-            # 1. 基于概念汇总数据计算每个概念内的股票排名
-            # 2. 计算排名变化
-            # 3. 插入排名表
+            from app.models.concept import Concept, StockConcept
+            from app.models.stock import Stock
 
-            logger.info("排名计算需要进一步实现具体逻辑")
+            rankings: List[Any] = []
 
-            return {'count': ranking_count}
+            concept_summaries = self.db.query(self.ConceptDailySummary).filter(
+                self.ConceptDailySummary.trading_date == trading_date
+            ).all()
+
+            # 预取概念->股票代码映射
+            concept_to_codes: Dict[str, List[str]] = {}
+            from app.models.concept import Concept, StockConcept
+            from app.models.stock import Stock
+            rows_all = (
+                self.db.query(Concept.concept_name, Stock.stock_code)
+                .join(StockConcept, StockConcept.concept_id == Concept.id)
+                .join(Stock, Stock.id == StockConcept.stock_id)
+                .all()
+            )
+            for cname, scode in rows_all:
+                concept_to_codes.setdefault(cname, []).append(scode)
+
+            for summary in concept_summaries:
+                concept_name = summary.concept_name
+                concept_total_volume = summary.total_volume
+
+                # 使用预取映射
+                stock_codes = concept_to_codes.get(concept_name, [])
+                if not stock_codes:
+                    continue
+                trading_records = self._get_stock_trading_records(stock_codes, trading_date)
+
+                trading_records.sort(key=lambda x: x.trading_volume, reverse=True)
+
+                for rank, record in enumerate(trading_records, 1):
+                    volume_percentage = (record.trading_volume / concept_total_volume * 100) if concept_total_volume else 0
+                    ranking = self.StockConceptRanking(
+                        stock_code=record.stock_code,
+                        concept_name=concept_name,
+                        trading_date=trading_date,
+                        trading_volume=int(record.trading_volume),
+                        concept_rank=int(rank),
+                        concept_total_volume=int(concept_total_volume),
+                        volume_percentage=volume_percentage
+                    )
+                    rankings.append(ranking)
+
+            if rankings:
+                self.db.add_all(rankings)
+                self.db.flush()
+
+            logger.info(f"排名计算完成: {len(rankings)}")
+            return {'count': len(rankings)}
 
         except Exception as e:
             logger.error(f"排名计算失败: {e}")
@@ -384,15 +570,43 @@ class UniversalImportService:
     def _calculate_high_records(self, trading_date: date) -> Dict:
         """计算创新高记录 - 基于原TXT服务逻辑"""
         try:
-            high_record_count = 0
-            # TODO: 实现创新高记录计算逻辑
-            # 1. 计算各个时间周期的概念交易量
-            # 2. 识别创新高记录
-            # 3. 插入创新高记录表
+            periods = [5, 10, 20, 30]
+            new_highs: List[Any] = []
 
-            logger.info("创新高记录计算需要进一步实现具体逻辑")
+            today_summaries = self.db.query(self.ConceptDailySummary).filter(
+                self.ConceptDailySummary.trading_date == trading_date
+            ).all()
 
-            return {'count': high_record_count}
+            for summary in today_summaries:
+                concept_name = summary.concept_name
+                today_volume = summary.total_volume
+
+                for period in periods:
+                    from datetime import timedelta as _td
+                    start_date = trading_date - _td(days=period)
+
+                    max_volume_record = self.db.query(self.ConceptDailySummary).filter(
+                        self.ConceptDailySummary.concept_name == concept_name,
+                        self.ConceptDailySummary.trading_date >= start_date,
+                        self.ConceptDailySummary.trading_date < trading_date
+                    ).order_by(self.ConceptDailySummary.total_volume.desc()).first()
+
+                    if not max_volume_record or today_volume > max_volume_record.total_volume:
+                        high_record = self.ConceptHighRecord(
+                            concept_name=concept_name,
+                            trading_date=trading_date,
+                            total_volume=int(today_volume),
+                            days_period=int(period),
+                            is_active=True
+                        )
+                        new_highs.append(high_record)
+
+            if new_highs:
+                self.db.add_all(new_highs)
+                self.db.flush()
+
+            logger.info(f"创新高计算完成: {len(new_highs)}")
+            return {'count': len(new_highs)}
 
         except Exception as e:
             logger.error(f"创新高记录计算失败: {e}")
@@ -435,9 +649,43 @@ class UniversalImportService:
 
             if not import_record:
                 raise ValueError(f"导入记录 {import_record_id} 不存在")
+            
+            # 获取枚举类型用于转换
+            ImportStatus = self.ImportRecord.ImportStatus
+            ImportMode = self.ImportRecord.ImportMode
 
             for key, value in update_data.items():
-                setattr(import_record, key, value)
+                # 特殊处理枚举字段，确保使用正确的枚举值
+                if key == 'import_status':
+                    if hasattr(value, 'value'):
+                        # 如果是枚举对象，直接使用枚举对象
+                        setattr(import_record, key, value)
+                    elif isinstance(value, str):
+                        # 如果是字符串，尝试转换为枚举
+                        try:
+                            enum_value = getattr(ImportStatus, value.upper())
+                            setattr(import_record, key, enum_value)
+                        except AttributeError:
+                            # 如果转换失败，直接使用字符串
+                            setattr(import_record, key, value)
+                    else:
+                        setattr(import_record, key, value)
+                elif key == 'import_mode':
+                    if hasattr(value, 'value'):
+                        # 如果是枚举对象，直接使用枚举对象
+                        setattr(import_record, key, value)
+                    elif isinstance(value, str):
+                        # 如果是字符串，尝试转换为枚举
+                        try:
+                            enum_value = getattr(ImportMode, value.upper())
+                            setattr(import_record, key, enum_value)
+                        except AttributeError:
+                            # 如果转换失败，直接使用字符串
+                            setattr(import_record, key, value)
+                    else:
+                        setattr(import_record, key, value)
+                else:
+                    setattr(import_record, key, value)
 
             self.db.flush()
             logger.info(f"更新导入记录: ID={import_record_id}")
@@ -469,18 +717,8 @@ class UniversalImportService:
             file_hash = self.calculate_file_hash(file_content)
             file_size = len(file_content.encode('utf-8'))
 
-            # 检查是否已有该日期的数据，与原始TXT导入保持一致
-            existing_records = self.db.query(self.ImportRecord).filter(
-                self.ImportRecord.trading_date == trading_date
-            ).count()
-
-            if existing_records > 0:
-                logger.info(f"检测到{trading_date}已有导入记录，将进行覆盖导入")
-                # 删除该日期的所有导入记录
-                self.db.query(self.ImportRecord).filter(
-                    self.ImportRecord.trading_date == trading_date
-                ).delete()
-                self.db.commit()
+            # 保留用户传入日期，后续若文件中日期不同会切换
+            user_provided_date = trading_date
 
             # 2. 创建导入记录
             import_record_id = self.create_import_record(
@@ -489,6 +727,7 @@ class UniversalImportService:
 
             # 3. 解析文件内容
             trading_data = self.parse_file_content(file_content, filename)
+            parse_error_count = len(self.last_parse_errors)
 
             # 验证是否有有效数据
             if not trading_data:
@@ -499,13 +738,42 @@ class UniversalImportService:
             if len(trading_dates) > 1:
                 raise ValueError("数据包含多个交易日期，请分别导入")
 
-            # 使用文件中的日期而不是用户指定的日期
-            file_trading_date = trading_dates[0]
+            # 使用文件中的日期作为最终日期
+            final_trading_date = trading_dates[0]
 
-            # 如果用户指定的日期与文件中的日期不一致，使用文件中的日期
-            if trading_date != file_trading_date:
-                logger.warning(f"用户指定日期 {trading_date} 与文件数据日期 {file_trading_date} 不一致，使用文件数据日期")
-                trading_date = file_trading_date
+            # 如果最终日期与用户传入不一致：
+            # 1) 更新导入记录的交易日期为最终日期
+            # 2) 删除最终日期上的其他旧导入记录（保留当前这条）
+            if trading_date != final_trading_date:
+                logger.warning(f"用户指定日期 {trading_date} 与文件数据日期 {final_trading_date} 不一致，使用文件数据日期")
+                trading_date = final_trading_date
+                # 更新当前导入记录的日期
+                try:
+                    import_record = self.db.query(self.ImportRecord).filter(self.ImportRecord.id == import_record_id).first()
+                    if import_record:
+                        import_record.trading_date = final_trading_date
+                        self.db.flush()
+                except Exception as e:
+                    logger.error(f"更新导入记录日期失败: {e}")
+                # 删除该最终日期的其他旧记录（不删除当前这条）
+                try:
+                    self.db.query(self.ImportRecord).filter(
+                        self.ImportRecord.trading_date == final_trading_date,
+                        self.ImportRecord.id != import_record_id
+                    ).delete(synchronize_session=False)
+                    self.db.flush()
+                except Exception as e:
+                    logger.error(f"清理旧导入记录失败: {e}")
+            else:
+                # 如果一致，则在创建之后再清理旧记录（保留当前记录）
+                try:
+                    self.db.query(self.ImportRecord).filter(
+                        self.ImportRecord.trading_date == trading_date,
+                        self.ImportRecord.id != import_record_id
+                    ).delete(synchronize_session=False)
+                    self.db.flush()
+                except Exception as e:
+                    logger.error(f"清理旧导入记录失败: {e}")
 
             # 4. 导入交易数据
             import_result = self.import_daily_trading_data(trading_data, trading_date, import_record_id, mode)
@@ -522,11 +790,34 @@ class UniversalImportService:
                 'filename': filename,
                 'total_lines': len(file_content.strip().split('\n')),
                 'parsed_rows': len(trading_data),
-                'trading_date': trading_date.isoformat()
+                'trading_date': trading_date.isoformat(),
+                'parse_error_count': parse_error_count
             }
+            # 附带文件内部重复行数
+            if isinstance(import_result, dict) and 'file_internal_duplicates' in import_result:
+                parse_info['file_internal_duplicates'] = import_result['file_internal_duplicates']
 
             # 7. 更新导入记录为成功
             ImportStatus = self.ImportRecord.ImportStatus
+            # 记录notes：解析错误预览
+            try:
+                preview_limit = 50
+                errors_preview = []
+                for e in self.last_parse_errors[:preview_limit]:
+                    errors_preview.append({
+                        'line_number': e.get('line_number'),
+                        'reason': e.get('reason'),
+                        'content': (e.get('content') or '')[:200]
+                    })
+                notes_json = json.dumps({
+                    'file_internal_duplicates': import_result.get('file_internal_duplicates', 0),
+                    'parse_error_count': parse_error_count,
+                    'parse_errors': errors_preview,
+                    'parse_errors_truncated': parse_error_count > preview_limit
+                }, ensure_ascii=False)
+            except Exception:
+                notes_json = None
+
             self.update_import_record(import_record_id, {
                 'import_status': ImportStatus.SUCCESS,
                 'total_records': len(trading_data),
@@ -537,7 +828,8 @@ class UniversalImportService:
                 'ranking_count': calculation_result['ranking_count'],
                 'new_high_count': calculation_result['new_high_count'],
                 'import_completed_at': end_time,
-                'calculation_time': calculation_time
+                'calculation_time': calculation_time,
+                'notes': notes_json
             })
 
             # 8. 提交事务
@@ -586,12 +878,15 @@ class UniversalImportService:
                 'error': str(e)
             }
 
-    def get_import_records(self, limit: int = 50, offset: int = 0) -> Dict:
-        """获取导入记录列表"""
+    def get_import_records(self, limit: int = 50, offset: int = 0, trading_date: Optional[date] = None) -> Dict:
+        """获取导入记录列表，支持按交易日期筛选"""
         try:
-            query = self.db.query(self.ImportRecord).order_by(
-                self.ImportRecord.import_started_at.desc()
-            )
+            query = self.db.query(self.ImportRecord)
+
+            if trading_date:
+                query = query.filter(self.ImportRecord.trading_date == trading_date)
+
+            query = query.order_by(self.ImportRecord.import_started_at.desc())
 
             total = query.count()
             records = query.offset(offset).limit(limit).all()
@@ -606,11 +901,16 @@ class UniversalImportService:
                         'filename': record.filename,
                         'trading_date': record.trading_date.isoformat(),
                         'file_size': record.file_size,
-                        'import_status': record.import_status.value,
+                        'import_status': record.import_status.value if hasattr(record.import_status, 'value') else str(record.import_status),
                         'imported_by': record.imported_by,
                         'total_records': record.total_records,
                         'success_records': record.success_records,
                         'error_records': record.error_records,
+                        'concept_count': getattr(record, 'concept_count', 0),
+                        'ranking_count': getattr(record, 'ranking_count', 0),
+                        'new_high_count': getattr(record, 'new_high_count', 0),
+                        'duplicate_records': getattr(record, 'duplicate_records', 0),
+                        'notes': getattr(record, 'notes', None),
                         'import_started_at': record.import_started_at.isoformat(),
                         'import_completed_at': record.import_completed_at.isoformat() if record.import_completed_at else None,
                         'calculation_time': float(record.calculation_time) if record.calculation_time else 0,
@@ -625,5 +925,27 @@ class UniversalImportService:
             return {
                 'success': False,
                 'message': f'获取导入记录失败: {str(e)}',
+                'file_type': self.file_type
+            }
+
+    def get_available_dates(self, limit: int = 365) -> Dict:
+        """获取该文件类型的可用交易日期（按导入记录的日期）"""
+        try:
+            rows = self.db.query(self.ImportRecord.trading_date).distinct().order_by(
+                self.ImportRecord.trading_date.desc()
+            ).limit(limit).all()
+
+            dates = [d[0].isoformat() for d in rows if d and d[0]]
+            return {
+                'success': True,
+                'file_type': self.file_type,
+                'dates': dates,
+                'total': len(dates)
+            }
+        except Exception as e:
+            logger.error(f"获取可用日期失败: {e}")
+            return {
+                'success': False,
+                'message': f'获取可用日期失败: {str(e)}',
                 'file_type': self.file_type
             }
