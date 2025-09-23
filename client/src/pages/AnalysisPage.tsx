@@ -19,6 +19,7 @@ import { ConceptAnalysisApi, ChartDataApi, conceptAnalysisUtils } from '../servi
 import StockAnalysisPage from '../components/StockAnalysisPage';
 import InnovationAnalysisPage from '../components/InnovationAnalysisPage';
 import ConvertibleBondPage from '../components/ConvertibleBondPage';
+import StockSearchPage from '../components/StockSearchPage';
 
 const { Title, Text, Paragraph } = Typography;
 const { RangePicker } = DatePicker;
@@ -68,7 +69,7 @@ export interface ConvertibleBondData {
 }
 
 export const AnalysisPage: React.FC<AnalysisPageProps> = ({ user }) => {
-  const [selectedView, setSelectedView] = useState<'overview' | 'stock-analysis' | 'innovation' | 'convertible-bond'>('overview');
+  const [selectedView, setSelectedView] = useState<'overview' | 'stock-analysis' | 'innovation' | 'convertible-bond' | 'stock-search'>('overview');
   const [detailVisible, setDetailVisible] = useState(false);
   const [selectedStock, setSelectedStock] = useState<any>(null);
   const [loading, setLoading] = useState(false);
@@ -563,7 +564,7 @@ export const AnalysisPage: React.FC<AnalysisPageProps> = ({ user }) => {
                   value: 'innovation',
                   disabled: !isMember
                 },
-                { 
+                {
                   label: (
                     <Tooltip title={!isMember ? "升级会员解锁" : "可转债分析"}>
                       <Space>
@@ -572,9 +573,20 @@ export const AnalysisPage: React.FC<AnalysisPageProps> = ({ user }) => {
                         {!isMember && <Badge dot />}
                       </Space>
                     </Tooltip>
-                  ), 
+                  ),
                   value: 'convertible-bond',
                   disabled: !isMember
+                },
+                {
+                  label: (
+                    <Tooltip title="个股查询">
+                      <Space>
+                        <SearchOutlined />
+                        <span>个股查询</span>
+                      </Space>
+                    </Tooltip>
+                  ),
+                  value: 'stock-search'
                 }
               ]}
             />
@@ -627,6 +639,7 @@ export const AnalysisPage: React.FC<AnalysisPageProps> = ({ user }) => {
             {selectedView === 'stock-analysis' && <StockAnalysisPage user={user} tradeDate={selectedDate} />}
             {selectedView === 'innovation' && <InnovationAnalysisPage user={user} tradeDate={selectedDate} />}
             {selectedView === 'convertible-bond' && <ConvertibleBondPage user={user} tradeDate={selectedDate} />}
+            {selectedView === 'stock-search' && <StockSearchPage />}
           </motion.div>
         </AnimatePresence>
 

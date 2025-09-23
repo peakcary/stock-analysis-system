@@ -949,3 +949,40 @@ class UniversalImportService:
                 'message': f'获取可用日期失败: {str(e)}',
                 'file_type': self.file_type
             }
+
+    def check_date_exists(self, trading_date: date) -> Dict:
+        """检查指定日期是否已有导入记录"""
+        try:
+            # 查询该日期的导入记录
+            records = self.db.query(self.ImportRecord).filter(
+                self.ImportRecord.trading_date == trading_date
+            ).all()
+
+            count = len(records)
+            exists = count > 0
+
+            # 返回基本信息
+            record_list = []
+            if records:
+                for record in records:
+                    record_list.append({
+                        'id': record.id,
+                        'filename': record.filename,
+                        'import_status': record.import_status.value if hasattr(record.import_status, 'value') else str(record.import_status),
+                        'imported_by': record.imported_by,
+                        'success_records': record.success_records,
+                        'import_started_at': record.import_started_at.isoformat(),
+                        'import_completed_at': record.import_completed_at.isoformat() if record.import_completed_at else None
+                    })
+
+            return {
+                'exists': exists,
+                'count': count,
+                'trading_date': trading_date.isoformat(),
+                'file_type': self.file_type,
+                'records': record_list
+            }
+
+        except Exception as e:
+            logger.error(f"检查日期失败: {e}")
+            raise e

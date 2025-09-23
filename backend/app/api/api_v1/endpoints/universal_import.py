@@ -400,6 +400,52 @@ async def get_file_type_statistics(
             detail=f"获取统计信息失败: {str(e)}"
         )
 
+@router.post("/{file_type}/check-date", response_model=Dict[str, Any], summary="检查指定日期是否已有导入记录")
+async def check_import_date(
+    file_type: str,
+    request: Dict[str, str],
+    db: Session = Depends(get_db)
+):
+    """检查指定文件类型和日期是否已有导入记录"""
+    try:
+        # 解析请求中的交易日期
+        trading_date_str = request.get('trading_date', '')
+        if not trading_date_str:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="缺少交易日期参数"
+            )
+
+        # 解析日期
+        try:
+            trading_date = datetime.strptime(trading_date_str, '%Y-%m-%d').date()
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="日期格式错误，请使用YYYY-MM-DD格式"
+            )
+
+        import_service = get_universal_import_service(file_type, db)
+        result = import_service.check_date_exists(trading_date)
+
+        return {
+            'success': True,
+            'file_type': file_type,
+            'trading_date': trading_date.isoformat(),
+            'exists': result['exists'],
+            'count': result['count'],
+            'records': result.get('records', [])
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"检查导入日期失败: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"检查失败: {str(e)}"
+        )
+
 @router.get("/{file_type}/debug/check", response_model=Dict[str, Any], summary="调试: 校验指定文件类型的数据写入")
 async def debug_check_file_type(
     file_type: str,

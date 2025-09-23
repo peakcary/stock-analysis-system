@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Card, Tabs, Row, Col, Button, message, Upload, Space, Badge, 
-  Typography, Statistic, Progress, Alert, Table, Input, Tag, Tooltip
+  Card, Tabs, Row, Col, Button, message, Upload, Space, Badge,
+  Typography, Statistic, Progress, Alert, Table, Input, Tag, Tooltip, Modal
 } from 'antd';
 import {
   CloudUploadOutlined, UploadOutlined, DatabaseOutlined, SearchOutlined,
-  HistoryOutlined, FileTextOutlined, CheckCircleOutlined, DeleteOutlined
+  HistoryOutlined, FileTextOutlined, CheckCircleOutlined, DeleteOutlined,
+  ExclamationCircleOutlined
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { adminApiClient } from '../../../shared/admin-auth';
@@ -64,6 +65,20 @@ const DataImportPage: React.FC<DataImportPageProps> = ({
   const [eeeImportRefreshTrigger, setEeeImportRefreshTrigger] = useState(0);
   const [localTtvImportLoading, setLocalTtvImportLoading] = useState(false);
   const [localEeeImportLoading, setLocalEeeImportLoading] = useState(false);
+
+  // 覆盖确认相关状态
+  const [overwriteModalVisible, setOverwriteModalVisible] = useState(false);
+  const [overwriteData, setOverwriteData] = useState<{
+    file: File | null;
+    fileType: 'ttv' | 'eee';
+    tradingDate: string;
+    count: number;
+  }>({
+    file: null,
+    fileType: 'ttv',
+    tradingDate: '',
+    count: 0
+  });
   const [searchFilters, setSearchFilters] = useState({
     code: '',
     name: '',
@@ -294,28 +309,111 @@ const DataImportPage: React.FC<DataImportPageProps> = ({
     input.click();
   };
 
-  // 执行文件导入 - 简化版本，与TXT导入保持一致
-  const executeFileImport = async (fileType: 'ttv' | 'eee', file: File) => {
+  // 解析文件获取交易日期
+  const parseFileDate = async (file: File): Promise<string | null> => {
+    try {
+      const text = await file.text();
+      const lines = text.trim().split('\n');
+
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        const parts = line.split('\t');
+        if (parts.length >= 2) {
+          const dateStr = parts[1].trim();
+          // 验证日期格式 YYYY-MM-DD 或 YYYYMMDD
+          const dateRegex1 = /^\d{4}-\d{2}-\d{2}$/;
+          const dateRegex2 = /^\d{8}$/;
+
+          if (dateRegex1.test(dateStr)) {
+            return dateStr;
+          } else if (dateRegex2.test(dateStr)) {
+            // 转换 YYYYMMDD 为 YYYY-MM-DD
+            return `${dateStr.substring(0, 4)}-${dateStr.substring(4, 6)}-${dateStr.substring(6, 8)}`;
+          }
+        }
+      }
+      return null;
+    } catch (error) {
+      console.error('解析文件日期失败:', error);
+      return null;
+    }
+  };
+
+  // 检查日期是否已有导入记录
+  const checkDateExists = async (fileType: 'ttv' | 'eee', tradingDate: string) => {
+    try {
+      const response = await adminApiClient.post(`/api/v1/universal-import/${fileType}/check-date`, {
+        trading_date: tradingDate
+      });
+
+      return response.data;
+    } catch (error) {
+      console.error(`检查${fileType.toUpperCase()}日期失败:`, error);
+      throw error;
+    }
+  };
+
+  // 执行文件导入 - 添加日期检查和覆盖确认
+  const executeFileImport = async (fileType: 'ttv' | 'eee', file: File, skipCheck: boolean = false, providedDate?: string) => {
     console.log(`开始执行${fileType.toUpperCase()}文件导入:`, file.name);
-    
+
+    let tradingDate = providedDate;
+
+    // 如果没有提供日期，先解析文件获取交易日期
+    if (!tradingDate) {
+      try {
+        tradingDate = await parseFileDate(file);
+        if (!tradingDate) {
+          message.error(`无法解析${fileType.toUpperCase()}文件中的交易日期，请检查文件格式`);
+          return;
+        }
+      } catch (error) {
+        console.error('解析文件日期失败:', error);
+        message.error(`解析${fileType.toUpperCase()}文件日期失败，请检查文件格式`);
+        return;
+      }
+    }
+
+    console.log(`解析到交易日期: ${tradingDate}`);
+
+    // 如果不跳过检查，先检查日期是否已有记录
+    if (!skipCheck) {
+      try {
+        const checkResult = await checkDateExists(fileType, tradingDate);
+
+        if (checkResult.exists) {
+          // 显示覆盖确认对话框
+          setOverwriteData({
+            file,
+            fileType,
+            tradingDate,
+            count: checkResult.count
+          });
+          setOverwriteModalVisible(true);
+          return; // 等待用户确认
+        }
+      } catch (error) {
+        // 检查失败时给出提示，但继续导入
+        console.warn(`日期检查失败，继续导入:`, error);
+        message.warning('无法检查重复数据，将直接导入');
+      }
+    }
+
     // 设置loading状态
     if (fileType === 'ttv') {
       setLocalTtvImportLoading(true);
     } else {
       setLocalEeeImportLoading(true);
     }
-    
+
     let hideLoading: (() => void) | undefined;
     try {
       hideLoading = message.loading(`正在导入${fileType.toUpperCase()}文件...`, 0);
-      
-      // 从文件名中提取日期（假设文件名包含日期）或使用今天日期
-      const today = dayjs().format('YYYY-MM-DD');
-      
+
       const formData = new FormData();
       formData.append('file', file);
       formData.append('file_type', fileType);
-      formData.append('trading_date', today);
+      formData.append('trading_date', tradingDate);
 
       const response = await adminApiClient.post('/api/v1/universal-import/import', formData, {
         headers: {
@@ -332,7 +430,7 @@ const DataImportPage: React.FC<DataImportPageProps> = ({
           `${fileType.toUpperCase()}文件导入成功！导入${result.import_result?.success_records || 0}条记录`,
           5
         );
-        
+
         // 刷新对应的记录列表
         if (fileType === 'ttv') {
           setTtvImportRefreshTrigger(prev => prev + 1);
@@ -350,7 +448,7 @@ const DataImportPage: React.FC<DataImportPageProps> = ({
     } catch (error: any) {
       if (hideLoading) hideLoading();
       console.error(`${fileType.toUpperCase()}文件导入失败:`, error);
-      
+
       if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
         message.error(`${fileType.toUpperCase()}文件导入超时，请检查文件大小或网络状况`);
       } else if (error.response?.status === 401) {
@@ -366,6 +464,35 @@ const DataImportPage: React.FC<DataImportPageProps> = ({
         setLocalEeeImportLoading(false);
       }
     }
+  };
+
+  // 确认覆盖导入
+  const handleOverwriteConfirm = async () => {
+    if (!overwriteData.file) return;
+
+    setOverwriteModalVisible(false);
+
+    // 跳过检查直接导入，使用已解析的日期
+    await executeFileImport(overwriteData.fileType, overwriteData.file, true, overwriteData.tradingDate);
+
+    // 重置状态
+    setOverwriteData({
+      file: null,
+      fileType: 'ttv',
+      tradingDate: '',
+      count: 0
+    });
+  };
+
+  // 取消覆盖导入
+  const handleOverwriteCancel = () => {
+    setOverwriteModalVisible(false);
+    setOverwriteData({
+      file: null,
+      fileType: 'ttv',
+      tradingDate: '',
+      count: 0
+    });
   };
 
   // 处理Tab切换，在切换到相应导入记录时刷新数据
@@ -860,6 +987,33 @@ const DataImportPage: React.FC<DataImportPageProps> = ({
           </TabPane>
         </Tabs>
       </Card>
+
+      {/* TTV/EEE覆盖确认Modal */}
+      <Modal
+        title={
+          <div style={{ display: 'flex', alignItems: 'center', color: '#faad14' }}>
+            <ExclamationCircleOutlined style={{ marginRight: 8, fontSize: '18px' }} />
+            数据覆盖确认
+          </div>
+        }
+        open={overwriteModalVisible}
+        onOk={handleOverwriteConfirm}
+        onCancel={handleOverwriteCancel}
+        okText="确认覆盖"
+        cancelText="取消"
+        okType="danger"
+        confirmLoading={overwriteData.fileType === 'ttv' ? localTtvImportLoading : localEeeImportLoading}
+      >
+        <div style={{ padding: '20px 0' }}>
+          <p style={{ fontSize: '16px', marginBottom: '16px' }}>
+            检测到 <Text strong style={{ color: '#1890ff' }}>{overwriteData.tradingDate}</Text> 日期已有
+            <Text strong style={{ color: '#fa541c' }}> {overwriteData.count} 条{overwriteData.fileType.toUpperCase()}导入记录</Text>。
+          </p>
+          <p style={{ fontSize: '16px', fontWeight: 'bold', color: '#fa541c' }}>
+            是否确认覆盖导入？
+          </p>
+        </div>
+      </Modal>
 
     </div>
   );
