@@ -1,10 +1,30 @@
 # 股票分析系统 - 开发进度文档
 
-## 🎯 项目当前状态：动态文件类型系统已完成调试和修复 (v2.6.6)
+## 🎯 项目当前状态：个股查询系统和用户权限管理完成 (v2.7.0)
 
 ### ✅ 已完成功能
 
-#### 1. 核心动态文件类型系统 (v2.6.6)
+#### 1. 最新功能 (v2.7.0) 🆕
+- **✅ 个股查询系统** (`client/src/components/StockSearchPage.tsx`)
+  - 支持股票代码输入查询
+  - 显示股票基本信息（代码、名称、行业）
+  - 展示股票所有相关概念
+  - 点击概念查看概念下的其他股票
+  - 分页显示（前10只股票，可展开查看更多）
+  - 完整的响应式设计，支持移动端
+
+- **✅ 客户端用户权限管理系统**
+  - API权限控制优化（客户端/管理员权限分离）
+  - 查询次数控制和扣费机制
+  - 用户会员等级管理（免费/专业/高级）
+  - 管理端用户管理界面完善
+
+- **✅ 数据导入优化**
+  - 修复TTV/EEE导入覆盖提示问题
+  - 添加文件日期解析功能
+  - 实现导入前覆盖确认机制
+
+#### 2. 核心动态文件类型系统 (v2.6.6)
 - **✅ 动态表创建管理器** (`backend/app/services/schema/dynamic_table_manager.py`)
   - 支持为新文件类型自动创建数据表
   - 模板化表结构，支持 txt、ttv、eee、aaa 等文件类型
@@ -65,28 +85,41 @@
 
 ### 🚀 系统部署状态
 
-#### 当前运行配置 (ports.env)
+#### 当前运行配置 (本地开发)
 ```
-BACKEND_PORT=3007    # API服务
-CLIENT_PORT=8005     # 客户端
-FRONTEND_PORT=8006   # 管理端
+BACKEND_PORT=8000    # API服务 (FastAPI)
+CLIENT_PORT=8008     # 客户端 (React)
+FRONTEND_PORT=8007   # 管理端 (React)
 ```
 
 #### 启动方式
 ```bash
-# 使用项目标准启动脚本
-./scripts/deployment/start.sh
+# 后端服务
+cd backend && python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+# 前端管理系统
+cd frontend && npm run dev
+
+# 客户端应用
+cd client && VITE_PORT=8006 npm run dev
 
 # 访问地址
-管理端: http://localhost:8006
-客户端: http://localhost:8005
-API文档: http://localhost:3007/docs
+后端API: http://localhost:8000
+管理端: http://localhost:8007
+客户端: http://localhost:8008
+API文档: http://localhost:8000/docs
 ```
 
 #### 登录信息
 ```
-管理员账号: admin
-管理员密码: admin123
+# 管理员账号
+用户名: admin
+密码: admin123
+
+# 客户端测试账号
+用户名: fullaccess_user
+密码: fullaccess123
+权限: Premium会员，100000+查询次数
 ```
 
 ### 📊 数据库状态
@@ -239,6 +272,6 @@ scripts/deployment/start.sh      # 启动脚本
 
 ---
 
-**文档更新时间**: 2025-09-19 18:20
-**系统版本**: v2.6.6
-**状态**: ✅ 生产就绪 - 核心功能已验证可用
+**文档更新时间**: 2025-09-22 18:30
+**系统版本**: v2.7.0
+**状态**: ✅ 生产就绪 - 个股查询系统和用户权限管理已完成
