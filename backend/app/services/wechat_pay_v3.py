@@ -456,22 +456,120 @@ class WechatPayV3Service:
                 logger.error("Missing signature headers")
                 return False
 
+            # 验证时间戳（防重放攻击）
+            current_timestamp = int(time.time())
+            request_timestamp = int(timestamp)
+            if abs(current_timestamp - request_timestamp) > 300:  # 5分钟内有效
+                logger.error(f"Timestamp too old: {timestamp}")
+                return False
+
             # 构造验证字符串
             sign_str = f"{timestamp}\n{nonce}\n{body}\n"
 
-            # TODO: 这里需要使用微信支付平台公钥验证签名
-            # 实际应用中需要先获取微信支付平台证书来验证签名
-            # 现在先简单验证一下基本格式
-            if len(signature) > 10 and timestamp.isdigit() and len(nonce) > 10:
-                logger.info("Signature format validation passed")
-                return True
-            else:
-                logger.error("Signature format validation failed")
-                return False
+            # 使用微信支付平台公钥验证签名
+            return self._verify_signature_with_platform_cert(signature, sign_str, cert_serial)
 
         except Exception as e:
             logger.error(f"Verify notify signature error: {e}")
             return False
+
+    def _verify_signature_with_platform_cert(self, signature: str, sign_str: str, cert_serial: str) -> bool:
+        """使用微信支付平台证书验证签名"""
+        try:
+            # 获取平台证书
+            platform_cert = self._get_platform_certificate(cert_serial)
+            if not platform_cert:
+                logger.error(f"Platform certificate not found for serial: {cert_serial}")
+                return False
+
+            # 解码签名
+            signature_bytes = base64.b64decode(signature)
+
+            # 验证签名
+            hash_obj = SHA256.new(sign_str.encode('utf-8'))
+
+            try:
+                pkcs1_15.new(platform_cert).verify(hash_obj, signature_bytes)
+                logger.info("Platform signature verification passed")
+                return True
+            except (ValueError, TypeError) as e:
+                logger.error(f"Platform signature verification failed: {e}")
+                return False
+
+        except Exception as e:
+            logger.error(f"Verify signature with platform cert error: {e}")
+            return False
+
+    def _get_platform_certificate(self, cert_serial: str) -> Optional[RSA.RsaKey]:
+        """获取微信支付平台证书"""
+        try:
+            # 检查本地缓存的平台证书
+            platform_cert_path = f"backend/certs/wechatpay_platform_{cert_serial}.pem"
+
+            import os
+            if os.path.exists(platform_cert_path):
+                with open(platform_cert_path, 'r') as f:
+                    cert_content = f.read()
+                return RSA.import_key(cert_content)
+
+            # 如果本地没有，尝试从微信支付API获取
+            logger.warning(f"Platform certificate not found locally: {platform_cert_path}")
+            return self._fetch_platform_certificate(cert_serial)
+
+        except Exception as e:
+            logger.error(f"Get platform certificate error: {e}")
+            return None
+
+    def _fetch_platform_certificate(self, cert_serial: str) -> Optional[RSA.RsaKey]:
+        """从微信支付API获取平台证书"""
+        try:
+            if settings.PAYMENT_MOCK_MODE:
+                logger.info("Mock mode: skipping platform certificate fetch")
+                return None
+
+            # 调用微信支付获取证书API
+            url_path = "/v3/certificates"
+
+            headers = {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+                'Authorization': self._generate_authorization('GET', url_path),
+                'User-Agent': 'Stock-Analysis-System/1.0'
+            }
+
+            cert_url = f"{self.base_url}{url_path}"
+            response = requests.get(cert_url, headers=headers, timeout=30)
+
+            if response.status_code == 200:
+                cert_data = response.json()
+                certificates = cert_data.get('data', [])
+
+                for cert_info in certificates:
+                    if cert_info.get('serial_no') == cert_serial:
+                        # 解密证书内容
+                        encrypted_cert = cert_info.get('encrypt_certificate', {})
+                        cert_content = self._decrypt_certificate(encrypted_cert)
+
+                        if cert_content:
+                            # 保存到本地缓存
+                            platform_cert_path = f"backend/certs/wechatpay_platform_{cert_serial}.pem"
+                            os.makedirs(os.path.dirname(platform_cert_path), exist_ok=True)
+
+                            with open(platform_cert_path, 'w') as f:
+                                f.write(cert_content)
+
+                            logger.info(f"Platform certificate cached: {platform_cert_path}")
+                            return RSA.import_key(cert_content)
+
+                logger.error(f"Certificate with serial {cert_serial} not found in API response")
+                return None
+            else:
+                logger.error(f"Fetch platform certificate failed: {response.status_code}")
+                return None
+
+        except Exception as e:
+            logger.error(f"Fetch platform certificate error: {e}")
+            return None
 
     def process_notify(self, headers: dict, body: str) -> Dict[str, Any]:
         """处理支付通知"""
@@ -492,26 +590,51 @@ class WechatPayV3Service:
             resource = notify_data.get('resource', {})
             ciphertext = resource.get('ciphertext')
 
+            decrypted_transaction_data = None
             if ciphertext:
-                # TODO: 解密resource数据
-                # 实际应用中需要使用API v3密钥解密
+                # 解密resource数据
                 decrypted_data = self._decrypt_resource(resource)
                 if decrypted_data:
-                    notify_data.update(decrypted_data)
+                    # 验证解密数据的完整性
+                    expected_fields = ['out_trade_no', 'transaction_id', 'trade_state', 'amount']
+                    if self._validate_decrypted_data(decrypted_data, expected_fields):
+                        decrypted_transaction_data = decrypted_data
+                        logger.info("Transaction data decryption and validation successful")
+                    else:
+                        logger.error("Decrypted transaction data validation failed")
+                        return {
+                            'success': False,
+                            'message': '解密数据验证失败',
+                            'data': {}
+                        }
+                else:
+                    logger.error("Failed to decrypt resource data")
+                    return {
+                        'success': False,
+                        'message': '解密支付通知数据失败',
+                        'data': {}
+                    }
 
             # 检查事件类型和支付状态
             event_type = notify_data.get('event_type')
             if event_type == 'TRANSACTION.SUCCESS':
+                # 使用解密后的交易数据（如果有的话）
+                transaction_data = decrypted_transaction_data or notify_data
+
                 return {
                     'success': True,
                     'message': '支付成功',
                     'data': {
-                        'out_trade_no': notify_data.get('out_trade_no'),
-                        'transaction_id': notify_data.get('transaction_id'),
-                        'total_fee': notify_data.get('amount', {}).get('total', 0),
-                        'success_time': notify_data.get('success_time'),
-                        'payer_openid': notify_data.get('payer', {}).get('openid', ''),
-                        'raw_data': notify_data
+                        'out_trade_no': transaction_data.get('out_trade_no'),
+                        'transaction_id': transaction_data.get('transaction_id'),
+                        'total_fee': transaction_data.get('amount', {}).get('total', 0),
+                        'success_time': transaction_data.get('success_time'),
+                        'payer_openid': transaction_data.get('payer', {}).get('openid', ''),
+                        'trade_state': transaction_data.get('trade_state'),
+                        'bank_type': transaction_data.get('bank_type', ''),
+                        'currency': transaction_data.get('amount', {}).get('currency', 'CNY'),
+                        'raw_data': notify_data,
+                        'decrypted_data': decrypted_transaction_data
                     }
                 }
             else:
@@ -546,24 +669,118 @@ class WechatPayV3Service:
             ciphertext = resource.get('ciphertext', '')
             associated_data = resource.get('associated_data', '')
             nonce = resource.get('nonce', '')
+            algorithm = resource.get('algorithm', 'AEAD_AES_256_GCM')
 
             if not all([ciphertext, nonce]):
+                logger.error("Missing required decryption parameters")
                 return None
 
-            # 解密（使用API v3密钥）
-            key = self.api_v3_key.encode('utf-8')
-            cipher = AES.new(key, AES.MODE_GCM, nonce.encode('utf-8'))
+            # 验证加密算法
+            if algorithm != 'AEAD_AES_256_GCM':
+                logger.error(f"Unsupported encryption algorithm: {algorithm}")
+                return None
 
+            # 验证API v3密钥长度
+            if not self.api_v3_key or len(self.api_v3_key) != 32:
+                logger.error("Invalid API v3 key length, must be 32 characters")
+                return None
+
+            # 准备解密参数
+            key = self.api_v3_key.encode('utf-8')
+            nonce_bytes = nonce.encode('utf-8')
+            ciphertext_bytes = base64.b64decode(ciphertext)
+
+            # 分离密文和认证标签（GCM模式下标签长度为16字节）
+            if len(ciphertext_bytes) < 16:
+                logger.error("Ciphertext too short")
+                return None
+
+            encrypted_data = ciphertext_bytes[:-16]
+            auth_tag = ciphertext_bytes[-16:]
+
+            # 创建AES-GCM解密器
+            cipher = AES.new(key, AES.MODE_GCM, nonce=nonce_bytes)
+
+            # 添加附加认证数据
             if associated_data:
                 cipher.update(associated_data.encode('utf-8'))
 
-            decrypted_data = cipher.decrypt(base64.b64decode(ciphertext))
+            try:
+                # 解密并验证
+                decrypted_bytes = cipher.decrypt_and_verify(encrypted_data, auth_tag)
+                decrypted_text = decrypted_bytes.decode('utf-8')
 
-            return json.loads(decrypted_data.decode('utf-8'))
+                logger.info("Resource decryption successful")
+                return json.loads(decrypted_text)
 
+            except ValueError as e:
+                logger.error(f"Decryption verification failed: {e}")
+                return None
+
+        except json.JSONDecodeError as e:
+            logger.error(f"Decrypted data is not valid JSON: {e}")
+            return None
         except Exception as e:
             logger.error(f"Decrypt resource error: {e}")
             return None
+
+    def _decrypt_certificate(self, encrypted_certificate: dict) -> Optional[str]:
+        """解密微信支付平台证书"""
+        try:
+            # 证书解密逻辑与resource解密类似，但返回证书内容字符串
+            decrypted_data = self._decrypt_resource(encrypted_certificate)
+
+            if decrypted_data and isinstance(decrypted_data, dict):
+                # 假设解密后的数据包含证书内容
+                return decrypted_data.get('certificate', '')
+            elif isinstance(decrypted_data, str):
+                # 直接返回证书字符串
+                return decrypted_data
+
+            return None
+
+        except Exception as e:
+            logger.error(f"Decrypt certificate error: {e}")
+            return None
+
+    def _validate_decrypted_data(self, data: dict, expected_fields: list = None) -> bool:
+        """验证解密后的数据完整性"""
+        try:
+            if not isinstance(data, dict):
+                logger.error("Decrypted data is not a dictionary")
+                return False
+
+            # 检查必需字段
+            if expected_fields:
+                missing_fields = [field for field in expected_fields if field not in data]
+                if missing_fields:
+                    logger.error(f"Missing required fields: {missing_fields}")
+                    return False
+
+            # 检查交易相关字段的有效性
+            if 'out_trade_no' in data:
+                out_trade_no = data.get('out_trade_no', '')
+                if not out_trade_no or not isinstance(out_trade_no, str):
+                    logger.error("Invalid out_trade_no")
+                    return False
+
+            if 'amount' in data:
+                amount = data.get('amount', {})
+                if not isinstance(amount, dict):
+                    logger.error("Invalid amount structure")
+                    return False
+
+                total = amount.get('total')
+                if total is not None and (not isinstance(total, int) or total <= 0):
+                    logger.error("Invalid total amount")
+                    return False
+
+            logger.info("Decrypted data validation passed")
+            return True
+
+        except Exception as e:
+            logger.error(f"Validate decrypted data error: {e}")
+            return False
 
     def create_notify_response(self, success: bool = True) -> dict:
         """创建通知响应"""
@@ -598,6 +815,191 @@ class WechatPayV3Service:
             return True
         except WechatPayV3Exception:
             return False
+
+    async def handle_order_timeout(self, out_trade_no: str, timeout_minutes: int = 30) -> Dict[str, Any]:
+        """处理订单超时"""
+        try:
+            logger.info(f"Handling timeout for order: {out_trade_no}")
+
+            # 先查询订单状态
+            order_status = await self.query_order(out_trade_no)
+
+            if order_status.get('mock_mode'):
+                return {
+                    'success': True,
+                    'action': 'mock_timeout',
+                    'message': '模拟模式：订单超时处理',
+                    'data': order_status
+                }
+
+            trade_state = order_status.get('trade_state')
+
+            if trade_state == 'SUCCESS':
+                # 订单已支付成功，无需处理
+                return {
+                    'success': True,
+                    'action': 'already_paid',
+                    'message': '订单已支付成功',
+                    'data': order_status
+                }
+            elif trade_state == 'CLOSED':
+                # 订单已关闭
+                return {
+                    'success': True,
+                    'action': 'already_closed',
+                    'message': '订单已关闭',
+                    'data': order_status
+                }
+            elif trade_state in ['NOTPAY', 'USERPAYING']:
+                # 订单未支付或用户支付中，关闭订单
+                close_result = await self.close_order(out_trade_no)
+                if close_result:
+                    logger.info(f"Order {out_trade_no} closed due to timeout")
+                    return {
+                        'success': True,
+                        'action': 'closed',
+                        'message': f'订单超时已关闭（{timeout_minutes}分钟）',
+                        'data': {
+                            'out_trade_no': out_trade_no,
+                            'original_state': trade_state,
+                            'timeout_minutes': timeout_minutes
+                        }
+                    }
+                else:
+                    logger.error(f"Failed to close timeout order: {out_trade_no}")
+                    return {
+                        'success': False,
+                        'action': 'close_failed',
+                        'message': '关闭超时订单失败',
+                        'data': order_status
+                    }
+            elif trade_state == 'NOTFOUND':
+                # 订单不存在
+                return {
+                    'success': True,
+                    'action': 'not_found',
+                    'message': '订单不存在',
+                    'data': {'out_trade_no': out_trade_no}
+                }
+            else:
+                # 其他状态
+                logger.warning(f"Unknown trade state for timeout handling: {trade_state}")
+                return {
+                    'success': False,
+                    'action': 'unknown_state',
+                    'message': f'未知订单状态: {trade_state}',
+                    'data': order_status
+                }
+
+        except Exception as e:
+            logger.error(f"Handle order timeout error: {e}")
+            return {
+                'success': False,
+                'action': 'error',
+                'message': f'处理订单超时异常: {e}',
+                'data': {'out_trade_no': out_trade_no}
+            }
+
+    def calculate_order_timeout(self, created_time: datetime, timeout_minutes: int = 30) -> bool:
+        """计算订单是否超时"""
+        try:
+            current_time = datetime.now()
+            timeout_threshold = created_time + timedelta(minutes=timeout_minutes)
+
+            is_timeout = current_time > timeout_threshold
+            logger.info(f"Order timeout check - Created: {created_time}, Current: {current_time}, "
+                       f"Timeout: {timeout_threshold}, IsTimeout: {is_timeout}")
+
+            return is_timeout
+
+        except Exception as e:
+            logger.error(f"Calculate order timeout error: {e}")
+            return True  # 出错时默认认为超时
+
+    async def batch_handle_timeout_orders(self, order_list: list, timeout_minutes: int = 30) -> Dict[str, Any]:
+        """批量处理超时订单"""
+        try:
+            results = {
+                'total': len(order_list),
+                'processed': 0,
+                'success': 0,
+                'failed': 0,
+                'details': []
+            }
+
+            for order_info in order_list:
+                out_trade_no = order_info.get('out_trade_no')
+                created_time = order_info.get('created_time')
+
+                if not out_trade_no or not created_time:
+                    results['failed'] += 1
+                    results['details'].append({
+                        'out_trade_no': out_trade_no,
+                        'success': False,
+                        'message': '订单信息不完整'
+                    })
+                    continue
+
+                # 检查是否超时
+                if isinstance(created_time, str):
+                    try:
+                        created_time = datetime.fromisoformat(created_time.replace('Z', '+00:00'))
+                    except ValueError:
+                        created_time = datetime.strptime(created_time, '%Y-%m-%d %H:%M:%S')
+
+                if not self.calculate_order_timeout(created_time, timeout_minutes):
+                    # 未超时，跳过
+                    results['details'].append({
+                        'out_trade_no': out_trade_no,
+                        'success': True,
+                        'message': '订单未超时'
+                    })
+                    continue
+
+                # 处理超时订单
+                timeout_result = await self.handle_order_timeout(out_trade_no, timeout_minutes)
+                results['processed'] += 1
+
+                if timeout_result.get('success'):
+                    results['success'] += 1
+                else:
+                    results['failed'] += 1
+
+                results['details'].append({
+                    'out_trade_no': out_trade_no,
+                    'success': timeout_result.get('success', False),
+                    'action': timeout_result.get('action'),
+                    'message': timeout_result.get('message')
+                })
+
+            logger.info(f"Batch timeout processing completed: {results['success']}/{results['total']} successful")
+            return results
+
+        except Exception as e:
+            logger.error(f"Batch handle timeout orders error: {e}")
+            return {
+                'total': len(order_list),
+                'processed': 0,
+                'success': 0,
+                'failed': len(order_list),
+                'error': str(e),
+                'details': []
+            }
+
+    def get_timeout_policy(self) -> Dict[str, Any]:
+        """获取超时策略配置"""
+        return {
+            'default_timeout_minutes': 30,  # 默认30分钟超时
+            'max_timeout_minutes': 120,     # 最大2小时超时
+            'min_timeout_minutes': 5,       # 最小5分钟超时
+            'batch_process_limit': 100,     # 批量处理限制
+            'retry_interval_seconds': 60,   # 重试间隔60秒
+            'supported_timeout_actions': [
+                'close_order',      # 关闭订单
+                'query_status',     # 查询状态
+                'send_notification' # 发送通知
+            ]
+        }
 
 
 # 创建全局实例
