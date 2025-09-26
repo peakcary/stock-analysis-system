@@ -12,8 +12,17 @@ from pathlib import Path
 project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root))
 
-# 设置环境变量
-os.environ["DATABASE_URL"] = "sqlite:///./stock_analysis_dev.db"
+# 设置环境变量 - 统一使用MySQL
+# 如果没有设置DATABASE_URL环境变量，则使用默认MySQL配置
+if not os.environ.get("DATABASE_URL"):
+    # 默认MySQL开发环境配置
+    database_host = os.environ.get("DATABASE_HOST", "127.0.0.1")
+    database_port = os.environ.get("DATABASE_PORT", "3306")
+    database_user = os.environ.get("DATABASE_USER", "root")
+    database_password = os.environ.get("DATABASE_PASSWORD", "dev_password")
+    database_name = os.environ.get("DATABASE_NAME", "stock_analysis_dev")
+    os.environ["DATABASE_URL"] = f"mysql+pymysql://{database_user}:{database_password}@{database_host}:{database_port}/{database_name}"
+
 os.environ["ADMIN_SECRET_KEY"] = "admin-secret-key-here-please-change-in-production-32chars"
 
 # 导入必需模块

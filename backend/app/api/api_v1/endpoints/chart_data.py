@@ -254,42 +254,39 @@ async def get_market_overview_chart(
             DailyConceptSummary.trade_date == trade_date
         ).first()
         
-        # 热度分布统计 - 使用多次查询替代复杂的CASE语句以兼容SQLite
-        range_0_10 = db.query(func.count(DailyStockData.id)).filter(
-            DailyStockData.trade_date == trade_date,
-            DailyStockData.heat_value >= 0,
-            DailyStockData.heat_value < 10
-        ).scalar() or 0
-
-        range_10_20 = db.query(func.count(DailyStockData.id)).filter(
-            DailyStockData.trade_date == trade_date,
-            DailyStockData.heat_value >= 10,
-            DailyStockData.heat_value < 20
-        ).scalar() or 0
-
-        range_20_50 = db.query(func.count(DailyStockData.id)).filter(
-            DailyStockData.trade_date == trade_date,
-            DailyStockData.heat_value >= 20,
-            DailyStockData.heat_value < 50
-        ).scalar() or 0
-
-        range_50_100 = db.query(func.count(DailyStockData.id)).filter(
-            DailyStockData.trade_date == trade_date,
-            DailyStockData.heat_value >= 50,
-            DailyStockData.heat_value < 100
-        ).scalar() or 0
-
-        range_100_plus = db.query(func.count(DailyStockData.id)).filter(
-            DailyStockData.trade_date == trade_date,
-            DailyStockData.heat_value >= 100
-        ).scalar() or 0
+        # 热度分布统计 - 使用MySQL的CASE语句进行一次性统计，提升性能
+        from sqlalchemy import case
+        heat_distribution = db.query(
+            func.sum(case(
+                (DailyStockData.heat_value.between(0, 9.99), 1),
+                else_=0
+            )).label('range_0_10'),
+            func.sum(case(
+                (DailyStockData.heat_value.between(10, 19.99), 1),
+                else_=0
+            )).label('range_10_20'),
+            func.sum(case(
+                (DailyStockData.heat_value.between(20, 49.99), 1),
+                else_=0
+            )).label('range_20_50'),
+            func.sum(case(
+                (DailyStockData.heat_value.between(50, 99.99), 1),
+                else_=0
+            )).label('range_50_100'),
+            func.sum(case(
+                (DailyStockData.heat_value >= 100, 1),
+                else_=0
+            )).label('range_100_plus')
+        ).filter(
+            DailyStockData.trade_date == trade_date
+        ).first()
 
         distribution_data = {
-            "0-10": range_0_10,
-            "10-20": range_10_20,
-            "20-50": range_20_50,
-            "50-100": range_50_100,
-            "100+": range_100_plus
+            "0-10": heat_distribution.range_0_10 or 0,
+            "10-20": heat_distribution.range_10_20 or 0,
+            "20-50": heat_distribution.range_20_50 or 0,
+            "50-100": heat_distribution.range_50_100 or 0,
+            "100+": heat_distribution.range_100_plus or 0
         }
         
         return {

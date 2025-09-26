@@ -32,15 +32,14 @@ class Settings(BaseSettings):
         # 优先使用环境变量中的DATABASE_URL，如果没有则使用配置构建
         database_url = os.getenv("DATABASE_URL")
         if database_url:
+            # 确保环境变量也使用MySQL
+            if database_url.startswith("sqlite"):
+                # 如果环境变量设置的是SQLite，强制使用MySQL
+                return f"mysql+pymysql://{self.DATABASE_USER}:{self.DATABASE_PASSWORD}@{self.DATABASE_HOST}:{self.DATABASE_PORT}/{self.DATABASE_NAME}"
             return database_url
-        
-        # 根据环境选择数据库类型
-        if self.DEBUG:
-            # 开发环境使用MySQL（Docker环境）
-            return f"mysql+pymysql://{self.DATABASE_USER}:{self.DATABASE_PASSWORD}@{self.DATABASE_HOST}:{self.DATABASE_PORT}/{self.DATABASE_NAME}"
-        else:
-            # 生产环境使用MySQL
-            return f"mysql+pymysql://{self.DATABASE_USER}:{self.DATABASE_PASSWORD}@{self.DATABASE_HOST}:{self.DATABASE_PORT}/{self.DATABASE_NAME}"
+
+        # 统一使用MySQL数据库
+        return f"mysql+pymysql://{self.DATABASE_USER}:{self.DATABASE_PASSWORD}@{self.DATABASE_HOST}:{self.DATABASE_PORT}/{self.DATABASE_NAME}"
     
     # JWT 配置 - 使用环境变量
     SECRET_KEY: str = os.getenv("SECRET_KEY", "")
