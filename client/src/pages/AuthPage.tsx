@@ -49,13 +49,21 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onLoginSuccess }) => {
   const handleRegister = async (values: any) => {
     setLoading(true);
     try {
-      // 这里调用注册API
-      await new Promise(resolve => setTimeout(resolve, 1000)); // 模拟API调用
-      
-      message.success('注册成功！请登录');
-      setAuthType('login');
+      const result = await authManager.register(values.username, values.email, values.password);
+
+      if (result.success && result.user) {
+        message.success('注册成功！请登录');
+        setAuthType('login');
+      } else if (result.error) {
+        // 使用用户友好的错误信息
+        const userFriendlyMessage = authManager.getErrorMessage(result.error);
+        message.error(userFriendlyMessage);
+      } else {
+        message.error('注册失败，请稍后重试');
+      }
     } catch (error) {
-      message.error('注册失败，请重试');
+      console.error('注册异常:', error);
+      message.error('注册过程中发生异常，请稍后重试');
     } finally {
       setLoading(false);
     }
@@ -237,7 +245,7 @@ const RegisterForm: React.FC<{
 }> = ({ onRegister, loading }) => {
   return (
     <Form layout="vertical" size="large" onFinish={onRegister}>
-      <Form.Item 
+      <Form.Item
         name="username"
         rules={[
           { required: true, message: '请输入用户名' },
@@ -245,10 +253,30 @@ const RegisterForm: React.FC<{
           { max: 20, message: '用户名最多20位' }
         ]}
       >
-        <Input 
+        <Input
           prefix={<UserOutlined style={{ color: '#9ca3af' }} />}
           placeholder="用户名"
-          style={{ 
+          style={{
+            height: '50px',
+            fontSize: '16px',
+            borderRadius: '12px',
+            border: '2px solid #f3f4f6',
+            boxShadow: 'none'
+          }}
+        />
+      </Form.Item>
+
+      <Form.Item
+        name="email"
+        rules={[
+          { required: true, message: '请输入邮箱地址' },
+          { type: 'email', message: '请输入正确的邮箱格式' }
+        ]}
+      >
+        <Input
+          prefix={<span style={{ color: '#9ca3af' }}>@</span>}
+          placeholder="邮箱地址"
+          style={{
             height: '50px',
             fontSize: '16px',
             borderRadius: '12px',

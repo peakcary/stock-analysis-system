@@ -191,6 +191,48 @@ export class UnifiedAuthManager {
     }
   }
 
+  // 用户注册
+  async register(username: string, email: string, password: string): Promise<LoginResult> {
+    try {
+      const registerRequest = () => this.apiClient.post<User>(
+        config.endpoints.register,
+        { username, email, password }
+      );
+
+      // 使用重试机制
+      const response = await withRetry(registerRequest, {
+        maxAttempts: config.maxRetryAttempts,
+        delay: 1000,
+        backoff: 2
+      });
+
+      if (response.data) {
+        return {
+          success: true,
+          user: response.data
+        };
+      }
+
+      return {
+        success: false,
+        error: {
+          code: 'REGISTRATION_FAILED',
+          message: '注册失败：服务器未返回用户信息'
+        }
+      };
+    } catch (error: any) {
+      console.error('用户注册错误:', error);
+
+      // 如果已经是 AuthError，直接使用
+      const authError = error.code ? error : createAuthErrorFromNetworkError(error);
+
+      return {
+        success: false,
+        error: authError
+      };
+    }
+  }
+
   // 检查认证状态 - 增强版本
   async checkAuth(): Promise<boolean> {
     const token = this.getToken();

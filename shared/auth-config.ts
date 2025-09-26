@@ -5,6 +5,7 @@
 
 export interface AuthEndpoints {
   login: string;
+  register?: string;
   logout: string;
   refresh?: string;
   me: string;
@@ -46,6 +47,7 @@ export const USER_AUTH_CONFIG: AuthConfig = {
   apiBaseUrl: getApiBaseUrl(),
   endpoints: {
     login: '/api/v1/auth/login',
+    register: '/api/v1/auth/register',
     logout: '/api/v1/auth/logout',
     me: '/api/v1/auth/me'
   },
