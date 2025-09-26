@@ -8,6 +8,7 @@ import AuthPage from './pages/AuthPage';
 import MembershipPage from './pages/MembershipPage';
 import AnalysisPage from './pages/AnalysisPage';
 import MobileLayout from './components/MobileLayout';
+import PaymentHistoryPage from './components/PaymentHistoryPage';
 import { tokenManager, mockLogin } from './utils/auth';
 
 // 主题配置
@@ -173,7 +174,10 @@ const App: React.FC = () => {
       
       case 'profile':
         return <ProfilePage user={user} onLogout={() => handleMenuClick('logout')} />;
-      
+
+      case 'payment':
+        return <PaymentHistoryPage />;
+
       default:
         return <AnalysisPage user={user} />;
     }
@@ -250,34 +254,63 @@ const DesktopLayout: React.FC<{
         </div>
         
         <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
-          {['首页', '分析', '会员', user ? '个人中心' : '登录'].map((item, index) => (
-            <button
-              key={item}
-              onClick={() => {
-                const tabMap: Record<string, string> = {
-                  '首页': 'home',
-                  '分析': 'analysis', 
-                  '会员': 'membership',
-                  '个人中心': 'profile',
-                  '登录': 'auth'
-                };
-                onTabChange(tabMap[item]);
-              }}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: 'white',
-                fontSize: '16px',
-                cursor: 'pointer',
-                padding: '8px 16px',
-                borderRadius: '8px',
-                transition: 'all 0.3s ease',
-                opacity: activeTab === (['home', 'analysis', 'membership', user ? 'profile' : 'auth'][index]) ? 1 : 0.8
-              }}
-            >
-              {item}
-            </button>
-          ))}
+          {user ?
+            ['首页', '分析', '会员', '支付记录', '个人中心'].map((item, index) => (
+              <button
+                key={item}
+                onClick={() => {
+                  const tabMap: Record<string, string> = {
+                    '首页': 'home',
+                    '分析': 'analysis',
+                    '会员': 'membership',
+                    '支付记录': 'payment',
+                    '个人中心': 'profile'
+                  };
+                  onTabChange(tabMap[item]);
+                }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'white',
+                  fontSize: '16px',
+                  cursor: 'pointer',
+                  padding: '8px 16px',
+                  borderRadius: '8px',
+                  transition: 'all 0.3s ease',
+                  opacity: activeTab === (['home', 'analysis', 'membership', 'payment', 'profile'][index]) ? 1 : 0.8
+                }}
+              >
+                {item}
+              </button>
+            )) :
+            ['首页', '分析', '会员', '登录'].map((item, index) => (
+              <button
+                key={item}
+                onClick={() => {
+                  const tabMap: Record<string, string> = {
+                    '首页': 'home',
+                    '分析': 'analysis',
+                    '会员': 'membership',
+                    '登录': 'auth'
+                  };
+                  onTabChange(tabMap[item]);
+                }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'white',
+                  fontSize: '16px',
+                  cursor: 'pointer',
+                  padding: '8px 16px',
+                  borderRadius: '8px',
+                  transition: 'all 0.3s ease',
+                  opacity: activeTab === (['home', 'analysis', 'membership', 'auth'][index]) ? 1 : 0.8
+                }}
+              >
+                {item}
+              </button>
+            ))
+          }
         </div>
       </div>
       

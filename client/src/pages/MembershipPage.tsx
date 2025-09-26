@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Card, Button, Space, Typography, Row, Col, message
 } from 'antd';
-import PaymentModal from '../components/PaymentModal';
+import EnhancedPaymentModal from '../components/EnhancedPaymentModal';
 import { apiClient } from '../utils/auth';
 import { 
   StarOutlined, SafetyCertificateOutlined
@@ -20,8 +20,9 @@ interface MembershipPageProps {
 
 export const MembershipPage: React.FC<MembershipPageProps> = ({ user, onUpgrade }) => {
   const [paymentModalVisible, setPaymentModalVisible] = useState(false);
-  const [selectedPackage, setSelectedPackage] = useState<string>('');
+  const [selectedPackageObj, setSelectedPackageObj] = useState<any>(null);
   const [userStats, setUserStats] = useState<any>(null);
+  const [packages, setPackages] = useState<any[]>([]);
 
   // 客户端不需要支付统计数据，注释掉
   // const fetchUserStats = async () => {
@@ -47,9 +48,9 @@ export const MembershipPage: React.FC<MembershipPageProps> = ({ user, onUpgrade 
   };
 
   // 选择套餐
-  const selectPackage = (packageType: string) => {
-    console.log('选择套餐:', packageType);
-    setSelectedPackage(packageType);
+  const selectPackage = (packageData: any) => {
+    console.log('选择套餐:', packageData);
+    setSelectedPackageObj(packageData);
     setPaymentModalVisible(true);
   };
 
@@ -127,7 +128,7 @@ export const MembershipPage: React.FC<MembershipPageProps> = ({ user, onUpgrade 
         </motion.div>
 
         {/* 套餐展示区域 */}
-        <PaymentPackagesInline onSuccess={handlePaymentSuccess} onSelectPackage={selectPackage} />
+        <PaymentPackagesInline onSuccess={handlePaymentSuccess} onSelectPackage={selectPackage} packages={packages} setPackages={setPackages} />
         
         {/* 底部保障说明 */}
         <motion.div
@@ -185,11 +186,11 @@ export const MembershipPage: React.FC<MembershipPageProps> = ({ user, onUpgrade 
       </div>
 
       {/* 支付弹窗 */}
-      <PaymentModal
+      <EnhancedPaymentModal
         visible={paymentModalVisible}
         onCancel={() => setPaymentModalVisible(false)}
         onSuccess={handlePaymentSuccess}
-        packageType={selectedPackage}
+        selectedPackage={selectedPackageObj}
       />
     </div>
   );
@@ -198,11 +199,12 @@ export const MembershipPage: React.FC<MembershipPageProps> = ({ user, onUpgrade 
 // PaymentPackagesInline 组件 - 直接在页面中显示套餐
 interface PaymentPackagesInlineProps {
   onSuccess: () => void;
-  onSelectPackage: (packageType: string) => void;
+  onSelectPackage: (packageData: any) => void;
+  packages: any[];
+  setPackages: (packages: any[]) => void;
 }
 
-const PaymentPackagesInline: React.FC<PaymentPackagesInlineProps> = ({ onSuccess, onSelectPackage }) => {
-  const [packages, setPackages] = useState<any[]>([]);
+const PaymentPackagesInline: React.FC<PaymentPackagesInlineProps> = ({ onSuccess, onSelectPackage, packages, setPackages }) => {
   const [loading, setLoading] = useState(false);
 
   // 获取支付套餐列表
@@ -377,7 +379,7 @@ const PaymentPackagesInline: React.FC<PaymentPackagesInlineProps> = ({ onSuccess
                     type="primary"
                     size="large"
                     block
-                    onClick={() => onSelectPackage(pkg.package_type)}
+                    onClick={() => onSelectPackage(pkg)}
                     style={{
                       height: '48px',
                       fontSize: '16px',

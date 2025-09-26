@@ -7,6 +7,7 @@ from jose import JWTError, jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
+import os
 
 from app.core.database import get_db
 from app.models.admin_user import AdminUser
@@ -14,10 +15,13 @@ from app.crud.admin_user import AdminUserCRUD
 from app.core.config import settings
 
 # JWT配置
-ADMIN_SECRET_KEY = "your-admin-secret-key-here"  # 应该从环境变量读取
+ADMIN_SECRET_KEY = os.getenv("ADMIN_SECRET_KEY", "")
+if not ADMIN_SECRET_KEY:
+    raise ValueError("ADMIN_SECRET_KEY environment variable must be set")
+
 ADMIN_ALGORITHM = "HS256"
-ADMIN_ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24小时
-ADMIN_REFRESH_TOKEN_EXPIRE_DAYS = 7  # 7天
+ADMIN_ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ADMIN_ACCESS_TOKEN_EXPIRE_MINUTES", "1440"))  # 默认24小时
+ADMIN_REFRESH_TOKEN_EXPIRE_DAYS = int(os.getenv("ADMIN_REFRESH_TOKEN_EXPIRE_DAYS", "7"))  # 默认7天
 
 # HTTP Bearer scheme for admin
 admin_security = HTTPBearer()

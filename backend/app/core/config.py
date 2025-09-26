@@ -21,11 +21,11 @@ class Settings(BaseSettings):
     PORT: int = 3007
     
     # 数据库配置 - 使用环境变量
-    DATABASE_HOST: str = "127.0.0.1"
-    DATABASE_PORT: int = 3306
-    DATABASE_USER: str = "root"
-    DATABASE_PASSWORD: str = "Pp123456"  # 实际配置的MySQL密码
-    DATABASE_NAME: str = "stock_analysis_dev"
+    DATABASE_HOST: str = os.getenv("DATABASE_HOST", "127.0.0.1")
+    DATABASE_PORT: int = int(os.getenv("DATABASE_PORT", "3306"))
+    DATABASE_USER: str = os.getenv("DATABASE_USER", "root")
+    DATABASE_PASSWORD: str = os.getenv("DATABASE_PASSWORD", "")
+    DATABASE_NAME: str = os.getenv("DATABASE_NAME", "stock_analysis_dev")
     
     @property
     def DATABASE_URL(self) -> str:
@@ -43,9 +43,9 @@ class Settings(BaseSettings):
             return f"mysql+pymysql://{self.DATABASE_USER}:{self.DATABASE_PASSWORD}@{self.DATABASE_HOST}:{self.DATABASE_PORT}/{self.DATABASE_NAME}"
     
     # JWT 配置 - 使用环境变量
-    SECRET_KEY: str = ""
+    SECRET_KEY: str = os.getenv("SECRET_KEY", "")
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
     
     # CORS 配置
     ALLOWED_ORIGINS: list = [
@@ -68,11 +68,14 @@ class Settings(BaseSettings):
     LOG_FILE: str = "logs/app.log"
     
     # 微信支付配置
-    WECHAT_APPID: str = ""  # 微信公众平台/开放平台 AppID
-    WECHAT_MCH_ID: str = ""  # 微信商户号
-    WECHAT_API_KEY: str = ""  # 微信支付API密钥
-    WECHAT_CERT_PATH: str = ""  # 商户证书路径（可选，用于退款等操作）
-    WECHAT_KEY_PATH: str = ""  # 商户私钥路径（可选）
+    WECHAT_APPID: str = os.getenv("WECHAT_APPID", "")  # 微信公众平台/开放平台 AppID
+    WECHAT_MCH_ID: str = os.getenv("WECHAT_MCH_ID", "")  # 微信商户号
+    WECHAT_API_KEY: str = os.getenv("WECHAT_API_KEY", "")  # 微信支付API密钥(V2)
+    WECHAT_API_V3_KEY: str = os.getenv("WECHAT_API_V3_KEY", "")  # 微信支付API v3密钥
+    WECHAT_CERT_SERIAL: str = os.getenv("WECHAT_CERT_SERIAL", "")  # 商户证书序列号
+    WECHAT_CERT_PATH: str = os.getenv("WECHAT_CERT_PATH", "")  # 商户证书路径
+    WECHAT_KEY_PATH: str = os.getenv("WECHAT_KEY_PATH", "")  # 商户私钥路径
+    WECHAT_NOTIFY_URL: str = os.getenv("WECHAT_NOTIFY_URL", "")  # 支付通知回调URL
     
     # 应用基础URL（用于支付回调）
     BASE_URL: str = "http://localhost:3007"

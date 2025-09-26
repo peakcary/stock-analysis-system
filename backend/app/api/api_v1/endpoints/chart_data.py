@@ -254,22 +254,43 @@ async def get_market_overview_chart(
             DailyConceptSummary.trade_date == trade_date
         ).first()
         
-        # 热度分布统计
-        heat_distribution = db.query(
-            func.count(DailyStockData.id).label('count'),
-            func.case([
-                (DailyStockData.heat_value < 10, '0-10'),
-                (DailyStockData.heat_value < 20, '10-20'),
-                (DailyStockData.heat_value < 50, '20-50'),
-                (DailyStockData.heat_value < 100, '50-100'),
-                (DailyStockData.heat_value >= 100, '100+')
-            ]).label('range')
-        ).filter(
+        # 热度分布统计 - 使用多次查询替代复杂的CASE语句以兼容SQLite
+        range_0_10 = db.query(func.count(DailyStockData.id)).filter(
             DailyStockData.trade_date == trade_date,
-            DailyStockData.heat_value > 0
-        ).group_by('range').all()
-        
-        distribution_data = {item.range: item.count for item in heat_distribution}
+            DailyStockData.heat_value >= 0,
+            DailyStockData.heat_value < 10
+        ).scalar() or 0
+
+        range_10_20 = db.query(func.count(DailyStockData.id)).filter(
+            DailyStockData.trade_date == trade_date,
+            DailyStockData.heat_value >= 10,
+            DailyStockData.heat_value < 20
+        ).scalar() or 0
+
+        range_20_50 = db.query(func.count(DailyStockData.id)).filter(
+            DailyStockData.trade_date == trade_date,
+            DailyStockData.heat_value >= 20,
+            DailyStockData.heat_value < 50
+        ).scalar() or 0
+
+        range_50_100 = db.query(func.count(DailyStockData.id)).filter(
+            DailyStockData.trade_date == trade_date,
+            DailyStockData.heat_value >= 50,
+            DailyStockData.heat_value < 100
+        ).scalar() or 0
+
+        range_100_plus = db.query(func.count(DailyStockData.id)).filter(
+            DailyStockData.trade_date == trade_date,
+            DailyStockData.heat_value >= 100
+        ).scalar() or 0
+
+        distribution_data = {
+            "0-10": range_0_10,
+            "10-20": range_10_20,
+            "20-50": range_20_50,
+            "50-100": range_50_100,
+            "100+": range_100_plus
+        }
         
         return {
             "trade_date": trade_date.isoformat(),

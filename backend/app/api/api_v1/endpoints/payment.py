@@ -24,8 +24,17 @@ from app.services.wechat_pay import wechat_pay_service, WechatPayException
 from app.core.config import settings
 from app.services.user_membership import user_membership_service
 from app.services.mock_payment import mock_payment_service
+from app.services.payment_manager import payment_manager
 
 router = APIRouter()
+
+
+# ============ 支付配置管理 ============
+
+@router.get("/config/status")
+async def get_payment_config_status():
+    """获取支付配置状态"""
+    return payment_manager.get_payment_config_status()
 
 
 # ============ 支付套餐管理 ============
@@ -358,74 +367,51 @@ async def payment_notify(
     request: Request,
     db: Session = Depends(get_db)
 ):
-    """微信支付通知回调"""
+    """微信支付通知回调 (支持V2和V3 API)"""
     try:
-        # 获取原始XML数据
-        xml_data = await request.body()
+        # 获取原始数据和请求头
+        request_body = await request.body()
+        request_headers = dict(request.headers)
         client_ip = request.client.host
-        
+
         logger.info(f"Payment notify received from {client_ip}")
-        
-        # 处理支付通知
-        result = wechat_pay_service.process_notify(xml_data.decode('utf-8'))
-        
-        # 记录通知
-        notification = PaymentNotification(
-            out_trade_no=result["data"].get("out_trade_no", ""),
-            transaction_id=result["data"].get("transaction_id", ""),
-            raw_data=xml_data.decode('utf-8'),
-            is_valid=result["success"],
-            client_ip=client_ip
+        logger.info(f"Request headers: {request_headers}")
+
+        # 使用新的payment_manager处理通知
+        result = await payment_manager.process_payment_notify(
+            request_data=request_body.decode('utf-8'),
+            headers=request_headers,
+            client_ip=client_ip,
+            db=db
         )
-        db.add(notification)
         
-        if result["success"]:
-            # 查找对应订单
-            notify_data = result["data"]
-            order = db.query(PaymentOrder).filter(
-                PaymentOrder.out_trade_no == notify_data["out_trade_no"]
-            ).first()
-            
-            if order and order.status == PaymentStatus.PENDING:
-                # 更新订单状态
-                order.status = PaymentStatus.PAID
-                order.transaction_id = notify_data["transaction_id"]
-                order.paid_at = datetime.now()
-                order.notify_data = notify_data["raw_data"]
-                
-                # 激活用户套餐权限
-                activation_result = await user_membership_service.activate_package_for_user(
-                    db, order.user_id, order.id
+        # 根据API版本返回相应格式的响应
+        if result['success']:
+            if 'Wechatpay-Signature' in request_headers:
+                # V3 API - 返回JSON格式
+                return Response(
+                    content='{"code": "SUCCESS", "message": "成功"}',
+                    media_type="application/json"
                 )
-                
-                if not activation_result['success']:
-                    logger.warning(f"Package activation failed for order {order.id}: {activation_result['message']}")
-                else:
-                    logger.info(f"Package activated successfully for user {order.user_id}: {activation_result['message']}")
-                
-                notification.processed = True
-                notification.process_result = "Payment processed successfully"
-                
-                logger.info(f"Payment success processed: {order.out_trade_no}")
             else:
-                notification.process_result = f"Order not found or already processed: {notify_data['out_trade_no']}"
+                # V2 API - 返回XML格式
+                return Response(
+                    content=wechat_pay_service.create_success_response(),
+                    media_type="application/xml"
+                )
         else:
-            notification.process_result = f"Invalid notification: {result['message']}"
-        
-        notification.processed_at = datetime.now()
-        db.commit()
-        
-        # 返回响应
-        if result["success"]:
-            return Response(
-                content=wechat_pay_service.create_success_response(),
-                media_type="application/xml"
-            )
-        else:
-            return Response(
-                content=wechat_pay_service.create_fail_response(),
-                media_type="application/xml"
-            )
+            if 'Wechatpay-Signature' in request_headers:
+                # V3 API - 返回JSON格式
+                return Response(
+                    content='{"code": "FAIL", "message": "失败"}',
+                    media_type="application/json"
+                )
+            else:
+                # V2 API - 返回XML格式
+                return Response(
+                    content=wechat_pay_service.create_fail_response(),
+                    media_type="application/xml"
+                )
             
     except Exception as e:
         logger.error(f"Payment notify error: {e}")
@@ -833,3 +819,225 @@ async def handle_refund_notify(request: Request, db: Session = Depends(get_db)):
             content=wechat_pay_service.create_fail_response("系统异常"),
             media_type="application/xml"
         )
+
+
+# ============ 增强版订单管理 ============
+
+@router.post("/v2/orders/create")
+async def create_payment_order_v2(
+    order_data: PaymentOrderCreate,
+    request: Request,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """创建支付订单 V2"""
+    try:
+        # 获取客户端信息
+        client_ip = order_data.client_ip or request.client.host
+        user_agent = order_data.user_agent or request.headers.get("user-agent", "")
+
+        # 创建订单
+        result = await payment_manager.create_payment_order(
+            user=current_user,
+            package_type=order_data.package_type,
+            payment_method=order_data.payment_method,
+            client_ip=client_ip,
+            user_agent=user_agent,
+            db=db
+        )
+
+        if not result['success']:
+            raise HTTPException(
+                status_code=400,
+                detail=result['message']
+            )
+
+        return {
+            "success": True,
+            "message": result['message'],
+            "data": {
+                "order_id": result['order_id'],
+                "out_trade_no": result['out_trade_no'],
+                "code_url": result.get('code_url'),
+                "h5_url": result.get('h5_url'),
+                "expire_time": result['expire_time'],
+                "amount": result['amount'],
+                "mock_mode": result.get('mock_mode', False)
+            }
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Create payment order v2 error: {e}")
+        raise HTTPException(status_code=500, detail="创建支付订单失败")
+
+
+@router.get("/v2/orders/{out_trade_no}/status")
+async def query_order_status_v2(
+    out_trade_no: str,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """查询订单状态 V2"""
+    try:
+        # 验证订单归属
+        order = db.query(PaymentOrder).filter(
+            and_(
+                PaymentOrder.out_trade_no == out_trade_no,
+                PaymentOrder.user_id == current_user.id
+            )
+        ).first()
+
+        if not order:
+            raise HTTPException(status_code=404, detail="订单不存在")
+
+        result = await payment_manager.query_order_status(out_trade_no, db)
+
+        return {
+            "success": result['success'],
+            "message": result['message'],
+            "data": {
+                "out_trade_no": out_trade_no,
+                "status": result.get('status'),
+                "paid_at": result.get('paid_at'),
+                "transaction_id": result.get('transaction_id'),
+                "trade_state": result.get('trade_state')
+            }
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Query order status v2 error: {e}")
+        raise HTTPException(status_code=500, detail="查询订单状态失败")
+
+
+@router.post("/v2/orders/{out_trade_no}/cancel")
+async def cancel_order_v2(
+    out_trade_no: str,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """取消订单 V2"""
+    try:
+        # 验证订单归属
+        order = db.query(PaymentOrder).filter(
+            and_(
+                PaymentOrder.out_trade_no == out_trade_no,
+                PaymentOrder.user_id == current_user.id
+            )
+        ).first()
+
+        if not order:
+            raise HTTPException(status_code=404, detail="订单不存在")
+
+        result = await payment_manager.cancel_order(out_trade_no, db)
+
+        return {
+            "success": result['success'],
+            "message": result['message']
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Cancel order v2 error: {e}")
+        raise HTTPException(status_code=500, detail="取消订单失败")
+
+
+@router.get("/v2/orders/history")
+async def get_payment_history_v2(
+    page: int = 1,
+    size: int = 20,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """获取支付历史 V2"""
+    try:
+        result = await payment_manager.get_user_payment_history(
+            user_id=current_user.id,
+            page=page,
+            size=size,
+            db=db
+        )
+
+        return {
+            "success": result['success'],
+            "message": result.get('message', '获取成功'),
+            "data": result.get('data', {})
+        }
+
+    except Exception as e:
+        logger.error(f"Get payment history v2 error: {e}")
+        raise HTTPException(status_code=500, detail="获取支付历史失败")
+
+
+# ============ 模拟支付（开发测试用） ============
+
+@router.post("/mock/complete/{out_trade_no}")
+async def mock_complete_payment(
+    out_trade_no: str,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """模拟支付完成（仅开发模式）"""
+    if not settings.PAYMENT_MOCK_MODE:
+        raise HTTPException(status_code=403, detail="非开发模式不支持模拟支付")
+
+    try:
+        # 验证订单
+        order = db.query(PaymentOrder).filter(
+            and_(
+                PaymentOrder.out_trade_no == out_trade_no,
+                PaymentOrder.user_id == current_user.id,
+                PaymentOrder.status == PaymentStatus.PENDING
+            )
+        ).first()
+
+        if not order:
+            raise HTTPException(status_code=404, detail="订单不存在或状态不正确")
+
+        # 模拟微信支付成功通知
+        total_fee = int(order.amount * 100)
+        mock_result = await wechat_pay_service.mock_payment_success(out_trade_no, total_fee)
+
+        if mock_result['success']:
+            # 处理支付通知
+            notify_data = mock_result['data']
+
+            # 构建模拟XML通知数据
+            mock_xml = f"""<xml>
+                <return_code><![CDATA[SUCCESS]]></return_code>
+                <result_code><![CDATA[SUCCESS]]></result_code>
+                <out_trade_no><![CDATA[{notify_data['out_trade_no']}]]></out_trade_no>
+                <transaction_id><![CDATA[{notify_data['transaction_id']}]]></transaction_id>
+                <total_fee>{notify_data['total_fee']}</total_fee>
+                <time_end><![CDATA[{notify_data['time_end']}]]></time_end>
+                <openid><![CDATA[{notify_data['openid']}]]></openid>
+            </xml>"""
+
+            # 处理通知
+            notify_result = await payment_manager.process_payment_notify(
+                xml_data=mock_xml,
+                client_ip="127.0.0.1",
+                db=db
+            )
+
+            return {
+                "success": True,
+                "message": "模拟支付成功",
+                "data": {
+                    "out_trade_no": out_trade_no,
+                    "transaction_id": notify_data['transaction_id'],
+                    "notify_processed": notify_result['success']
+                }
+            }
+        else:
+            raise HTTPException(status_code=500, detail="模拟支付失败")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Mock complete payment error: {e}")
+        raise HTTPException(status_code=500, detail="模拟支付失败")

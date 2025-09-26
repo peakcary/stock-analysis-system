@@ -24,13 +24,19 @@ class WechatPayException(Exception):
 
 class WechatPayService:
     """微信支付服务"""
-    
+
     def __init__(self):
         self.appid = settings.WECHAT_APPID or "mock_appid"
         self.mch_id = settings.WECHAT_MCH_ID or "mock_mch_id"
         self.api_key = settings.WECHAT_API_KEY or "mock_api_key"
-        self.notify_url = f"{settings.BASE_URL}/api/v1/payment/notify"
+        self.cert_path = settings.WECHAT_CERT_PATH
+        self.key_path = settings.WECHAT_KEY_PATH
+        self.notify_url = settings.WECHAT_NOTIFY_URL or f"{settings.BASE_URL}/api/v1/payment/notify"
         self.mock_mode = settings.PAYMENT_MOCK_MODE
+
+        # 验证生产环境必需配置
+        if not self.mock_mode:
+            self._validate_production_config()
         
         # API URLs
         self.unified_order_url = "https://api.mch.weixin.qq.com/pay/unifiedorder"
@@ -38,6 +44,55 @@ class WechatPayService:
         self.close_order_url = "https://api.mch.weixin.qq.com/pay/closeorder"
         self.refund_url = "https://api.mch.weixin.qq.com/secapi/pay/refund"
         self.refund_query_url = "https://api.mch.weixin.qq.com/pay/refundquery"
+
+    def _validate_production_config(self):
+        """验证生产环境配置"""
+        required_configs = {
+            'WECHAT_APPID': self.appid,
+            'WECHAT_MCH_ID': self.mch_id,
+            'WECHAT_API_KEY': self.api_key
+        }
+
+        missing_configs = [key for key, value in required_configs.items() if not value or value.startswith('mock_')]
+
+        if missing_configs:
+            raise WechatPayException(f"生产环境缺少必需配置: {', '.join(missing_configs)}")
+
+        # 验证证书文件（退款功能需要）
+        if self.cert_path:
+            import os
+            if not os.path.exists(self.cert_path):
+                logger.warning(f"微信支付证书文件不存在: {self.cert_path}")
+
+        if self.key_path:
+            import os
+            if not os.path.exists(self.key_path):
+                logger.warning(f"微信支付私钥文件不存在: {self.key_path}")
+
+    def is_production_ready(self) -> bool:
+        """检查是否准备好生产环境"""
+        try:
+            if self.mock_mode:
+                return True
+            self._validate_production_config()
+            return True
+        except WechatPayException:
+            return False
+
+    def get_config_status(self) -> Dict[str, Any]:
+        """获取配置状态"""
+        import os
+
+        return {
+            'mock_mode': self.mock_mode,
+            'appid_configured': bool(self.appid and not self.appid.startswith('mock_')),
+            'mch_id_configured': bool(self.mch_id and not self.mch_id.startswith('mock_')),
+            'api_key_configured': bool(self.api_key and not self.api_key.startswith('mock_')),
+            'cert_file_exists': bool(self.cert_path and os.path.exists(self.cert_path)),
+            'key_file_exists': bool(self.key_path and os.path.exists(self.key_path)),
+            'notify_url': self.notify_url,
+            'production_ready': self.is_production_ready()
+        }
 
     def generate_nonce_str(self, length: int = 32) -> str:
         """生成随机字符串"""
