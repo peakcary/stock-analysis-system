@@ -1,19 +1,18 @@
 # 股票分析系统 v2.7.0
 
-⚡ 高性能股票分析系统，支持多格式数据导入、概念分析、个股查询、用户权限管理
+⚡ 高性能股票分析系统，支持多格式数据导入、概念分析、个股查询、会员支付管理
 
 ## 快速开始
 
 ```bash
-# 1. 部署系统
-./scripts/deployment/deploy.sh
+# 1. 启动开发环境
+./start-dev.sh
 
-# 2. 启动服务
-./scripts/deployment/start.sh
-
-# 3. 访问系统
+# 2. 访问系统
+# 后端API: http://localhost:3007
 # 管理端: http://localhost:8006 (admin/admin123)
-# 客户端: http://localhost:8005
+# 客户端: http://localhost:8005 (fullaccess_user/fullaccess123)
+# API文档: http://localhost:3007/docs
 ```
 
 ## 环境要求
@@ -48,27 +47,35 @@ brew services start mysql
 - 💳 会员等级管理 (免费/专业/高级)
 - 📊 用户行为统计和分析
 
+### 支付系统
+- 💰 完整的会员支付功能
+- 🔐 微信支付V3安全集成
+- 📈 支付数据统计分析
+- ⏰ 订单超时自动处理
+- 🛡️ 多层次安全防护机制
+
 ## 管理命令
 
 ```bash
-# 服务管理
-./scripts/deployment/start.sh    # 启动服务
-./scripts/deployment/stop.sh     # 停止服务
-./scripts/deployment/status.sh   # 检查状态
+# 开发环境
+./start-dev.sh     # 启动开发服务
+./stop-dev.sh      # 停止开发服务
 
-# 系统管理
-./scripts/deployment/deploy.sh --migrate  # 仅更新数据库
-./scripts/deployment/deploy.sh --help     # 查看帮助
+# Docker环境
+docker-compose up -d              # 启动容器服务
+docker-compose down               # 停止容器服务
+docker-compose logs -f [service]  # 查看服务日志
 
-# 服务器部署
-./scripts/deployment/deploy-to-server.sh  # 一键部署到服务器
+# 数据库管理
+python init_database.py          # 初始化数据库
 ```
 
 ## 服务地址
 
-- **后端API**: http://localhost:8000
-- **管理端**: http://localhost:8007 (admin/admin123)
-- **客户端**: http://localhost:8008
+- **后端API**: http://localhost:3007
+- **API文档**: http://localhost:3007/docs
+- **管理端**: http://localhost:8006 (admin/admin123)
+- **客户端**: http://localhost:8005 (fullaccess_user/fullaccess123)
 
 ## 测试账户
 
@@ -84,13 +91,15 @@ brew services start mysql
 
 ## 常见问题
 
-**数据导入失败**：运行 `./scripts/deployment/deploy.sh --migrate`
+**数据导入失败**：运行 `python init_database.py` 初始化数据库
 
-**端口冲突**：检查 8000、8007、8008 端口是否被占用
+**端口冲突**：检查 3007、8006、8005 端口是否被占用
 
-**数据库连接失败**：确保MySQL服务运行中
+**数据库连接失败**：确保MySQL服务运行中 `docker-compose up -d mysql`
 
 **查询次数不足**：联系管理员升级会员或购买查询包
+
+**支付功能异常**：检查微信支付配置和网络连接
 
 **API权限错误**：检查用户登录状态和token有效性
 
