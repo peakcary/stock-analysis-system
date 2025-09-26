@@ -4,10 +4,10 @@
 echo "🚀 启动股票分析系统 (本地开发模式)"
 echo "======================================"
 
-# 端口配置
-BACKEND_PORT=8000
-FRONTEND_PORT=8007
-CLIENT_PORT=8008
+# 端口配置 - 与生产环境保持一致
+BACKEND_PORT=3007
+FRONTEND_PORT=8006
+CLIENT_PORT=8005
 
 echo "📊 端口配置: API($BACKEND_PORT) | 管理端($FRONTEND_PORT) | 客户端($CLIENT_PORT)"
 
