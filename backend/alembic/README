@@ -1,0 +1,2 @@
+This directory contains Alembic migrations for the backend service.
+Run Alembic commands from the `backend/` directory.

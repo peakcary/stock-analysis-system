@@ -1,15 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Card, Row, Col, Input, Button, Table, Tag, Space, Tooltip, 
+import {
+  Card, Row, Col, Input, Button, Table, Tag, Space, Tooltip,
   Alert, Empty, Spin, Typography, Progress, Divider, message
 } from 'antd';
-import { 
-  SearchOutlined, StockOutlined, FireOutlined, 
+import {
+  SearchOutlined, StockOutlined, FireOutlined,
   TrophyOutlined, InfoCircleOutlined
 } from '@ant-design/icons';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactECharts from 'echarts-for-react';
 import { ConceptAnalysisApi, ChartDataApi, conceptAnalysisUtils } from '../services/conceptAnalysisApi';
+import './StockAnalysisPage.css';
 
 const { Title, Text } = Typography;
 const { Search } = Input;
@@ -256,7 +257,7 @@ export const StockAnalysisPage: React.FC<StockAnalysisPageProps> = ({ user, trad
   };
 
   return (
-    <div style={{ padding: '24px' }}>
+    <div className="stock-analysis-page" style={{ padding: '24px' }}>
       {/* 页面标题和搜索区域 */}
       <Card style={{ marginBottom: '24px', borderRadius: '12px' }}>
         <div style={{ textAlign: 'center', marginBottom: '24px' }}>

@@ -232,8 +232,7 @@ async def get_concept_stock_rankings(
 async def get_stock_concepts(
     stock_code: str,
     trading_date: Optional[str] = Query(None, description="交易日期 YYYY-MM-DD"),
-    db: Session = Depends(get_db),
-    current_admin: AdminUser = Depends(get_current_admin_user)
+    db: Session = Depends(get_db)
 ):
     """获取股票的所有概念及其排名信息"""
     try:

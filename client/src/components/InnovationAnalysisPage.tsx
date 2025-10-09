@@ -32,6 +32,7 @@ import {
 } from '@ant-design/icons';
 import type { ColumnType } from 'antd/es/table';
 import dayjs from 'dayjs';
+import './InnovationAnalysisPage.css';
 
 const { Title, Text } = Typography;
 const { Panel } = Collapse;
@@ -214,7 +215,7 @@ const InnovationAnalysisPage: React.FC = () => {
   ];
 
   return (
-    <div style={{ padding: '24px' }}>
+    <div className="innovation-analysis-page" style={{ padding: '24px' }}>
       <Title level={2}>
         <RocketOutlined style={{ color: '#ff4d4f', marginRight: 8 }} />
         创新高概念分析

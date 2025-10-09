@@ -1,0 +1,310 @@
+/* AnalysisPage Mobile Optimization */
+
+/* 响应式设计 - 平板和移动设备 */
+@media (max-width: 768px) {
+  /* 整体容器优化 */
+  .analysis-page-container {
+    padding: 8px !important;
+  }
+
+  .analysis-page-container > div {
+    max-width: 100% !important;
+  }
+
+  /* 顶部控制栏优化 */
+  .analysis-page-container > div > div:first-child {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 12px !important;
+  }
+
+  /* 标题优化 */
+  .analysis-page-container h2 {
+    font-size: 20px !important;
+  }
+
+  .analysis-page-container h3 {
+    font-size: 16px !important;
+  }
+
+  .analysis-page-container h4 {
+    font-size: 14px !important;
+  }
+
+  /* Segmented优化 - 使页签更小 */
+  .analysis-page-container .ant-segmented {
+    width: 100%;
+    font-size: 11px;
+  }
+
+  .analysis-page-container .ant-segmented-item {
+    min-height: 32px;
+    padding: 0 6px;
+  }
+
+  .analysis-page-container .ant-segmented-item-label {
+    line-height: 32px;
+  }
+
+  .analysis-page-container .ant-segmented-item-label span {
+    font-size: 11px;
+  }
+
+  .analysis-page-container .ant-segmented-item-label .anticon {
+    font-size: 12px;
+  }
+
+  /* Space优化 - 垂直堆叠 */
+  .analysis-page-container > div > div:first-child > .ant-space {
+    width: 100%;
+  }
+
+  /* DatePicker和Button全宽 */
+  .analysis-page-container .ant-picker,
+  .analysis-page-container > div > div:first-child .ant-btn {
+    width: 100% !important;
+  }
+
+  /* 核心指标卡片优化 */
+  .analysis-page-container .ant-statistic {
+    text-align: center;
+  }
+
+  .analysis-page-container .ant-statistic-title {
+    font-size: 11px !important;
+  }
+
+  .analysis-page-container .ant-statistic-content {
+    font-size: 18px !important;
+  }
+
+  /* 卡片优化 */
+  .analysis-page-container .ant-card {
+    border-radius: 12px !important;
+    margin-bottom: 12px !important;
+  }
+
+  .analysis-page-container .ant-card-body {
+    padding: 12px !important;
+  }
+
+  .analysis-page-container .ant-card-head {
+    padding: 0 12px !important;
+    min-height: 40px !important;
+  }
+
+  .analysis-page-container .ant-card-head-title {
+    padding: 8px 0 !important;
+    font-size: 14px !important;
+  }
+
+  .analysis-page-container .ant-card-extra {
+    padding: 8px 0 !important;
+  }
+
+  /* 创新高概念列表优化 */
+  .analysis-page-container .ant-row[align="middle"] {
+    flex-direction: column;
+    align-items: flex-start !important;
+  }
+
+  .analysis-page-container .ant-row[align="middle"] > .ant-col {
+    width: 100%;
+    margin-bottom: 8px;
+  }
+
+  /* 热度进度条优化 */
+  .analysis-page-container .ant-progress {
+    margin: 4px 0;
+  }
+
+  /* 功能快捷入口优化 */
+  .analysis-page-container .ant-card[hoverable] {
+    margin-bottom: 12px;
+  }
+
+  .analysis-page-container .ant-card[hoverable] > div {
+    padding: 16px !important;
+  }
+
+  .analysis-page-container .ant-card[hoverable] .anticon {
+    font-size: 28px !important;
+  }
+
+  /* Alert优化 */
+  .analysis-page-container .ant-alert {
+    font-size: 12px;
+    margin-bottom: 12px !important;
+  }
+
+  .analysis-page-container .ant-alert-message {
+    font-size: 13px !important;
+  }
+
+  .analysis-page-container .ant-alert-description {
+    font-size: 12px !important;
+  }
+
+  /* Badge优化 */
+  .analysis-page-container .ant-badge {
+    font-size: 10px;
+  }
+
+  /* Tooltip移除 hover 效果,改为点击 */
+  .analysis-page-container .ant-tooltip-open {
+    display: block;
+  }
+
+  /* Empty状态优化 */
+  .analysis-page-container .ant-empty {
+    padding: 20px 0 !important;
+  }
+
+  .analysis-page-container .ant-empty-image {
+    height: 60px !important;
+  }
+
+  /* Drawer优化 */
+  .analysis-page-container .ant-drawer {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+}
+
+/* 更小的移动设备 (手机竖屏) */
+@media (max-width: 480px) {
+  .analysis-page-container {
+    padding: 4px !important;
+  }
+
+  .analysis-page-container h2 {
+    font-size: 18px !important;
+  }
+
+  /* Segmented更紧凑 */
+  .analysis-page-container .ant-segmented {
+    font-size: 10px;
+  }
+
+  .analysis-page-container .ant-segmented-item {
+    min-height: 28px;
+    padding: 0 4px;
+  }
+
+  .analysis-page-container .ant-segmented-item-label {
+    line-height: 28px;
+  }
+
+  .analysis-page-container .ant-segmented-item-label span {
+    font-size: 10px;
+  }
+
+  /* 统计卡片数字更小 */
+  .analysis-page-container .ant-statistic-content {
+    font-size: 16px !important;
+  }
+
+  .analysis-page-container .ant-statistic-title {
+    font-size: 10px !important;
+  }
+
+  /* 概念列表更紧凑 */
+  .analysis-page-container [style*="padding: 16px"] {
+    padding: 12px !important;
+  }
+
+  .analysis-page-container [style*="fontSize: 16px"] {
+    font-size: 14px !important;
+  }
+
+  .analysis-page-container [style*="fontSize: 18px"] {
+    font-size: 16px !important;
+  }
+
+  /* 排名圆圈更小 */
+  .analysis-page-container [style*="width: 24px"][style*="height: 24px"] {
+    width: 20px !important;
+    height: 20px !important;
+    font-size: 10px !important;
+  }
+
+  /* 功能卡片图标更小 */
+  .analysis-page-container .ant-card[hoverable] .anticon {
+    font-size: 24px !important;
+    margin-bottom: 8px !important;
+  }
+
+  .analysis-page-container .ant-card[hoverable] [style*="fontSize: 16px"] {
+    font-size: 14px !important;
+  }
+}
+
+/* 横屏优化 */
+@media (max-width: 768px) and (orientation: landscape) {
+  .analysis-page-container {
+    padding: 8px !important;
+  }
+
+  /* Segmented在横屏时保持横向 */
+  .analysis-page-container .ant-segmented {
+    width: auto;
+  }
+
+  /* 核心指标横向滚动 */
+  .analysis-page-container > div > div:nth-child(2) {
+    overflow-x: auto;
+  }
+
+  .analysis-page-container > div > div:nth-child(2) > .ant-row {
+    flex-wrap: nowrap;
+    min-width: max-content;
+  }
+}
+
+/* Touch-friendly 优化 */
+@media (hover: none) and (pointer: coarse) {
+  /* 增大触摸目标 */
+  .analysis-page-container .ant-btn {
+    min-height: 44px;
+    padding: 0 16px;
+  }
+
+  .analysis-page-container .ant-segmented-item {
+    min-height: 40px;
+  }
+
+  .analysis-page-container .ant-card[hoverable] {
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* 概念卡片触摸优化 */
+  .analysis-page-container [style*="cursor: pointer"],
+  .analysis-page-container [whileHover] {
+    -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
+    transition: background-color 0.2s ease;
+  }
+}
+
+/* 修复Ant Design Grid在移动端的问题 */
+@media (max-width: 768px) {
+  .analysis-page-container .ant-col-xs-24 {
+    flex: 0 0 100%;
+    max-width: 100%;
+  }
+
+  .analysis-page-container .ant-col-xs-12 {
+    flex: 0 0 50%;
+    max-width: 50%;
+  }
+
+  .analysis-page-container .ant-col-xs-8 {
+    flex: 0 0 33.333333%;
+    max-width: 33.333333%;
+  }
+
+  .analysis-page-container .ant-col-xs-6 {
+    flex: 0 0 25%;
+    max-width: 25%;
+  }
+}

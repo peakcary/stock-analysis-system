@@ -17,6 +17,7 @@ import {
 import { motion } from 'framer-motion';
 import dayjs from 'dayjs';
 import { DailyAnalysisApi, ConceptDetail, ConceptRanking, analysisUtils } from '../services/dailyAnalysisApi';
+import './ConceptDetailPage.css';
 
 const { Title, Text, Paragraph } = Typography;
 const { Option } = Select;
@@ -248,6 +249,7 @@ export const ConceptDetailPage: React.FC<ConceptDetailPageProps> = ({
 
   return (
     <motion.div
+      className="concept-detail-page"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.3 }}

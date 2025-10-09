@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Card, Row, Col, Statistic, Select, DatePicker, Space, Typography, 
+import {
+  Card, Row, Col, Statistic, Select, DatePicker, Space, Typography,
   Badge, Tooltip, Button, Drawer, Table, Tag, Segmented, Empty,
   Input, Tabs, Progress, Alert, Spin, List, Avatar, message
 } from 'antd';
-import { 
+import {
   ArrowUpOutlined, ArrowDownOutlined, FireOutlined,
   SearchOutlined, BulbOutlined, DollarOutlined, BarChartOutlined,
   LineChartOutlined, PieChartOutlined, FundOutlined, StockOutlined,
@@ -20,6 +20,7 @@ import StockAnalysisPage from '../components/StockAnalysisPage';
 import InnovationAnalysisPage from '../components/InnovationAnalysisPage';
 import ConvertibleBondPage from '../components/ConvertibleBondPage';
 import StockSearchPage from '../components/StockSearchPage';
+import './AnalysisPage.css';
 
 const { Title, Text, Paragraph } = Typography;
 const { RangePicker } = DatePicker;
@@ -494,7 +495,7 @@ export const AnalysisPage: React.FC<AnalysisPageProps> = ({ user }) => {
   );
 
   return (
-    <div style={{ 
+    <div className="analysis-page-container" style={{
       minHeight: '100vh',
       background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
       padding: '20px'

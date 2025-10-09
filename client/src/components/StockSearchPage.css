@@ -136,11 +136,24 @@
 /* 响应式设计 */
 @media (max-width: 768px) {
   .stock-search-page {
+    padding: 8px;
+  }
+
+  .search-header {
+    margin-bottom: 16px;
+  }
+
+  .search-header h2 {
+    font-size: 20px;
+  }
+
+  .search-section {
     padding: 16px;
+    margin-bottom: 16px;
   }
 
   .stocks-grid {
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
     gap: 8px;
   }
 
@@ -148,8 +161,61 @@
     padding: 8px;
   }
 
+  .stock-code {
+    font-size: 13px;
+  }
+
+  .stock-name {
+    font-size: 13px;
+  }
+
   .concept-stocks-container {
     padding: 12px;
+  }
+
+  .stock-info-card .ant-card-body {
+    padding: 12px;
+  }
+
+  .info-item h4 {
+    font-size: 16px;
+  }
+
+  .concept-card .ant-card-head {
+    padding: 8px 12px;
+  }
+
+  .concept-card .ant-card-body {
+    padding: 12px;
+  }
+}
+
+/* 更小的移动设备 */
+@media (max-width: 480px) {
+  .stock-search-page {
+    padding: 4px;
+  }
+
+  .search-section {
+    padding: 12px;
+  }
+
+  .stocks-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+
+  .stock-item {
+    padding: 6px;
+    font-size: 12px;
+  }
+
+  .search-header h2 {
+    font-size: 18px;
+  }
+
+  .info-item h4 {
+    font-size: 14px;
   }
 }
 
