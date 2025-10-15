@@ -10,6 +10,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactECharts from 'echarts-for-react';
 import { ConceptAnalysisApi, ChartDataApi, conceptAnalysisUtils } from '../services/conceptAnalysisApi';
+import { apiClient } from '../utils/auth';
 import './StockAnalysisPage.css';
 
 const { Title, Text } = Typography;
@@ -35,23 +36,12 @@ export const StockAnalysisPage: React.FC<StockAnalysisPageProps> = ({ user, trad
 
     setLoading(true);
     try {
-      // 获取股票概念信息
-      const token = localStorage.getItem('admin_token') || localStorage.getItem('token');
-      const response = await fetch(`/api/v1/stock-analysis/stock/${stockCode}/concepts?trading_date=${tradeDate}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
+      // 获取股票概念信息 - 使用 apiClient 自动处理认证
+      const response = await apiClient.get(`/api/v1/stock-analysis/stock/${stockCode}/concepts`, {
+        params: { trading_date: tradeDate }
       });
 
-      if (!response.ok) {
-        if (response.status === 404) {
-          throw new Error('404');
-        }
-        throw new Error('查询失败');
-      }
-
-      const stockData = await response.json();
+      const stockData = response.data;
       setSearchResult({
         stock_code: stockData.stock_code,
         stock_name: stockData.stock_name,
@@ -69,15 +59,15 @@ export const StockAnalysisPage: React.FC<StockAnalysisPageProps> = ({ user, trad
 
       // 获取图表数据
       if (stockData.concepts?.length > 0) {
-        const chartResponse = await fetch(`/api/v1/stock-analysis/stock/${stockCode}/chart-data?concept_name=${stockData.concepts[0].concept_name}&days=30`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-        });
-        
-        if (chartResponse.ok) {
-          const chartData = await chartResponse.json();
+        try {
+          const chartResponse = await apiClient.get(`/api/v1/stock-analysis/stock/${stockCode}/chart-data`, {
+            params: {
+              concept_name: stockData.concepts[0].concept_name,
+              days: 30
+            }
+          });
+
+          const chartData = chartResponse.data;
           setChartData({
             chart_data: {
               categories: chartData.chart_data?.map((item: any) => item.date) || [],
@@ -101,14 +91,23 @@ export const StockAnalysisPage: React.FC<StockAnalysisPageProps> = ({ user, trad
               avg_heat: Math.round((chartData.chart_data?.reduce((sum: number, item: any) => sum + (item.trading_volume || 0), 0) || 0) / (chartData.chart_data?.length || 1))
             }
           });
+        } catch (chartError: any) {
+          console.warn('图表数据加载失败:', chartError);
+          // 图表数据需要管理员权限，普通用户跳过图表显示
+          if (chartError.response?.status === 401) {
+            console.info('图表数据需要管理员权限，已跳过');
+          }
+          // 图表加载失败不影响主要数据显示
         }
       }
 
       message.success('查询成功');
     } catch (error: any) {
       console.error('Stock search error:', error);
-      if (error.message.includes('404')) {
-        message.error('未找到该股票或暂无相关数据');
+      if (error.response?.status === 404) {
+        message.error(`未找到股票代码 ${stockCode} 的数据，请检查：\n1. 股票代码是否正确\n2. 该日期是否有交易数据`);
+      } else if (error.code === 'NETWORK_ERROR') {
+        message.error('网络连接失败，请检查网络后重试');
       } else {
         message.error('查询失败，请稍后重试');
       }

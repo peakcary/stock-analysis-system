@@ -75,7 +75,8 @@ export const AnalysisPage: React.FC<AnalysisPageProps> = ({ user }) => {
   const [selectedStock, setSelectedStock] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [searchText, setSearchText] = useState('');
-  const [selectedDate, setSelectedDate] = useState<string>(dayjs().format('YYYY-MM-DD'));
+  // 使用 2024 年的日期作为默认值，因为数据库中主要是 2024 年的数据
+  const [selectedDate, setSelectedDate] = useState<string>('2024-09-02');
   
   // 概念分析数据状态
   const [innovationConcepts, setInnovationConcepts] = useState<InnovationConceptData[]>([]);
@@ -592,7 +593,7 @@ export const AnalysisPage: React.FC<AnalysisPageProps> = ({ user }) => {
               ]}
             />
             
-            <DatePicker 
+            <DatePicker
               value={dayjs(selectedDate)}
               onChange={handleDateChange}
               size="middle"
@@ -600,6 +601,13 @@ export const AnalysisPage: React.FC<AnalysisPageProps> = ({ user }) => {
               format="YYYY-MM-DD"
               placeholder="选择日期"
               allowClear={false}
+              disabledDate={(current) => {
+                // 禁用 2024年12月31日之后的日期（数据库只有2024年数据）
+                const isAfter2024 = current && current.isAfter(dayjs('2024-12-31').endOf('day'));
+                // 禁用 2020年之前的日期
+                const isTooOld = current && current.isBefore(dayjs('2020-01-01'));
+                return !!isAfter2024 || !!isTooOld;
+              }}
             />
             
             {analysisStatus === 'completed' && (
