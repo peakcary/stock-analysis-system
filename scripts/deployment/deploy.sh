@@ -1,9 +1,9 @@
 #!/bin/bash
 
-# 股票分析系统 - 部署脚本 v2.6.4
-echo "🚀 股票分析系统部署 v2.6.4"
+# 股票分析系统 - 部署脚本 v2.7.0
+echo "🚀 股票分析系统部署 v2.7.0"
 echo "========================="
-echo "⚡ 新功能: 数据库性能优化 - 查询提升50-200倍"
+echo "⚡ 新功能: CSV原始数据表 + 数据库性能优化"
 
 # 颜色定义
 RED='\033[0;31m'
@@ -126,6 +126,10 @@ if python -c "from app.core.database import engine" 2>/dev/null; then
 else
     log_warn "数据库连接检查失败，跳过表创建"
 fi
+
+# 创建原始数据表（CSV不拆分存储）
+echo "💾 创建原始数据表..."
+mysql -u root -pPp123456 stock_analysis_dev < ../scripts/database/create_raw_data_table.sql 2>/dev/null && log_success "原始数据表创建完成" || log_warn "原始数据表可能已存在"
 
 # 股票代码字段升级
 if [ "$STOCK_CODE_UPGRADE" = true ]; then
@@ -257,7 +261,8 @@ tables_to_check = [
     'concept_daily_summary',
     'stock_concept_ranking',
     'concept_high_record',
-    'txt_import_record'
+    'txt_import_record',
+    'stock_concept_raw_data'
 ]
 
 print('📋 检查数据表:')

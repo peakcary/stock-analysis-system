@@ -14,14 +14,14 @@ from app.models.admin_user import AdminUser
 from app.crud.admin_user import AdminUserCRUD
 from app.core.config import settings
 
-# JWT配置
-ADMIN_SECRET_KEY = os.getenv("ADMIN_SECRET_KEY", "")
+# JWT配置 - 从settings读取
+ADMIN_SECRET_KEY = settings.ADMIN_SECRET_KEY or os.getenv("ADMIN_SECRET_KEY", "")
 if not ADMIN_SECRET_KEY:
-    raise ValueError("ADMIN_SECRET_KEY environment variable must be set")
+    raise ValueError("ADMIN_SECRET_KEY environment variable must be set in .env file")
 
 ADMIN_ALGORITHM = "HS256"
-ADMIN_ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ADMIN_ACCESS_TOKEN_EXPIRE_MINUTES", "1440"))  # 默认24小时
-ADMIN_REFRESH_TOKEN_EXPIRE_DAYS = int(os.getenv("ADMIN_REFRESH_TOKEN_EXPIRE_DAYS", "7"))  # 默认7天
+ADMIN_ACCESS_TOKEN_EXPIRE_MINUTES = settings.ADMIN_ACCESS_TOKEN_EXPIRE_MINUTES
+ADMIN_REFRESH_TOKEN_EXPIRE_DAYS = settings.ADMIN_REFRESH_TOKEN_EXPIRE_DAYS
 
 # HTTP Bearer scheme for admin
 admin_security = HTTPBearer()

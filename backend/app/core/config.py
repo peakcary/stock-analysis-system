@@ -45,6 +45,11 @@ class Settings(BaseSettings):
     SECRET_KEY: str = os.getenv("SECRET_KEY", "")
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
+
+    # 管理员JWT配置
+    ADMIN_SECRET_KEY: str = os.getenv("ADMIN_SECRET_KEY", "")
+    ADMIN_ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ADMIN_ACCESS_TOKEN_EXPIRE_MINUTES", "1440"))
+    ADMIN_REFRESH_TOKEN_EXPIRE_DAYS: int = int(os.getenv("ADMIN_REFRESH_TOKEN_EXPIRE_DAYS", "7"))
     
     # CORS 配置
     ALLOWED_ORIGINS: list = [

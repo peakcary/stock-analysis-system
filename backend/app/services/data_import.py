@@ -7,6 +7,7 @@ import io
 from typing import Dict, List, Any, Optional
 from sqlalchemy.orm import Session
 from app.models import Stock, Concept, StockConcept, DailyStockData, DataImportRecord
+from app.models.stock import StockConceptRawData
 from datetime import datetime, date
 
 
@@ -169,7 +170,10 @@ class DataImportService:
                     continue
             
             print(f"📈 CSV中包含 {len(csv_stocks_info)} 只股票，{sum(len(concepts) for concepts in csv_stock_concepts.values())} 个股票-概念关系")
-            
+
+            # 用于收集原始数据（双写到不拆分的表）
+            raw_data_records = []
+
             # 第二遍：处理股票基础信息和概念关系
             for index, row in df.iterrows():
                 try:
@@ -257,14 +261,34 @@ class DataImportService:
                     if 'date' in df.columns:
                         trade_date = pd.to_datetime(row['date']).date()
                         stock_date_key = (stock.id, trade_date)
-                        
+
+                        # 提取交易数据（用于拆分表和原始表）
+                        price = float(row.get('price', 0)) if pd.notna(row.get('price')) else 0
+                        turnover_rate = float(row.get('turnover_rate', 0)) if pd.notna(row.get('turnover_rate')) else 0
+                        net_inflow = float(row.get('net_inflow', 0)) if pd.notna(row.get('net_inflow')) else 0
+                        pages_count = int(row.get('pages_count', 0)) if pd.notna(row.get('pages_count')) else 0
+                        total_reads = int(row.get('total_reads', 0)) if pd.notna(row.get('total_reads')) else 0
+
+                        # 双写：保存到原始数据表（每行都保存，包括股票-概念组合）
+                        raw_record = StockConceptRawData(
+                            import_date=import_date,
+                            trade_date=trade_date,
+                            stock_code=stock_code,
+                            stock_name=stock_name,
+                            concept=concept_name,
+                            industry=industry if industry else None,
+                            price=price,
+                            turnover_rate=turnover_rate,
+                            net_inflow=net_inflow,
+                            pages_count=pages_count,
+                            total_reads=total_reads,
+                            file_name=filename,
+                            row_number=index + 2  # CSV行号从2开始（包含表头）
+                        )
+                        raw_data_records.append(raw_record)
+
                         # 只有在未处理过该股票-日期组合时才处理DailyStockData
                         if stock_date_key not in processed_stock_dates:
-                            price = float(row.get('price', 0)) if pd.notna(row.get('price')) else 0
-                            turnover_rate = float(row.get('turnover_rate', 0)) if pd.notna(row.get('turnover_rate')) else 0
-                            net_inflow = float(row.get('net_inflow', 0)) if pd.notna(row.get('net_inflow')) else 0
-                            pages_count = int(row.get('pages_count', 0)) if pd.notna(row.get('pages_count')) else 0
-                            total_reads = int(row.get('total_reads', 0)) if pd.notna(row.get('total_reads')) else 0
                             
                             # 检查是否已存在该日期的数据
                             existing_data = self.db.query(DailyStockData).filter(
@@ -308,17 +332,32 @@ class DataImportService:
             # 创建或更新导入记录
             if existing_record and allow_overwrite:
                 self.update_import_record(
-                    existing_record, imported_records, skipped_records, 
+                    existing_record, imported_records, skipped_records,
                     'success' if not errors else 'partial',
                     '\n'.join(errors[:5]) if errors else None  # 只保存前5个错误
                 )
             else:
                 self.create_import_record(
-                    import_date, import_type, filename, imported_records, 
+                    import_date, import_type, filename, imported_records,
                     skipped_records, 'success' if not errors else 'partial',
                     '\n'.join(errors[:5]) if errors else None
                 )
-            
+
+            # 批量插入原始数据到不拆分的表
+            if raw_data_records:
+                # 如果是覆盖模式，先删除该日期的原始数据
+                if allow_overwrite and existing_record:
+                    deleted_raw = self.db.query(StockConceptRawData).filter(
+                        StockConceptRawData.trade_date == import_date
+                    ).delete(synchronize_session=False)
+                    if deleted_raw > 0:
+                        print(f"🗑️ 已删除原始数据表中 {import_date} 的 {deleted_raw} 条记录")
+
+                # 批量插入原始数据
+                self.db.bulk_save_objects(raw_data_records)
+                print(f"💾 同步写入原始数据表: {len(raw_data_records)} 条记录")
+                stats['raw_data_records'] = len(raw_data_records)
+
             # 打印导入总结
             print(f"\n📈 CSV导入完成总结:")
             print(f"   📋 文件名: {filename}")
@@ -328,6 +367,7 @@ class DataImportService:
             print(f"   🏷️  概念信息: {stats['new_concepts']} 新增概念")
             print(f"   🔗 关联关系: {stats['new_relations']} 新增关联")
             print(f"   📈 每日数据: {stats['new_daily_data']} 新增, {stats['updated_daily_data']} 更新")
+            print(f"   💾 原始数据: {stats.get('raw_data_records', 0)} 条记录（未拆分）")
             if errors:
                 print(f"   ⚠️  错误数量: {len(errors)} 个")
             print(f"   ✅ 导入状态: {'完全成功' if not errors else '部分成功'}")

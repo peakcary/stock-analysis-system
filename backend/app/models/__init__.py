@@ -3,7 +3,7 @@
 """
 
 from app.core.database import Base
-from .stock import Stock, DailyStockData
+from .stock import Stock, DailyStockData, StockConceptRawData
 from .concept_analysis import DailyConceptRanking, DailyConceptSummary, DailyAnalysisTask
 from .concept import Concept, StockConcept, DailyConceptSum
 from .user import User, UserQuery, Payment, MembershipType, QueryType, PaymentType, PaymentStatus
@@ -19,10 +19,10 @@ __all__ = [
     # Database base
     "Base",
     # Stock models
-    "Stock", "DailyStockData",
+    "Stock", "DailyStockData", "StockConceptRawData",
     # Concept models
     "Concept", "StockConcept", "DailyConceptSum",
-    # Concept analysis models  
+    # Concept analysis models
     "DailyConceptRanking", "DailyConceptSummary", "DailyAnalysisTask",
     # Daily trading models
     "DailyTrading", "ConceptDailySummary", "StockConceptRanking", "ConceptHighRecord",
