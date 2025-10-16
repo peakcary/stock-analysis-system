@@ -108,9 +108,12 @@ class DataImportService:
             
             # 如果是覆盖导入，先删除相关数据
             if allow_overwrite and existing_record:
-                # 获取CSV文件中涉及的股票代码
-                stock_codes_in_csv = set(str(row['stock_code']).strip() for _, row in df.iterrows() 
-                                       if pd.notna(row.get('stock_code')))
+                # 获取CSV文件中涉及的股票代码（需要规范化）
+                stock_codes_in_csv = set(
+                    self._normalize_stock_code(str(row['stock_code']).strip())
+                    for _, row in df.iterrows()
+                    if pd.notna(row.get('stock_code'))
+                )
                 
                 # 只删除CSV中涉及的股票在该日期的数据
                 if stock_codes_in_csv:
@@ -146,8 +149,10 @@ class DataImportService:
                 try:
                     if pd.isna(row.get('stock_code')) or pd.isna(row.get('stock_name')):
                         continue
-                    
-                    stock_code = str(row['stock_code']).strip()
+
+                    # 规范化股票代码，去掉SH/SZ等前缀
+                    stock_code_raw = str(row['stock_code']).strip()
+                    stock_code = self._normalize_stock_code(stock_code_raw)
                     stock_name = str(row['stock_name']).strip()
                     industry = str(row.get('industry', '')).strip() if not pd.isna(row.get('industry')) else ''
                     concept_name = str(row['concept']).strip()
@@ -181,9 +186,10 @@ class DataImportService:
                     if pd.isna(row.get('stock_code')) or pd.isna(row.get('stock_name')):
                         skipped_records += 1
                         continue
-                    
-                    # 处理股票信息
-                    stock_code = str(row['stock_code']).strip()
+
+                    # 处理股票信息 - 规范化股票代码
+                    stock_code_raw = str(row['stock_code']).strip()
+                    stock_code = self._normalize_stock_code(stock_code_raw)
                     stock_name = str(row['stock_name']).strip()
                     industry = str(row.get('industry', '')).strip() if not pd.isna(row.get('industry')) else ''
                     concept_name = str(row['concept']).strip()
