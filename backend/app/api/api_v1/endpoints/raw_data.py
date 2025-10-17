@@ -82,6 +82,8 @@ async def get_raw_data_by_date(
         "data": [
             {
                 "stock_code": r.stock_code,
+                "original_stock_code": r.original_stock_code,
+                "stock_code_prefix": r.stock_code_prefix,
                 "stock_name": r.stock_name,
                 "concept": r.concept,
                 "industry": r.industry,
@@ -133,7 +135,7 @@ async def export_raw_data_csv(
 
     # 写入表头（中文格式）
     writer.writerow([
-        '股票代码', '股票名称', '全部页数', '热帖首页页阅读总数',
+        '股票代码', '原始股票代码', '前缀', '股票名称', '全部页数', '热帖首页页阅读总数',
         '价格', '行业', '概念', '换手', '净流入'
     ])
 
@@ -141,6 +143,8 @@ async def export_raw_data_csv(
     for r in records:
         writer.writerow([
             r.stock_code,
+            r.original_stock_code or r.stock_code,
+            r.stock_code_prefix or '',
             r.stock_name,
             r.pages_count,
             r.total_reads,

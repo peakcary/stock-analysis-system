@@ -127,9 +127,13 @@ else
     log_warn "数据库连接检查失败，跳过表创建"
 fi
 
-# 创建原始数据表（CSV不拆分存储）
-echo "💾 创建原始数据表..."
-mysql -u root -pPp123456 stock_analysis_dev < ../scripts/database/create_raw_data_table.sql 2>/dev/null && log_success "原始数据表创建完成" || log_warn "原始数据表可能已存在"
+# 创建原始数据表（Plan 1: 完整分离架构）
+echo "💾 创建原始数据表 (Plan 1)..."
+mysql -u root -pPp123456 stock_analysis_dev < ../scripts/database/create_raw_data_tables.sql 2>/dev/null && log_success "原始数据表创建完成" || log_warn "原始数据表可能已存在"
+
+# 创建CSV备份表（双写存储）
+echo "💾 创建CSV备份表..."
+mysql -u root -pPp123456 stock_analysis_dev < ../scripts/database/create_raw_data_table.sql 2>/dev/null && log_success "CSV备份表创建完成" || log_warn "CSV备份表可能已存在"
 
 # 股票代码字段升级
 if [ "$STOCK_CODE_UPGRADE" = true ]; then
@@ -262,7 +266,10 @@ tables_to_check = [
     'stock_concept_ranking',
     'concept_high_record',
     'txt_import_record',
-    'stock_concept_raw_data'
+    'stock_concept_raw_data',
+    'import_batches',        # Plan 1: 导入批次管理
+    'raw_import_data',       # Plan 1: 原始导入数据
+    'raw_data_mapping'       # Plan 1: 原始数据到业务数据的映射
 ]
 
 print('📋 检查数据表:')
@@ -409,11 +416,18 @@ elif [ "$DATABASE_OPTIMIZATION" = true ]; then
     echo "  2. 验证性能     - 体验毫秒级查询响应"
     echo "  3. 监控状态     - 访问 /api/v1/optimization/status"
 else
-    echo "🎉 完整部署成功！(包含数据库优化 v2.6.4)"
+    echo "🎉 完整部署成功！(包含Plan 1完整分离架构 + 数据库优化 v2.7.3)"
+    echo ""
+    echo "📊 架构升级:"
+    echo "  ✅ Plan 1 - 完整分离架构"
+    echo "     • import_batches - 导入批次管理"
+    echo "     • raw_import_data - 原始导入数据(CSV/TXT)"
+    echo "     • raw_data_mapping - 原始到业务数据映射"
+    echo "     • 支持CSV和TXT双格式导入"
     echo ""
     echo "📊 服务地址:"
     echo "  🔗 API:     http://localhost:$BACKEND_PORT"
-    echo "  📱 客户端:   http://localhost:$CLIENT_PORT" 
+    echo "  📱 客户端:   http://localhost:$CLIENT_PORT"
     echo "  🖥️ 管理端:   http://localhost:$FRONTEND_PORT"
     echo ""
     echo "👤 管理员账号: admin / admin123"
@@ -425,6 +439,11 @@ else
     echo "  ./start.sh  - 启动所有服务"
     echo "  ./status.sh - 检查运行状态"
     echo "  ./stop.sh   - 停止所有服务"
+    echo ""
+    echo "📝 数据导入:"
+    echo "  • CSV导入: 支持股票概念数据，自动归一化代码"
+    echo "  • TXT导入: 支持热度数据，覆盖式更新"
+    echo "  • 原始数据: 100% 保存，支持审计追踪"
     echo ""
     echo "📋 下一步: ./start.sh"
     echo ""

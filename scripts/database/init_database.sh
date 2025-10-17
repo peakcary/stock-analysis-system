@@ -102,8 +102,11 @@ echo "================================"
 # 脚本目录
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# 1. 创建原始数据表（CSV不拆分存储）
-execute_sql_file "$SCRIPT_DIR/create_raw_data_table.sql" "创建CSV原始数据表"
+# 1. 创建Plan 1架构表（导入批次、原始数据、映射）
+execute_sql_file "$SCRIPT_DIR/create_raw_data_tables.sql" "创建Plan 1原始数据表"
+
+# 2. 创建CSV备份表（双写存储）
+execute_sql_file "$SCRIPT_DIR/create_raw_data_table.sql" "创建CSV备份表"
 
 # 统计创建结果
 echo ""
@@ -124,13 +127,21 @@ echo ""
 echo "✅ 数据库初始化完成！"
 echo ""
 echo "📋 已创建的核心表:"
-echo "  ✅ stock_concept_raw_data    - CSV原始数据（未拆分）"
+echo "  Plan 1 - 完整分离架构:"
+echo "  ✅ import_batches            - 导入批次管理"
+echo "  ✅ raw_import_data           - 原始导入数据"
+echo "  ✅ raw_data_mapping          - 原始数据映射"
+echo ""
+echo "  业务数据表:"
 echo "  ✅ stocks                     - 股票基础信息"
 echo "  ✅ concepts                   - 概念信息"
 echo "  ✅ stock_concepts             - 股票-概念关联"
 echo "  ✅ daily_stock_data          - 每日股票数据"
 echo "  ✅ admin_users               - 管理员用户"
 echo "  ✅ daily_trading             - TXT热度数据"
+echo ""
+echo "  备份表:"
+echo "  ✅ stock_concept_raw_data    - CSV原始数据（双写备份）"
 echo ""
 echo "🔗 数据库连接信息:"
 echo "  mysql://$DB_USER@$DB_HOST:$DB_PORT/$DB_NAME"

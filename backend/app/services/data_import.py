@@ -7,7 +7,7 @@ import io
 from typing import Dict, List, Any, Optional
 from sqlalchemy.orm import Session
 from app.models import Stock, Concept, StockConcept, DailyStockData, DataImportRecord
-from app.models.stock import StockConceptRawData
+from app.models.stock import StockConceptRawData, ImportBatch, RawImportData, RawDataMapping
 from datetime import datetime, date
 
 
@@ -176,8 +176,22 @@ class DataImportService:
             
             print(f"📈 CSV中包含 {len(csv_stocks_info)} 只股票，{sum(len(concepts) for concepts in csv_stock_concepts.values())} 个股票-概念关系")
 
+            # 创建导入批次记录
+            import_batch = ImportBatch(
+                import_date=import_date,
+                import_type='csv',
+                file_name=filename,
+                record_count=len(df),
+                status='pending'
+            )
+            self.db.add(import_batch)
+            self.db.flush()  # 获取批次ID
+            print(f"📦 创建导入批次: ID={import_batch.id}, 记录数={len(df)}")
+
             # 用于收集原始数据（双写到不拆分的表）
             raw_data_records = []
+            raw_import_records = []
+            raw_mapping_records = []
 
             # 第二遍：处理股票基础信息和概念关系
             for index, row in df.iterrows():
@@ -190,31 +204,34 @@ class DataImportService:
                     # 处理股票信息 - 规范化股票代码
                     stock_code_raw = str(row['stock_code']).strip()
                     stock_code = self._normalize_stock_code(stock_code_raw)
+                    stock_code_prefix = self._extract_prefix(stock_code_raw)
                     stock_name = str(row['stock_name']).strip()
                     industry = str(row.get('industry', '')).strip() if not pd.isna(row.get('industry')) else ''
                     concept_name = str(row['concept']).strip()
-                    
+
                     # 验证数据有效性
                     if not stock_code or not stock_name or not concept_name:
                         skipped_records += 1
                         continue
-                    
+
                     # 检查是否为转债（以1开头的6位代码）
                     is_convertible_bond = (
-                        len(stock_code) == 6 and 
-                        stock_code.startswith('1') and 
+                        len(stock_code) == 6 and
+                        stock_code.startswith('1') and
                         stock_code.isdigit()
                     )
-                    
+
                     # 获取或创建股票记录
                     stock = self.db.query(Stock).filter(
                         Stock.stock_code == stock_code
                     ).first()
-                    
+
                     if not stock:
                         # 创建新股票
                         stock = Stock(
                             stock_code=stock_code,
+                            original_stock_code=stock_code_raw,
+                            stock_code_prefix=stock_code_prefix,
                             stock_name=stock_name,
                             industry=industry if industry else None,
                             is_convertible_bond=is_convertible_bond
@@ -222,7 +239,7 @@ class DataImportService:
                         self.db.add(stock)
                         self.db.flush()  # 获取ID
                         stats['new_stocks'] += 1
-                        print(f"✨ 创建新股票: {stock_code} - {stock_name}")
+                        print(f"✨ 创建新股票: {stock_code} (原始: {stock_code_raw}, 前缀: {stock_code_prefix}) - {stock_name}")
                     else:
                         # 更新现有股票的基本信息（总是使用最新CSV的数据）
                         updated_fields = []
@@ -232,6 +249,12 @@ class DataImportService:
                         if stock.industry != (industry if industry else None):
                             stock.industry = industry if industry else None
                             updated_fields.append(f"行业: {industry or '无'}")
+                        if stock.original_stock_code != stock_code_raw:
+                            stock.original_stock_code = stock_code_raw
+                            updated_fields.append(f"原始代码: {stock_code_raw}")
+                        if stock.stock_code_prefix != stock_code_prefix:
+                            stock.stock_code_prefix = stock_code_prefix
+                            updated_fields.append(f"前缀: {stock_code_prefix}")
                         if updated_fields:
                             stats['updated_stocks'] += 1
                             print(f"🔄 更新股票 {stock_code}: {', '.join(updated_fields)}")
@@ -275,11 +298,34 @@ class DataImportService:
                         pages_count = int(row.get('pages_count', 0)) if pd.notna(row.get('pages_count')) else 0
                         total_reads = int(row.get('total_reads', 0)) if pd.notna(row.get('total_reads')) else 0
 
+                        # 创建原始导入数据记录
+                        raw_import_record = RawImportData(
+                            import_batch_id=import_batch.id,
+                            row_number=index + 2,  # CSV行号从2开始（包含表头）
+                            trade_date=trade_date,
+                            stock_code_raw=stock_code_raw,
+                            stock_code_normalized=stock_code,
+                            stock_code_prefix=stock_code_prefix,
+                            stock_name=stock_name,
+                            industry=industry if industry else None,
+                            price=price,
+                            turnover_rate=turnover_rate,
+                            net_inflow=net_inflow,
+                            pages_count=pages_count,
+                            total_reads=total_reads,
+                            concept=concept_name,
+                            source_type='csv',
+                            source_file=filename
+                        )
+                        raw_import_records.append(raw_import_record)
+
                         # 双写：保存到原始数据表（每行都保存，包括股票-概念组合）
                         raw_record = StockConceptRawData(
                             import_date=import_date,
                             trade_date=trade_date,
                             stock_code=stock_code,
+                            original_stock_code=stock_code_raw,
+                            stock_code_prefix=stock_code_prefix,
                             stock_name=stock_name,
                             concept=concept_name,
                             industry=industry if industry else None,
@@ -295,13 +341,13 @@ class DataImportService:
 
                         # 只有在未处理过该股票-日期组合时才处理DailyStockData
                         if stock_date_key not in processed_stock_dates:
-                            
+
                             # 检查是否已存在该日期的数据
                             existing_data = self.db.query(DailyStockData).filter(
                                 DailyStockData.stock_id == stock.id,
                                 DailyStockData.trade_date == trade_date
                             ).first()
-                            
+
                             if existing_data:
                                 # 更新现有记录
                                 existing_data.price = price
@@ -324,7 +370,7 @@ class DataImportService:
                                 )
                                 self.db.add(daily_data)
                                 stats['new_daily_data'] += 1
-                            
+
                             # 标记该股票-日期组合已处理
                             processed_stock_dates.add(stock_date_key)
                     
@@ -348,6 +394,16 @@ class DataImportService:
                     skipped_records, 'success' if not errors else 'partial',
                     '\n'.join(errors[:5]) if errors else None
                 )
+
+            # 批量插入原始导入数据到 raw_import_data 表
+            if raw_import_records:
+                self.db.bulk_save_objects(raw_import_records)
+                print(f"📥 批量保存原始导入数据: {len(raw_import_records)} 条记录")
+                stats['raw_import_records'] = len(raw_import_records)
+
+            # 更新导入批次状态
+            import_batch.record_count = len(raw_import_records)
+            import_batch.status = 'success' if not errors else 'partial'
 
             # 批量插入原始数据到不拆分的表
             if raw_data_records:
@@ -488,7 +544,22 @@ class DataImportService:
                 'new_records': 0,
                 'error_records': 0
             }
-            
+
+            # 创建导入批次记录
+            import_batch = ImportBatch(
+                import_date=target_date,
+                import_type='txt',
+                file_name=filename,
+                record_count=len(valid_lines),
+                status='pending'
+            )
+            self.db.add(import_batch)
+            self.db.flush()  # 获取批次ID
+            print(f"📦 创建导入批次: ID={import_batch.id}, 记录数={len(valid_lines)}")
+
+            # 用于收集原始导入数据
+            raw_import_records = []
+
             # 核心策略：基于日期的完全覆盖
             # 1. 收集要处理的股票代码
             txt_stock_codes = set()
@@ -577,19 +648,23 @@ class DataImportService:
                     if not stock:
                         # 为不存在的股票创建基础记录
                         is_convertible_bond = (
-                            len(stock_code) == 6 and 
-                            stock_code.startswith('1') and 
+                            len(stock_code) == 6 and
+                            stock_code.startswith('1') and
                             stock_code.isdigit()
                         )
-                        
+
+                        stock_prefix = self._extract_prefix(stock_code_with_prefix)
+
                         stock = Stock(
                             stock_code=stock_code,
+                            original_stock_code=stock_code_with_prefix,
+                            stock_code_prefix=stock_prefix,
                             stock_name=f"股票{stock_code}",  # 临时名称
                             is_convertible_bond=is_convertible_bond
                         )
                         self.db.add(stock)
                         self.db.flush()  # 获取ID
-                        print(f"💫 自动创建股票记录: {stock_code}")
+                        print(f"💫 自动创建股票记录: {stock_code} (原始: {stock_code_with_prefix}, 前缀: {stock_prefix})")
                     
                     # 创建每日数据记录（因为之前已删除，这里都是新建）
                     daily_data = DailyStockData(
@@ -606,7 +681,29 @@ class DataImportService:
                     self.db.add(daily_data)
                     stats['new_records'] += 1
                     imported_records += 1
-                    
+
+                    # 创建原始导入数据记录
+                    stock_code_prefix = self._extract_prefix(stock_code_with_prefix)
+                    raw_import_record = RawImportData(
+                        import_batch_id=import_batch.id,
+                        row_number=line_num,
+                        trade_date=target_date,
+                        stock_code_raw=stock_code_with_prefix,
+                        stock_code_normalized=stock_code,
+                        stock_code_prefix=stock_code_prefix,
+                        stock_name=stock.stock_name,
+                        industry=None,  # TXT格式不包含行业信息
+                        price=0,  # TXT格式不包含价格
+                        turnover_rate=0,  # TXT格式不包含换手率
+                        net_inflow=0,  # TXT格式不包含净流入
+                        pages_count=0,  # TXT格式不包含页数
+                        total_reads=0,  # TXT格式不包含总阅读数
+                        heat_value=heat_value,
+                        source_type='txt',
+                        source_file=filename
+                    )
+                    raw_import_records.append(raw_import_record)
+
                     if imported_records % 100 == 0:
                         print(f"   ... 已处理 {imported_records} 条记录")
                     
@@ -615,7 +712,17 @@ class DataImportService:
                     stats['error_records'] += 1
                     errors.append(f"第{line_num}行: {str(e)}")
                     continue
-            
+
+            # 批量插入原始导入数据到 raw_import_data 表
+            if raw_import_records:
+                self.db.bulk_save_objects(raw_import_records)
+                print(f"📥 批量保存原始导入数据: {len(raw_import_records)} 条记录")
+                stats['raw_import_records'] = len(raw_import_records)
+
+            # 更新导入批次状态
+            import_batch.record_count = len(raw_import_records) if raw_import_records else imported_records
+            import_batch.status = 'success' if not errors else 'partial'
+
             # 打印导入总结
             print(f"\n📈 TXT导入完成总结:")
             print(f"   📋 文件名: {filename}")
@@ -623,6 +730,7 @@ class DataImportService:
             print(f"   📊 处理记录: {imported_records} 成功, {skipped_records} 跳过")
             print(f"   🗑️  删除记录: {stats['deleted_records']} 条旧数据")
             print(f"   ✨ 新增记录: {stats['new_records']} 条热度数据")
+            print(f"   📥 原始数据: {stats.get('raw_import_records', 0)} 条记录（已保存）")
             print(f"   ❌ 错误记录: {stats['error_records']} 条")
             if errors:
                 print(f"   ⚠️  错误详情: 显示前3个")
@@ -766,7 +874,7 @@ class DataImportService:
         600000 -> 600000
         """
         stock_code = stock_code_with_prefix.strip().upper()
-        
+
         # 去掉常见前缀
         if stock_code.startswith('SH'):
             return stock_code[2:]
@@ -776,8 +884,28 @@ class DataImportService:
             return stock_code[2:]
         elif stock_code.startswith('HK'):  # 港股
             return stock_code[2:]
-        
+
         return stock_code
+
+    def _extract_prefix(self, stock_code_with_prefix: str) -> str:
+        """
+        提取股票代码前缀
+        SH600000 -> SH
+        SZ000001 -> SZ
+        600000 -> None
+        """
+        stock_code = stock_code_with_prefix.strip().upper()
+
+        if stock_code.startswith('SH'):
+            return 'SH'
+        elif stock_code.startswith('SZ'):
+            return 'SZ'
+        elif stock_code.startswith('BJ'):
+            return 'BJ'
+        elif stock_code.startswith('HK'):
+            return 'HK'
+
+        return None
     
     async def import_daily_batch(self, csv_content: bytes, csv_filename: str, 
                                 txt_content: bytes, txt_filename: str, 
