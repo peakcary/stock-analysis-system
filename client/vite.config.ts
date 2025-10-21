@@ -30,7 +30,14 @@ export default defineConfig({
   preview: {
     port: 8005,
     host: true,
-    allowedHosts: ['localhost', '127.0.0.1', 'qwquant.com', 'www.qwquant.com', '82.157.28.35']
+    allowedHosts: ['localhost', '127.0.0.1', 'qwquant.com', 'www.qwquant.com', '82.157.28.35'],
+    proxy: {
+      '/api': {
+        target: 'http://127.0.0.1:3007',
+        changeOrigin: true,
+        secure: false
+      }
+    }
   },
 
   // 构建优化配置
