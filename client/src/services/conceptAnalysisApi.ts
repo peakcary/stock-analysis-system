@@ -1,5 +1,5 @@
 // 概念分析API服务
-const API_BASE_URL = 'https://qwquant.com/api/v1';
+const API_BASE_URL = '/api/v1';
 
 class ConceptAnalysisApi {
   // 获取股票在各概念中的排名
