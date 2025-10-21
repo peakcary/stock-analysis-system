@@ -27,13 +27,25 @@ export interface AuthConfig {
   autoRefresh: boolean;
 }
 
-// 获取API基础URL的统一方法
+// 获取API基础URL的统一方法 - 自动适应开发和生产环境
 export const getApiBaseUrl = (): string => {
   if (typeof window !== 'undefined') {
-    // 浏览器环境：优先使用 Vite 的环境变量，fallback 使用相对路径
-    return (import.meta as any)?.env?.VITE_API_URL ||
-           (window as any).REACT_APP_API_URL ||
-           '/api/v1';
+    // 浏览器环境
+    const env = (import.meta as any)?.env?.VITE_API_URL || (window as any).REACT_APP_API_URL;
+
+    if (env) {
+      // 显式设置了环境变量，使用该配置
+      return env;
+    }
+
+    // 自动检测环境
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+      // 开发环境：使用 Backend 服务的专用端口 3007
+      return `http://${window.location.hostname}:3007`;
+    }
+
+    // 生产环境：使用当前域名，Nginx 会代理到 Backend
+    return `${window.location.origin}/api/v1`;
   } else {
     // Node.js 环境：使用环境变量或相对路径
     return process.env.REACT_APP_API_URL ||
