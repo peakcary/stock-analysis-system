@@ -1,9 +1,17 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import path from 'path';
 
 export default defineConfig({
   plugins: [react()],
-  
+
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+      'shared': path.resolve(__dirname, '../shared')
+    }
+  },
+
   server: {
     port: 8006,
     host: true,
@@ -23,10 +31,10 @@ export default defineConfig({
         manualChunks: {
           // React核心库单独打包
           'react-vendor': ['react', 'react-dom'],
-          // Ant Design组件库单独打包  
+          // Ant Design组件库单独打包
           'antd-vendor': ['antd', '@ant-design/icons'],
           // 工具库
-          'utils-vendor': ['axios', 'dayjs']
+          'utils-vendor': ['dayjs']
         },
         chunkFileNames: 'js/[name]-[hash].js',
         entryFileNames: 'js/[name]-[hash].js',
@@ -55,11 +63,12 @@ export default defineConfig({
   optimizeDeps: {
     include: [
       'react',
-      'react-dom', 
+      'react-dom',
       'antd',
       '@ant-design/icons',
       'axios',
       'dayjs'
-    ]
+    ],
+    exclude: []
   }
 });

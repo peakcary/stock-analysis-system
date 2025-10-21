@@ -1,7 +1,5 @@
 // 概念分析API服务
-const API_BASE_URL = process.env.NODE_ENV === 'production' 
-  ? 'https://your-domain.com/api/v1' 
-  : 'http://localhost:3007/api/v1';
+const API_BASE_URL = `${window.location.protocol}//${window.location.hostname}:3007/api/v1`;
 
 class ConceptAnalysisApi {
   // 获取股票在各概念中的排名

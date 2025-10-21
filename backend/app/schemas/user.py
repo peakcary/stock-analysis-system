@@ -3,7 +3,7 @@
 """
 
 from pydantic import BaseModel, EmailStr
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime
 from app.models.user import MembershipType
 
@@ -75,7 +75,7 @@ class MembershipUpgrade(BaseModel):
 
 class UserListResponse(BaseModel):
     """用户列表响应模式"""
-    users: list[UserResponse]
+    users: List[UserResponse]
     total: int
     skip: int
     limit: int

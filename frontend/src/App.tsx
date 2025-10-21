@@ -4,11 +4,11 @@ import {
   Divider, Alert, Row, Col, Typography, Steps, Progress, Statistic, 
   Tag, Badge, Tooltip, Spin, Modal, Tabs
 } from 'antd';
-import { 
-  SearchOutlined, UserOutlined, ApiOutlined, UploadOutlined, 
+import {
+  SearchOutlined, UserOutlined, ApiOutlined, UploadOutlined,
   CloudUploadOutlined, FileTextOutlined, DatabaseOutlined,
   CheckCircleOutlined, ClockCircleOutlined, GiftOutlined, DeleteOutlined,
-  FireOutlined, ExclamationCircleOutlined
+  FireOutlined, ExclamationCircleOutlined, CreditCardOutlined
 } from '@ant-design/icons';
 import { adminApiClient } from '../../shared/admin-auth';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
@@ -18,6 +18,7 @@ import Dashboard from './components/Dashboard';
 import UserManagement from './components/UserManagement';
 import AdminManagement from './components/AdminManagement';
 import PackageManagement from './components/PackageManagement';
+import PaymentPage from './components/PaymentPage';
 import StockListPage from './components/StockListPage';
 import NewStockAnalysisPage from './components/NewStockAnalysisPage';
 import InnovationAnalysisPage from './components/InnovationAnalysisPage';
@@ -1129,6 +1130,11 @@ const AdminApp: React.FC = () => {
       icon: <GiftOutlined />,
       label: '套餐管理',
     },
+    {
+      key: 'payment',
+      icon: <CreditCardOutlined />,
+      label: '支付购买',
+    },
   ];
 
   return (
@@ -1175,6 +1181,7 @@ const AdminApp: React.FC = () => {
         {activeTab === 'client-users' && <UserManagement />}
         {activeTab === 'admin-users' && <AdminManagement />}
         {activeTab === 'packages' && <PackageManagement />}
+        {activeTab === 'payment' && <PaymentPage />}
       </div>
 
       {/* 删除确认Modal */}
