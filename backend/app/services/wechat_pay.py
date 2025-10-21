@@ -620,5 +620,40 @@ class WechatPayService:
             }
 
 
-# 创建全局实例
-wechat_pay_service = WechatPayService()
+# 全局实例 (使用懒加载)
+_wechat_pay_service_instance = None
+
+def get_wechat_pay_service() -> WechatPayService:
+    """获取微信支付服务实例 (懒加载单例)"""
+    global _wechat_pay_service_instance
+    if _wechat_pay_service_instance is None:
+        try:
+            _wechat_pay_service_instance = WechatPayService()
+        except WechatPayException as e:
+            logger.error(f"初始化微信支付服务失败: {e}")
+            # 返回一个模拟模式实例，允许系统继续运行
+            _wechat_pay_service_instance = WechatPayService.__new__(WechatPayService)
+            _wechat_pay_service_instance.appid = "mock_appid"
+            _wechat_pay_service_instance.mch_id = "mock_mch_id"
+            _wechat_pay_service_instance.api_key = "mock_api_key"
+            _wechat_pay_service_instance.cert_path = None
+            _wechat_pay_service_instance.key_path = None
+            _wechat_pay_service_instance.notify_url = settings.BASE_URL + "/api/v1/payment/notify"
+            _wechat_pay_service_instance.mock_mode = True
+            _wechat_pay_service_instance.unified_order_url = "https://api.mch.weixin.qq.com/pay/unifiedorder"
+            _wechat_pay_service_instance.order_query_url = "https://api.mch.weixin.qq.com/pay/orderquery"
+            _wechat_pay_service_instance.close_order_url = "https://api.mch.weixin.qq.com/pay/closeorder"
+            _wechat_pay_service_instance.refund_url = "https://api.mch.weixin.qq.com/secapi/pay/refund"
+            _wechat_pay_service_instance.refund_query_url = "https://api.mch.weixin.qq.com/pay/refundquery"
+    return _wechat_pay_service_instance
+
+# 向后兼容: 使用getter属性
+try:
+    wechat_pay_service = WechatPayService()
+except Exception:
+    # 如果初始化失败，延迟创建实例
+    class LazyWechatPayService:
+        def __getattr__(self, name):
+            return getattr(get_wechat_pay_service(), name)
+
+    wechat_pay_service = LazyWechatPayService()
