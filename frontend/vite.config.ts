@@ -5,6 +5,9 @@ import path from 'path';
 export default defineConfig({
   plugins: [react()],
 
+  // 生产环境下使用根路径
+  base: '/',
+
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),

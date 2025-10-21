@@ -8,7 +8,7 @@ import {
   DownOutlined, UpOutlined, InfoCircleOutlined
 } from '@ant-design/icons';
 // API配置
-const API_BASE_URL = `${window.location.protocol}//${window.location.hostname}:3007/api/v1`;
+const API_BASE_URL = 'https://qwquant.com/api/v1';
 import './StockSearchPage.css';
 
 const { Title, Text, Paragraph } = Typography;
