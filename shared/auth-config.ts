@@ -3,6 +3,8 @@
  * Unified Authentication Configuration
  */
 
+import { getApiBaseUrl } from './api.config';
+
 export interface AuthEndpoints {
   login: string;
   register?: string;
@@ -27,41 +29,14 @@ export interface AuthConfig {
   autoRefresh: boolean;
 }
 
-// 获取API基础URL的统一方法 - 自动适应开发和生产环境
-export const getApiBaseUrl = (): string => {
-  if (typeof window !== 'undefined') {
-    // 浏览器环境
-    const env = (import.meta as any)?.env?.VITE_API_URL || (window as any).REACT_APP_API_URL;
-
-    if (env) {
-      // 显式设置了环境变量，使用该配置
-      return env;
-    }
-
-    // 自动检测环境
-    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-      // 开发环境：使用 Backend 服务的专用端口 3007
-      return `http://${window.location.hostname}:3007`;
-    }
-
-    // 生产环境：使用当前域名，Nginx 会代理到 Backend
-    return `${window.location.origin}/api/v1`;
-  } else {
-    // Node.js 环境：使用环境变量或相对路径
-    return process.env.REACT_APP_API_URL ||
-           process.env.VITE_API_URL ||
-           '/api/v1';
-  }
-};
-
 // 普通用户认证配置
 export const USER_AUTH_CONFIG: AuthConfig = {
   apiBaseUrl: getApiBaseUrl(),
   endpoints: {
-    login: '/api/v1/auth/login',
-    register: '/api/v1/auth/register',
-    logout: '/api/v1/auth/logout',
-    me: '/api/v1/auth/me'
+    login: '/auth/login',
+    register: '/auth/register',
+    logout: '/auth/logout',
+    me: '/auth/me'
   },
   storage: {
     tokenKey: 'app_token',
@@ -77,10 +52,10 @@ export const USER_AUTH_CONFIG: AuthConfig = {
 export const ADMIN_AUTH_CONFIG: AuthConfig = {
   apiBaseUrl: getApiBaseUrl(),
   endpoints: {
-    login: '/api/v1/admin/auth/login',
-    logout: '/api/v1/admin/auth/logout',
-    refresh: '/api/v1/admin/auth/refresh',
-    me: '/api/v1/admin/auth/me'
+    login: '/admin/auth/login',
+    logout: '/admin/auth/logout',
+    refresh: '/admin/auth/refresh',
+    me: '/admin/auth/me'
   },
   storage: {
     tokenKey: 'admin_token',
