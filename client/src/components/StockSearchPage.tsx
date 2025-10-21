@@ -7,8 +7,7 @@ import {
   SearchOutlined, StockOutlined, BulbOutlined,
   DownOutlined, UpOutlined, InfoCircleOutlined
 } from '@ant-design/icons';
-// API配置
-const API_BASE_URL = '/api/v1';
+import { getApiBaseUrl } from '../../shared/auth-config';
 import './StockSearchPage.css';
 
 const { Title, Text, Paragraph } = Typography;
@@ -56,7 +55,7 @@ const StockSearchPage: React.FC = () => {
 
     setLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/stocks/${searchValue.trim().toUpperCase()}`);
+      const response = await fetch(`${getApiBaseUrl()}/stocks/${searchValue.trim().toUpperCase()}`);
 
       if (!response.ok) {
         if (response.status === 404) {
@@ -95,7 +94,7 @@ const StockSearchPage: React.FC = () => {
     setLoadingConcepts(prev => new Set(prev).add(conceptName));
 
     try {
-      const response = await fetch(`${API_BASE_URL}/concepts/${encodeURIComponent(conceptName)}/stocks`);
+      const response = await fetch(`${getApiBaseUrl()}/concepts/${encodeURIComponent(conceptName)}/stocks`);
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
