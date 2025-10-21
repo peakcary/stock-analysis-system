@@ -27,6 +27,12 @@ export default defineConfig({
     }
   },
 
+  preview: {
+    port: 8005,
+    host: true,
+    allowedHosts: ['localhost', '127.0.0.1', 'qwquant.com', 'www.qwquant.com', '82.157.28.35']
+  },
+
   // 构建优化配置
   build: {
     rollupOptions: {
