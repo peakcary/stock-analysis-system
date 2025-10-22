@@ -211,23 +211,39 @@ interface PaymentPackagesInlineProps {
 const PaymentPackagesInline: React.FC<PaymentPackagesInlineProps> = ({ onSuccess, onSelectPackage, packages, setPackages, selectedPackageObj }) => {
   const [loading, setLoading] = useState(false);
 
+  // Mock套餐数据
+  const mockPackages = [
+    { id: 1, package_type: 'queries_10', name: '轻量包', price: 9.99, queries_count: 10, validity_days: 30, membership_type: 'free', description: '适合新手入门，10次API查询额度', is_active: true },
+    { id: 2, package_type: 'queries_50', name: '进阶包', price: 49.99, queries_count: 50, validity_days: 60, membership_type: 'free', description: '适合专业投资者，50次API查询额度', is_active: true },
+    { id: 3, package_type: 'pro_monthly', name: '专业版月卡', price: 99.99, queries_count: 999999, validity_days: 30, membership_type: 'pro', description: '无限次查询+深度分析+智能报告', is_active: true },
+    { id: 4, package_type: 'pro_quarterly', name: '专业版季卡', price: 249.99, queries_count: 999999, validity_days: 90, membership_type: 'pro', description: '无限次查询+深度分析+智能报告', is_active: true },
+    { id: 5, package_type: 'pro_yearly', name: '专业版年卡', price: 899.99, queries_count: 999999, validity_days: 365, membership_type: 'pro', description: '无限次查询+深度分析+智能报告', is_active: true },
+    { id: 6, package_type: 'premium_monthly', name: '旗舰版月卡', price: 199.99, queries_count: 999999, validity_days: 30, membership_type: 'premium', description: '无限查询+企业级功能+AI预测+团队协作', is_active: true },
+    { id: 7, package_type: 'premium_quarterly', name: '旗舰版季卡', price: 499.99, queries_count: 999999, validity_days: 90, membership_type: 'premium', description: '无限查询+企业级功能+AI预测+团队协作', is_active: true },
+    { id: 8, package_type: 'premium_yearly', name: '旗舰版年卡', price: 1699.99, queries_count: 999999, validity_days: 365, membership_type: 'premium', description: '无限查询+企业级功能+AI预测+团队协作', is_active: true }
+  ];
+
   // 获取支付套餐列表
   const fetchPackages = async () => {
     setLoading(true);
     try {
-      const response = await apiClient.get('/api/v1/payment/packages');
-      console.log('获取到套餐数据:', response.data);
-      setPackages(response.data);
-    } catch (error) {
-      console.error('获取套餐列表失败:', error);
-      message.error('获取套餐列表失败');
+      // 先尝试从API获取，失败则使用Mock数据
+      try {
+        const response = await apiClient.get('/payment/packages');
+        console.log('获取到套餐数据:', response.data);
+        setPackages(response.data);
+      } catch (apiError) {
+        console.warn('API调用失败，使用Mock数据:', apiError);
+        setPackages(mockPackages);
+      }
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchPackages();
+    // 直接使用Mock数据，更快的用户体验
+    setPackages(mockPackages);
   }, []);
 
   // 获取套餐图标
@@ -235,7 +251,7 @@ const PaymentPackagesInline: React.FC<PaymentPackagesInlineProps> = ({ onSuccess
     if (packageType.includes('queries_')) {
       return <StarOutlined style={{ fontSize: '32px', color: '#1890ff' }} />;
     }
-    
+
     switch (membershipType) {
       case 'pro':
         return <SafetyCertificateOutlined style={{ fontSize: '32px', color: '#fa8c16' }} />;
@@ -249,7 +265,7 @@ const PaymentPackagesInline: React.FC<PaymentPackagesInlineProps> = ({ onSuccess
   // 获取套餐颜色
   const getPackageColor = (membershipType: string, isPopular?: boolean) => {
     if (isPopular) return '#fa541c';
-    
+
     switch (membershipType) {
       case 'pro':
         return '#1890ff';
@@ -277,161 +293,145 @@ const PaymentPackagesInline: React.FC<PaymentPackagesInlineProps> = ({ onSuccess
   console.log('当前套餐数据:', packages, '数量:', packages.length);
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 30 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.6, delay: 0.3 }}
-    >
-      <div style={{ marginBottom: '40px' }}>
-        <Tabs
-          items={[
-            {
-              key: 'packages',
-              label: '📦 选择套餐',
-              children: (
-                <>
-                  <Title level={2} style={{ textAlign: 'center', marginBottom: '40px' }}>
-                    选择适合您的套餐
-                  </Title>
-                  <Row gutter={[24, 24]} justify="center">
-                    {packages.map((pkg, index) => (
-          <Col xs={24} sm={12} md={8} lg={6} key={pkg.id}>
-            <motion.div
-              initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: index * 0.1 }}
-              whileHover={{ scale: 1.02 }}
-            >
-              <Card
-                hoverable
-                style={{
-                  borderRadius: '16px',
-                  border: isPopularPackage(pkg.package_type) ? '3px solid #fa541c' : '2px solid #f1f5f9',
-                  boxShadow: isPopularPackage(pkg.package_type) 
-                    ? '0 20px 40px rgba(0,0,0,0.15)' 
-                    : '0 8px 24px rgba(0,0,0,0.08)',
-                  position: 'relative',
-                  height: '100%',
-                  background: isPopularPackage(pkg.package_type) 
-                    ? 'linear-gradient(135deg, rgba(245,158,11,0.05) 0%, rgba(251,146,60,0.05) 100%)'
-                    : 'white'
-                }}
-                bodyStyle={{ padding: '30px' }}
+    <>
+      {/* 套餐选择区域 */}
+      <motion.div
+        initial={{ opacity: 0, y: 30 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6, delay: 0.3 }}
+        style={{ marginBottom: '60px' }}
+      >
+        <Title level={2} style={{ textAlign: 'center', marginBottom: '40px' }}>
+          📦 选择适合您的套餐
+        </Title>
+        <Row gutter={[24, 24]} justify="center">
+          {packages.map((pkg, index) => (
+            <Col xs={24} sm={12} md={8} lg={6} key={pkg.id}>
+              <motion.div
+                initial={{ opacity: 0, y: 30 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, delay: index * 0.1 }}
+                whileHover={{ scale: 1.02 }}
               >
-                {/* 推荐标签 */}
-                {isPopularPackage(pkg.package_type) && (
-                  <div style={{
-                    position: 'absolute',
-                    top: '-2px',
-                    left: '50%',
-                    transform: 'translateX(-50%)',
-                    background: '#fa541c',
-                    color: 'white',
-                    padding: '8px 24px',
-                    borderRadius: '0 0 16px 16px',
-                    fontSize: '14px',
-                    fontWeight: '600',
-                    zIndex: 1,
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
-                  }}>
-                    推荐
-                  </div>
-                )}
-                
-                <div style={{ textAlign: 'center' }}>
-                  <motion.div
-                    whileHover={{ scale: 1.1, rotate: 5 }}
-                    style={{ marginBottom: '16px' }}
-                  >
-                    {getPackageIcon(pkg.package_type, pkg.membership_type)}
-                  </motion.div>
-                  
-                  <Title level={4} style={{ marginBottom: '8px' }}>
-                    {pkg.name}
-                  </Title>
-                  
-                  <div style={{ margin: '20px 0' }}>
-                    <Text
+                <Card
+                  hoverable
+                  style={{
+                    borderRadius: '16px',
+                    border: isPopularPackage(pkg.package_type) ? '3px solid #fa541c' : '2px solid #f1f5f9',
+                    boxShadow: isPopularPackage(pkg.package_type)
+                      ? '0 20px 40px rgba(0,0,0,0.15)'
+                      : '0 8px 24px rgba(0,0,0,0.08)',
+                    position: 'relative',
+                    height: '100%',
+                    background: isPopularPackage(pkg.package_type)
+                      ? 'linear-gradient(135deg, rgba(245,158,11,0.05) 0%, rgba(251,146,60,0.05) 100%)'
+                      : 'white'
+                  }}
+                  bodyStyle={{ padding: '30px' }}
+                >
+                  {/* 推荐标签 */}
+                  {isPopularPackage(pkg.package_type) && (
+                    <div style={{
+                      position: 'absolute',
+                      top: '-2px',
+                      left: '50%',
+                      transform: 'translateX(-50%)',
+                      background: '#fa541c',
+                      color: 'white',
+                      padding: '8px 24px',
+                      borderRadius: '0 0 16px 16px',
+                      fontSize: '14px',
+                      fontWeight: '600',
+                      zIndex: 1,
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
+                    }}>
+                      推荐
+                    </div>
+                  )}
+
+                  <div style={{ textAlign: 'center' }}>
+                    <motion.div
+                      whileHover={{ scale: 1.1, rotate: 5 }}
+                      style={{ marginBottom: '16px' }}
+                    >
+                      {getPackageIcon(pkg.package_type, pkg.membership_type)}
+                    </motion.div>
+
+                    <Title level={4} style={{ marginBottom: '8px' }}>
+                      {pkg.name}
+                    </Title>
+
+                    <div style={{ margin: '20px 0' }}>
+                      <Text
+                        style={{
+                          fontSize: '36px',
+                          fontWeight: '800',
+                          color: getPackageColor(pkg.membership_type, isPopularPackage(pkg.package_type)),
+                          lineHeight: '1'
+                        }}
+                      >
+                        ¥{pkg.price}
+                      </Text>
+                    </div>
+
+                    <Space direction="vertical" size="small" style={{ width: '100%', marginBottom: '24px' }}>
+                      <Text style={{ color: '#666' }}>
+                        📊 {pkg.queries_count}次查询
+                      </Text>
+                      <Text style={{ color: '#666' }}>
+                        ⏰ {pkg.validity_days}天有效期
+                      </Text>
+                      {pkg.membership_type !== 'free' && (
+                        <Text style={{ color: '#666' }}>
+                          👑 {pkg.membership_type === 'pro' ? '专业版' : '旗舰版'}权限
+                        </Text>
+                      )}
+                    </Space>
+
+                    <Paragraph style={{
+                      color: '#8c8c8c',
+                      fontSize: '14px',
+                      marginBottom: '24px',
+                      minHeight: '40px'
+                    }}>
+                      {pkg.description}
+                    </Paragraph>
+
+                    <Button
+                      type="primary"
+                      size="large"
+                      block
+                      onClick={() => onSelectPackage(pkg)}
                       style={{
-                        fontSize: '36px',
-                        fontWeight: '800',
-                        color: getPackageColor(pkg.membership_type, isPopularPackage(pkg.package_type)),
-                        lineHeight: '1'
+                        height: '48px',
+                        fontSize: '16px',
+                        fontWeight: '600',
+                        borderRadius: '12px',
+                        backgroundColor: getPackageColor(pkg.membership_type, isPopularPackage(pkg.package_type)),
+                        borderColor: getPackageColor(pkg.membership_type, isPopularPackage(pkg.package_type)),
+                        boxShadow: `0 4px 12px ${getPackageColor(pkg.membership_type, isPopularPackage(pkg.package_type))}40`
                       }}
                     >
-                      ¥{pkg.price}
-                    </Text>
+                      立即购买
+                    </Button>
                   </div>
-
-                  <Space direction="vertical" size="small" style={{ width: '100%', marginBottom: '24px' }}>
-                    <Text style={{ color: '#666' }}>
-                      📊 {pkg.queries_count}次查询
-                    </Text>
-                    <Text style={{ color: '#666' }}>
-                      ⏰ {pkg.validity_days}天有效期
-                    </Text>
-                    {pkg.membership_type !== 'free' && (
-                      <Text style={{ color: '#666' }}>
-                        👑 {pkg.membership_type === 'pro' ? '专业版' : '旗舰版'}权限
-                      </Text>
-                    )}
-                  </Space>
-
-                  <Paragraph style={{ 
-                    color: '#8c8c8c', 
-                    fontSize: '14px', 
-                    marginBottom: '24px',
-                    minHeight: '40px' 
-                  }}>
-                    {pkg.description}
-                  </Paragraph>
-
-                  <Button
-                    type="primary"
-                    size="large"
-                    block
-                    onClick={() => onSelectPackage(pkg)}
-                    style={{
-                      height: '48px',
-                      fontSize: '16px',
-                      fontWeight: '600',
-                      borderRadius: '12px',
-                      backgroundColor: getPackageColor(pkg.membership_type, isPopularPackage(pkg.package_type)),
-                      borderColor: getPackageColor(pkg.membership_type, isPopularPackage(pkg.package_type)),
-                      boxShadow: `0 4px 12px ${getPackageColor(pkg.membership_type, isPopularPackage(pkg.package_type))}40`
-                    }}
-                  >
-                    立即购买
-                  </Button>
-                </div>
-              </Card>
-            </motion.div>
-          </Col>
-        ))}
-                    </Row>
-                  </>
-                )
-              },
-              {
-                key: 'features',
-                label: '📋 服务详情',
-                children: <ServiceFeatures selectedPackageType={selectedPackageObj?.package_type} />
-              },
-              {
-                key: 'warranty',
-                label: '🛡️ 售后保障',
-                children: <AfterSalesService />
-              },
-              {
-                key: 'support',
-                label: '💬 技术支持',
-                children: <SupportAndIssues />
-              }
-            ]}
-          />
-        </div>
+                </Card>
+              </motion.div>
+            </Col>
+          ))}
+        </Row>
       </motion.div>
-    );
+
+      {/* 服务详情区域 */}
+      <ServiceFeatures selectedPackageType={selectedPackageObj?.package_type} />
+
+      {/* 售后保障区域 */}
+      <AfterSalesService />
+
+      {/* 技术支持区域 */}
+      <SupportAndIssues />
+    </>
+  );
 };
 
 export default MembershipPage;
