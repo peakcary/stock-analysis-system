@@ -1,12 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Card, Button, Space, Typography, Row, Col, message, Tabs
+  Card, Button, Space, Typography, Row, Col, message
 } from 'antd';
 import EnhancedPaymentModal from '../components/EnhancedPaymentModal';
 import { apiClient } from '../utils/auth';
-import ServiceFeatures from '../components/ServiceFeatures';
-import AfterSalesService from '../components/AfterSalesService';
-import SupportAndIssues from '../components/SupportAndIssues';
 import {
   StarOutlined, SafetyCertificateOutlined
 } from '@ant-design/icons';
@@ -422,14 +419,6 @@ const PaymentPackagesInline: React.FC<PaymentPackagesInlineProps> = ({ onSuccess
         </Row>
       </motion.div>
 
-      {/* 服务详情区域 */}
-      <ServiceFeatures selectedPackageType={selectedPackageObj?.package_type} />
-
-      {/* 售后保障区域 */}
-      <AfterSalesService />
-
-      {/* 技术支持区域 */}
-      <SupportAndIssues />
     </>
   );
 };
