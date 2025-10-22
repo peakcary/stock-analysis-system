@@ -131,7 +131,7 @@ export const MembershipPage: React.FC<MembershipPageProps> = ({ user, onUpgrade 
         </motion.div>
 
         {/* 套餐展示区域 */}
-        <PaymentPackagesInline onSuccess={handlePaymentSuccess} onSelectPackage={selectPackage} packages={packages} setPackages={setPackages} />
+        <PaymentPackagesInline onSuccess={handlePaymentSuccess} onSelectPackage={selectPackage} packages={packages} setPackages={setPackages} selectedPackageObj={selectedPackageObj} />
         
         {/* 底部保障说明 */}
         <motion.div
@@ -205,9 +205,10 @@ interface PaymentPackagesInlineProps {
   onSelectPackage: (packageData: any) => void;
   packages: any[];
   setPackages: (packages: any[]) => void;
+  selectedPackageObj?: any;
 }
 
-const PaymentPackagesInline: React.FC<PaymentPackagesInlineProps> = ({ onSuccess, onSelectPackage, packages, setPackages }) => {
+const PaymentPackagesInline: React.FC<PaymentPackagesInlineProps> = ({ onSuccess, onSelectPackage, packages, setPackages, selectedPackageObj }) => {
   const [loading, setLoading] = useState(false);
 
   // 获取支付套餐列表
