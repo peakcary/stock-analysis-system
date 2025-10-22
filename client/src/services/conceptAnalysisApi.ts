@@ -1,5 +1,5 @@
 // 概念分析API服务
-import { getApiBaseUrl } from '../../shared/auth-config';
+import { getApiBaseUrl } from 'shared/auth-config';
 
 class ConceptAnalysisApi {
   // 获取股票在各概念中的排名

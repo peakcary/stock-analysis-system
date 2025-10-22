@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Card, Button, Space, Typography, Row, Col, message
+import {
+  Card, Button, Space, Typography, Row, Col, message, Tabs
 } from 'antd';
 import EnhancedPaymentModal from '../components/EnhancedPaymentModal';
 import { apiClient } from '../utils/auth';
-import { 
+import ServiceFeatures from '../components/ServiceFeatures';
+import AfterSalesService from '../components/AfterSalesService';
+import SupportAndIssues from '../components/SupportAndIssues';
+import {
   StarOutlined, SafetyCertificateOutlined
 } from '@ant-design/icons';
 import { motion } from 'framer-motion';
@@ -278,12 +281,19 @@ const PaymentPackagesInline: React.FC<PaymentPackagesInlineProps> = ({ onSuccess
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.6, delay: 0.3 }}
     >
-      <Title level={2} style={{ textAlign: 'center', marginBottom: '40px' }}>
-        选择适合您的套餐
-      </Title>
-      
-      <Row gutter={[24, 24]} justify="center">
-        {packages.map((pkg, index) => (
+      <div style={{ marginBottom: '40px' }}>
+        <Tabs
+          items={[
+            {
+              key: 'packages',
+              label: '📦 选择套餐',
+              children: (
+                <>
+                  <Title level={2} style={{ textAlign: 'center', marginBottom: '40px' }}>
+                    选择适合您的套餐
+                  </Title>
+                  <Row gutter={[24, 24]} justify="center">
+                    {packages.map((pkg, index) => (
           <Col xs={24} sm={12} md={8} lg={6} key={pkg.id}>
             <motion.div
               initial={{ opacity: 0, y: 30 }}
@@ -397,10 +407,30 @@ const PaymentPackagesInline: React.FC<PaymentPackagesInlineProps> = ({ onSuccess
             </motion.div>
           </Col>
         ))}
-      </Row>
-
-    </motion.div>
-  );
+                    </Row>
+                  </>
+                )
+              },
+              {
+                key: 'features',
+                label: '📋 服务详情',
+                children: <ServiceFeatures selectedPackageType={selectedPackageObj?.package_type} />
+              },
+              {
+                key: 'warranty',
+                label: '🛡️ 售后保障',
+                children: <AfterSalesService />
+              },
+              {
+                key: 'support',
+                label: '💬 技术支持',
+                children: <SupportAndIssues />
+              }
+            ]}
+          />
+        </div>
+      </motion.div>
+    );
 };
 
 export default MembershipPage;

@@ -3,8 +3,6 @@
  * Unified Authentication Configuration
  */
 
-import { getApiBaseUrl } from './api.config';
-
 export interface AuthEndpoints {
   login: string;
   register?: string;
@@ -28,6 +26,36 @@ export interface AuthConfig {
   maxRetryAttempts: number;
   autoRefresh: boolean;
 }
+
+// 获取API基础URL的统一方法 - 智能检测环境并自动路由
+export const getApiBaseUrl = (): string => {
+  if (typeof window !== 'undefined') {
+    // 浏览器环境 - 运行时环境检测
+    const env = (import.meta as any)?.env?.VITE_API_URL ||
+                (window as any).REACT_APP_API_URL;
+
+    if (env) {
+      // 如果明确设置了环境变量，使用它
+      return env;
+    }
+
+    // 自动检测环境
+    const hostname = window.location.hostname;
+
+    // 开发环境检测
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+      return `http://${hostname}:3007`;
+    }
+
+    // 生产环境 - 使用当前域名 + Nginx代理路径
+    return `${window.location.origin}/api/v1`;
+  } else {
+    // Node.js 环境
+    return process.env.REACT_APP_API_URL ||
+           process.env.VITE_API_URL ||
+           '/api/v1';
+  }
+};
 
 // 普通用户认证配置
 export const USER_AUTH_CONFIG: AuthConfig = {

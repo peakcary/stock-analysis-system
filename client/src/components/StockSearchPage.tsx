@@ -7,7 +7,7 @@ import {
   SearchOutlined, StockOutlined, BulbOutlined,
   DownOutlined, UpOutlined, InfoCircleOutlined
 } from '@ant-design/icons';
-import { getApiBaseUrl } from '../../shared/auth-config';
+import { getApiBaseUrl } from 'shared/auth-config';
 import './StockSearchPage.css';
 
 const { Title, Text, Paragraph } = Typography;
