@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -e
+set -euo pipefail
 
 # 🎯 Production Nginx 部署脚本
 # 该脚本用于启动完整的生产环境，包括Nginx反向代理和HTTPS

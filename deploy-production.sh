@@ -1,13 +1,39 @@
 #!/bin/bash
 # ===================================
-# 生产环境部署脚本
+# 生产环境部署脚本（增强版）
 # Production Deployment Script
-# 域名: https://qwquant.com
+# 读取 .env.prod 的 DOMAIN/EMAIL 等配置
+# 可选非交互模式：--yes
 # ===================================
 
-set -e  # 遇到错误立即退出
+set -euo pipefail
 
-echo "🚀 开始部署到生产环境 (qwquant.com)"
+# 读取 .env.prod 中的配置（如果存在）
+if [ -f .env.prod ]; then
+  # shellcheck source=/dev/null
+  export $(grep -E '^(DOMAIN|EMAIL)=' .env.prod | xargs -0 -I{} echo {}) || true
+fi
+
+DOMAIN=${DOMAIN:-qwquant.com}
+EMAIL=${EMAIL:-admin@${DOMAIN}}
+
+# 非交互开关
+NON_INTERACTIVE=false
+if [[ "${1:-}" == "--yes" || "${1:-}" == "-y" ]]; then
+  NON_INTERACTIVE=true
+fi
+
+# 选择 docker compose 命令
+if command -v docker-compose >/dev/null 2>&1; then
+  COMPOSE="docker-compose"
+elif docker compose version >/dev/null 2>&1; then
+  COMPOSE="docker compose"
+else
+  echo "❌ 未找到 docker-compose 或 docker compose"
+  exit 1
+fi
+
+echo "🚀 开始部署到生产环境 (${DOMAIN})"
 echo "======================================"
 
 # 颜色定义
@@ -44,24 +70,23 @@ echo -e "${GREEN}✅ 必要文件检查通过${NC}"
 
 # 2. 检查域名解析
 echo -e "\n${YELLOW}📋 步骤 2/8: 检查域名解析...${NC}"
-DOMAIN_IP=$(dig +short qwquant.com | head -n 1)
+DOMAIN_IP=$(dig +short "$DOMAIN" | head -n 1)
 SERVER_IP=$(curl -s ifconfig.me)
 
 if [ -z "$DOMAIN_IP" ]; then
-    echo -e "${RED}❌ 域名 qwquant.com 未解析${NC}"
+    echo -e "${RED}❌ 域名 $DOMAIN 未解析${NC}"
     echo "请先在DNS设置中添加A记录指向服务器IP: $SERVER_IP"
     exit 1
 fi
 
-echo "域名 qwquant.com 解析到: $DOMAIN_IP"
+echo "域名 $DOMAIN 解析到: $DOMAIN_IP"
 echo "服务器公网IP: $SERVER_IP"
 
 if [ "$DOMAIN_IP" != "$SERVER_IP" ]; then
     echo -e "${YELLOW}⚠️  警告: 域名解析IP与服务器IP不一致${NC}"
-    read -p "是否继续部署? (y/n) " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        exit 1
+    if ! $NON_INTERACTIVE; then
+      read -p "是否继续部署? (y/n) " -n 1 -r; echo
+      if [[ ! $REPLY =~ ^[Yy]$ ]]; then exit 1; fi
     fi
 fi
 echo -e "${GREEN}✅ 域名解析检查完成${NC}"
@@ -99,7 +124,7 @@ fi
 
 # 5. 获取SSL证书
 echo -e "\n${YELLOW}📋 步骤 5/8: 获取SSL证书...${NC}"
-if [ ! -d "/etc/letsencrypt/live/qwquant.com" ]; then
+if [ ! -d "/etc/letsencrypt/live/${DOMAIN}" ]; then
     echo "首次部署，需要获取SSL证书..."
 
     # 检查certbot是否安装
@@ -117,13 +142,13 @@ if [ ! -d "/etc/letsencrypt/live/qwquant.com" ]; then
     fi
 
     # 获取证书
-    echo "正在获取 qwquant.com 的SSL证书..."
+    echo "正在获取 ${DOMAIN} 的SSL证书..."
     sudo certbot certonly --standalone \
-        -d qwquant.com \
-        -d www.qwquant.com \
+        -d ${DOMAIN} \
+        -d www.${DOMAIN} \
         --non-interactive \
         --agree-tos \
-        --email ${EMAIL:-admin@qwquant.com}
+        --email "${EMAIL}"
 
     if [ $? -eq 0 ]; then
         echo -e "${GREEN}✅ SSL证书获取成功${NC}"

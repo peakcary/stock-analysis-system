@@ -173,7 +173,8 @@ const App: React.FC = () => {
         );
       
       case 'profile':
-        return <ProfilePage user={user} onLogout={() => handleMenuClick('logout')} />;
+        message.info('个人资料页面开发中...');
+        return <AnalysisPage user={user} />;
 
       case 'payment':
         return <PaymentHistoryPage />;
