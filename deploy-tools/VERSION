@@ -1,0 +1,14 @@
+# 版本信息文件
+# 用于跟踪应用版本和数据库版本
+
+# 应用版本 (YYYYMMDD_HHMMSS)
+APP_VERSION=20251024_000000
+
+# 数据库版本 (对应 migrations/ 中的版本)
+DB_VERSION=001_initial_schema
+
+# 上次更新时间
+LAST_UPDATE=2025-10-24
+
+# 上次部署描述
+DESCRIPTION="Initial deployment with database schema v001"
