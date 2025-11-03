@@ -374,22 +374,38 @@ class WechatPayService:
     def process_notify(self, xml_data: str) -> Dict[str, Any]:
         """处理支付通知"""
         try:
+            logger.info(f"[DEBUG] Received XML data: {xml_data[:500] if len(xml_data) > 500 else xml_data}")
             data = self.xml_to_dict(xml_data)
-            logger.info(f"Payment notify data: {data}")
-            
-            # 验证签名
-            if not self.verify_sign(data):
-                logger.error("Payment notify signature verification failed")
-                return {
-                    'success': False,
-                    'message': '签名验证失败',
-                    'data': data
-                }
+            logger.info(f"[DEBUG] Parsed data: {data}")
+
+            # 验证签名（mock模式下跳过签名验证）
+            # 检查是否为mock模式（处理字符串和布尔值）
+            mock_mode = settings.PAYMENT_MOCK_MODE
+            logger.info(f"[DEBUG] PAYMENT_MOCK_MODE raw value: {repr(mock_mode)}, type: {type(mock_mode)}")
+
+            if isinstance(mock_mode, str):
+                mock_mode = mock_mode.lower() in ('true', '1', 'yes', 'on')
+
+            logger.info(f"[DEBUG] mock_mode after conversion: {mock_mode}")
+
+            if not mock_mode:
+                if not self.verify_sign(data):
+                    logger.error("Payment notify signature verification failed")
+                    return {
+                        'success': False,
+                        'message': '签名验证失败',
+                        'data': data
+                    }
+            else:
+                logger.info("Mock mode enabled: skipping signature verification")
             
             # 检查支付结果
-            if (data.get('return_code') == 'SUCCESS' and 
-                data.get('result_code') == 'SUCCESS'):
-                
+            return_code = data.get('return_code')
+            result_code = data.get('result_code')
+            logger.info(f"[DEBUG] return_code={repr(return_code)}, result_code={repr(result_code)}")
+
+            if (return_code == 'SUCCESS' and result_code == 'SUCCESS'):
+                logger.info(f"[DEBUG] Payment successful, returning success response")
                 return {
                     'success': True,
                     'message': '支付成功',
@@ -403,6 +419,7 @@ class WechatPayService:
                     }
                 }
             else:
+                logger.warning(f"[DEBUG] Payment failed, returning failure response")
                 return {
                     'success': False,
                     'message': f"支付失败: {data.get('err_code_des', data.get('return_msg', '未知错误'))}",

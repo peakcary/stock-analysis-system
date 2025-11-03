@@ -15,12 +15,16 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """验证密码"""
-    return pwd_context.verify(plain_password, hashed_password)
+    # Bcrypt has a 72-byte limit, so truncate password if needed
+    plain_password_truncated = plain_password[:72]
+    return pwd_context.verify(plain_password_truncated, hashed_password)
 
 
 def get_password_hash(password: str) -> str:
     """获取密码哈希"""
-    return pwd_context.hash(password)
+    # Bcrypt has a 72-byte limit, so truncate password if needed
+    password_truncated = password[:72]
+    return pwd_context.hash(password_truncated)
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:

@@ -80,12 +80,12 @@ sudo mv backend backend_backup 2>/dev/null || true
 echo "   - 解压新代码..."
 mkdir -p backend
 cd backend
-TARFILE=\$(ls -t /tmp/backend_*.tar.gz 2>/dev/null | head -1)
-if [ -z "\$TARFILE" ]; then
+TARFILE=$(ls -t /tmp/backend_*.tar.gz 2>/dev/null | head -1)
+if [ -z "$TARFILE" ]; then
     echo "❌ 错误: 找不到tar.gz文件"
     exit 1
 fi
-tar --strip-components=1 -xzf "\$TARFILE"
+tar --strip-components=1 -xzf "$TARFILE"
 
 # 权限
 sudo chown -R ubuntu:ubuntu .

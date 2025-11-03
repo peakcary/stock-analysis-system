@@ -178,14 +178,23 @@ class PaymentManager:
                 # V2 API通知
                 notify_result = self.wechat_pay.process_notify(request_data)
 
+            logger.info(f"Notify result: {notify_result}")
+
             # 更新通知记录
             notification.is_valid = notify_result['success']
-            notification.out_trade_no = notify_result['data'].get('out_trade_no', '') if notify_result['data'] else ''
-            notification.transaction_id = notify_result['data'].get('transaction_id', '') if notify_result['data'] else ''
+            notification.out_trade_no = notify_result['data'].get('out_trade_no', '') if notify_result.get('data') else ''
+            notification.transaction_id = notify_result['data'].get('transaction_id', '') if notify_result.get('data') else ''
 
+            logger.info(f"Notification set: out_trade_no={notification.out_trade_no}, is_valid={notification.is_valid}")
+
+            # 如果验证失败，先设置process_result后再commit，不抛出异常
             if not notify_result['success']:
                 notification.process_result = f"通知验证失败: {notify_result['message']}"
-                db.commit()
+                try:
+                    db.commit()
+                except Exception as e:
+                    logger.warning(f"Failed to commit notification record: {e}")
+                    db.rollback()
                 return {
                     'success': False,
                     'message': notify_result['message'],

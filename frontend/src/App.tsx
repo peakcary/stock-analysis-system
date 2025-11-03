@@ -1,18 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Layout, Menu, Button, Input, Card, Table, message, Upload, Space, 
-  Divider, Alert, Row, Col, Typography, Steps, Progress, Statistic, 
+import {
+  Layout, Menu, Button, Input, Card, Table, message, Upload, Space,
+  Divider, Alert, Row, Col, Typography, Steps, Progress, Statistic,
   Tag, Badge, Tooltip, Spin, Modal, Tabs
 } from 'antd';
 import {
   SearchOutlined, UserOutlined, ApiOutlined, UploadOutlined,
   CloudUploadOutlined, FileTextOutlined, DatabaseOutlined,
   CheckCircleOutlined, ClockCircleOutlined, GiftOutlined, DeleteOutlined,
-  FireOutlined, ExclamationCircleOutlined, CreditCardOutlined
+  FireOutlined, ExclamationCircleOutlined, CreditCardOutlined, LogoutOutlined
 } from '@ant-design/icons';
 import { adminApiClient } from '../../shared/admin-auth';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { ClientAuthProvider, useClientAuth } from './contexts/ClientAuthContext';
 import LoginPage from './components/LoginPage';
+import ClientLoginPage from './components/ClientLoginPage';
+import ClientPaymentPage from './components/ClientPaymentPage';
+import SimplePaymentPage from './components/SimplePaymentPage';
+import AdvancedPaymentPage from './components/AdvancedPaymentPage';
 import AdminLayout from './components/AdminLayout';
 import Dashboard from './components/Dashboard';
 import UserManagement from './components/UserManagement';
@@ -30,9 +35,10 @@ import DataImportPage from './components/DataImportPage';
 const { Header, Content, Sider } = Layout;
 const { Title, Text, Paragraph } = Typography;
 
-const AppContent: React.FC = () => {
+// Admin App Content
+const AdminAppContent: React.FC = () => {
   const { isAuthenticated, loading } = useAuth();
-  
+
   if (loading) {
     return (
       <div style={{
@@ -51,6 +57,65 @@ const AppContent: React.FC = () => {
   }
 
   return <AdminApp />;
+};
+
+// Client App Content
+const ClientAppContent: React.FC = () => {
+  const { isAuthenticated, loading, user, logout } = useClientAuth();
+
+  if (loading) {
+    return (
+      <div style={{
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        minHeight: '100vh'
+      }}>
+        <Spin size="large" />
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <ClientLoginPage />;
+  }
+
+  // User authenticated - show payment page with logout option
+  return (
+    <div style={{
+      minHeight: '100vh',
+      background: '#f5f5f5'
+    }}>
+      {/* Top Header */}
+      <div style={{
+        background: 'white',
+        padding: '12px 24px',
+        borderBottom: '1px solid #f0f0f0',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center'
+      }}>
+        <div>
+          <Text strong style={{ fontSize: '16px' }}>
+            股票分析系统
+          </Text>
+          <Text type="secondary" style={{ marginLeft: '16px' }}>
+            欢迎, {user?.username}
+          </Text>
+        </div>
+        <Button
+          type="text"
+          icon={<LogoutOutlined />}
+          onClick={logout}
+        >
+          退出登录
+        </Button>
+      </div>
+
+      {/* Payment Page */}
+      <ClientPaymentPage />
+    </div>
+  );
 };
 
 const AdminApp: React.FC = () => {
@@ -1245,12 +1310,71 @@ const AdminApp: React.FC = () => {
   );
 };
 
-const App: React.FC = () => {
+// App Selector Component - Choose between admin, client flows, or simple payment
+const AppSelector: React.FC = () => {
+  const [appMode, setAppMode] = useState<'admin' | 'client' | 'payment' | 'advanced-payment'>('admin');
+
+  // Check URL or localStorage for app mode preference
+  useEffect(() => {
+    const path = window.location.pathname;
+
+    console.log('🔍 AppSelector: Current path:', path);
+
+    // 优先检查 /client-payment - 显示高级支付页面
+    if (path === '/client-payment' || path === '/client-payment/') {
+      console.log('✅ Detected /client-payment route - showing AdvancedPaymentPage');
+      setAppMode('advanced-payment');
+      return;
+    }
+
+    // 其次检查 /payment - 显示简单支付页面
+    if (path === '/payment' || path === '/payment/') {
+      console.log('✅ Detected /payment route - showing SimplePaymentPage');
+      setAppMode('payment');
+      return;
+    }
+
+    // 其次检查是否是客户端路由（但不包括 /client-payment）
+    if (path.includes('/client') && !path.includes('/client-payment')) {
+      console.log('✅ Detected /client route - showing ClientAppContent');
+      setAppMode('client');
+      return;
+    }
+
+    // 默认显示管理员界面
+    console.log('✅ Default mode - showing AdminAppContent');
+    setAppMode('admin');
+  }, []);
+
+  // 高级支付页面
+  if (appMode === 'advanced-payment') {
+    return <AdvancedPaymentPage />;
+  }
+
+  // 简单支付页面
+  if (appMode === 'payment') {
+    return <SimplePaymentPage />;
+  }
+
+  // 客户端应用
+  if (appMode === 'client') {
+    return (
+      <ClientAuthProvider>
+        <ClientAppContent />
+      </ClientAuthProvider>
+    );
+  }
+
+  // 管理员应用
   return (
     <AuthProvider>
-      <AppContent />
+      <AdminAppContent />
     </AuthProvider>
   );
+};
+
+const App: React.FC = () => {
+  return <AppSelector />;
 };
 
 export default App;

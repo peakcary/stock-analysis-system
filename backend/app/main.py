@@ -45,10 +45,50 @@ async def lifespan(app: FastAPI):
               registry.model_generator.generate_models_for_file_type(ft)
           except Exception as se:
               print(f"⚠️ 初始化文件类型 {ft} 失败: {se}")
-      db.close()
       print("✅ 默认文件类型(eee/ttv)已初始化")
+
+      # 初始化支付套餐
+      try:
+          from app.models.payment import PaymentPackage
+          from decimal import Decimal
+
+          # 检查是否已有套餐
+          existing_packages = db.query(PaymentPackage).count()
+          if existing_packages == 0:
+              packages = [
+                  PaymentPackage(
+                      package_type='free_trial',
+                      name='免费试用',
+                      description='免费试用套餐，测试专用',
+                      price=Decimal('0.01'),
+                      queries_count=10,
+                      validity_days=7,
+                      membership_type='free',
+                      is_active=True,
+                      sort_order=1
+                  ),
+                  PaymentPackage(
+                      package_type='monthly_pro',
+                      name='专业版月卡',
+                      description='专业版月度套餐',
+                      price=Decimal('99.00'),
+                      queries_count=500,
+                      validity_days=30,
+                      membership_type='pro',
+                      is_active=True,
+                      sort_order=2
+                  ),
+              ]
+              for pkg in packages:
+                  db.add(pkg)
+              db.commit()
+              print("✅ 支付套餐已初始化")
+      except Exception as e:
+          print(f"⚠️ 初始化支付套餐失败: {e}")
+
+      db.close()
     except Exception as e:
-      print(f"⚠️ 启动初始化文件类型失败: {e}")
+      print(f"⚠️ 启动初始化失败: {e}")
     yield
     # 关闭时执行
     print("🛑 股票分析系统已关闭")
