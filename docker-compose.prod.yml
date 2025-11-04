@@ -91,26 +91,6 @@ services:
       timeout: 10s
       retries: 3
 
-  # React 客户端 (用户端)
-  client:
-    build:
-      context: ./client
-      dockerfile: Dockerfile
-      target: production
-    container_name: stock_client_prod
-    restart: unless-stopped
-    environment:
-      - VITE_API_URL=https://${DOMAIN}
-      - VITE_CLIENT_API_URL=https://${DOMAIN}
-    depends_on:
-      - backend
-    networks:
-      - stock_network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:80"]
-      timeout: 10s
-      retries: 3
-
   # Nginx 反向代理
   nginx:
     image: nginx:alpine
@@ -126,7 +106,6 @@ services:
     depends_on:
       - backend
       - frontend
-      - client
     networks:
       - stock_network
     healthcheck:

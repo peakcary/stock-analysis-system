@@ -13,13 +13,11 @@
 stock-analysis-system/
 ├── 1️⃣  backend/                    # 后端服务系统
 ├── 2️⃣  frontend/                   # Web 前端系统
-├── 3️⃣  client/                     # 桌面客户端系统
-├── 4️⃣  client-system/              # 新版本客户端系统
-├── 5️⃣  shared/                     # 共享资源
-├── 6️⃣  deploy-tools/               # 部署工具
-├── 7️⃣  nginx/                      # Nginx 配置
-├── 8️⃣  scripts/                    # 自动化脚本
-├── 9️⃣  database/                   # 数据库配置
+├── 3️⃣  shared/                     # 共享资源
+├── 4️⃣  deploy-tools/               # 部署工具
+├── 5️⃣  nginx/                      # Nginx 配置
+├── 6️⃣  scripts/                    # 自动化脚本
+├── 7️⃣  database/                   # 数据库配置
 ├── 📄 docker-compose.yml           # Docker 编排
 └── 📚 docs/                        # 文档
 ```
@@ -155,98 +153,7 @@ npm run preview
 
 ---
 
-## 3️⃣ CLIENT - 桌面客户端系统
-
-### 📍 位置
-```
-/client/
-```
-
-### 🛠️ 技术栈
-- **框架**: Electron / Tauri (桌面框架)
-- **前端**: React / Vue
-- **数据库**: SQLite (本地)
-- **网络**: axios / fetch
-- **包管理**: npm / yarn
-
-### 📋 功能模块
-
-| 功能 | 说明 |
-|------|------|
-| **本地数据** | 离线数据存储、缓存 |
-| **API 同步** | 与后端数据同步 |
-| **客户端认证** | 登录、会话管理 |
-| **数据导入导出** | 本地文件操作 |
-| **数据可视化** | 图表、报表展示 |
-
-### 📦 项目结构
-
-```
-client/
-├── src/
-│   ├── main/            # 主进程 (Electron)
-│   ├── renderer/        # 渲染进程 (UI)
-│   ├── components/
-│   ├── pages/
-│   └── api/
-├── public/
-├── package.json
-└── electron.config.js
-```
-
-### 🚀 启动方式
-
-```bash
-# 安装依赖
-cd client/
-npm install
-
-# 开发模式
-npm run dev
-
-# 打包为应用
-npm run build
-
-# 分发
-npm run dist
-```
-
-### 📊 应用信息
-- **平台**: Windows, macOS, Linux
-- **架构**: 64-bit
-- **最小化**: ~100-200MB
-
-### ✅ 状态
-- ⏳ **未启动**: 需要配置和测试
-
----
-
-## 4️⃣ CLIENT-SYSTEM - 新版本客户端
-
-### 📍 位置
-```
-/client-system/
-```
-
-### 📋 说明
-- **目的**: 可能是客户端的新实现或重构
-- **架构**: 与 /client/ 类似，但可能有改进
-- **目标**: 提供更好的用户体验或性能
-
-### 🚀 启动方式
-
-```bash
-cd client-system/
-npm install
-npm run dev
-```
-
-### ✅ 状态
-- ⏳ **未启动**: 需要配置和测试
-
----
-
-## 5️⃣ SHARED - 共享资源
+## 3️⃣ SHARED - 共享资源
 
 ### 📍 位置
 ```
@@ -282,7 +189,7 @@ shared/
 
 ---
 
-## 6️⃣ DEPLOY-TOOLS - 部署工具
+## 4️⃣ DEPLOY-TOOLS - 部署工具
 
 ### 📍 位置
 ```
@@ -323,7 +230,7 @@ docker run -d -p 3007:3007 stock-backend
 
 ---
 
-## 7️⃣ NGINX - Nginx 配置
+## 5️⃣ NGINX - Nginx 配置
 
 ### 📍 位置
 ```
@@ -367,7 +274,7 @@ nginx -c /nginx/nginx.conf
 
 ---
 
-## 8️⃣ SCRIPTS - 自动化脚本
+## 6️⃣ SCRIPTS - 自动化脚本
 
 ### 📍 位置
 ```
@@ -403,7 +310,7 @@ nginx -c /nginx/nginx.conf
 
 ---
 
-## 9️⃣ DATABASE - 数据库配置
+## 7️⃣ DATABASE - 数据库配置
 
 ### 📍 位置
 ```
@@ -434,41 +341,39 @@ database/
 ## 🌐 系统架构图
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                        User Clients                             │
-├──────────────────┬──────────────────────┬──────────────────────┤
-│                  │                      │                      │
-│   Frontend       │     Client           │    Client-System     │
-│   (Web Browser)  │  (Desktop App)       │    (New Client)      │
-│   Vue.js         │  Electron            │    React/Vue         │
-│   Port: 8005     │  Port: 3000-3001     │    Port: TBD         │
-└────────┬─────────┴──────────┬───────────┴─────────┬────────────┘
-         │                    │                     │
-         │ HTTP/HTTPS         │ HTTP/HTTPS          │
-         │                    │                     │
-         └────────────┬───────┴──────────┬──────────┘
-                      │                  │
-         ┌────────────▼──────────────────▼──────────┐
-         │                                          │
-         │        NGINX (Reverse Proxy)            │
-         │        Port: 80, 443                    │
-         │                                          │
-         └───────────────────┬──────────────────────┘
-                             │
-                    ┌────────▼─────────┐
-                    │                  │
-         ┌──────────▼────────┐   ┌────▼───────────┐
-         │                   │   │                │
-         │  BACKEND API      │   │  Static Files  │
-         │  FastAPI          │   │  (CDN/Nginx)   │
-         │  Port: 3007       │   │                │
-         │                   │   └────────────────┘
-         └────────┬──────────┘
+┌──────────────────────────────────────┐
+│         User Client                  │
+├──────────────────────────────────────┤
+│                                      │
+│   Frontend (Web Browser)             │
+│   Vue.js 3 + Vite                    │
+│   Port: 8005                         │
+│                                      │
+└────────────────┬─────────────────────┘
+                 │
+                 │ HTTP/HTTPS
+                 │
+         ┌───────▼──────────┐
+         │                  │
+         │  NGINX Reverse   │
+         │  Proxy           │
+         │  Port: 80, 443   │
+         │                  │
+         └────────┬─────────┘
+                  │
+                  │
+       ┌──────────▼───────────┐
+       │                      │
+       │  BACKEND API         │
+       │  FastAPI            │
+       │  Port: 3007         │
+       │                      │
+       └──────────┬───────────┘
                   │
          ┌────────▼──────────┐
          │                   │
          │   MySQL Database  │
-         │   (Tencent Cloud) │
+         │  (Tencent Cloud)  │
          │                   │
          │   Host: bj-cdb... │
          │   Port: 27126     │
@@ -513,11 +418,7 @@ uvicorn app.main:app --port 3007 --reload
 cd frontend/
 npm run dev
 
-# 3️⃣ 启动客户端（新终端）
-cd client/
-npm run dev
-
-# 4️⃣ 启动 Nginx 代理（新终端）
+# 3️⃣ 启动 Nginx 代理（新终端，可选）
 docker run -d -p 80:80 nginx
 ```
 
