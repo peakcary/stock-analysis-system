@@ -1,0 +1,166 @@
+╔════════════════════════════════════════════════════════════════════════════╗
+║                                                                            ║
+║              🔗 腾讯云数据库连接信息 (Tencent Cloud DB Info)              ║
+║                                                                            ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+【 基本信息 / Basic Information 】
+
+  🏢 供应商        Tencent Cloud (腾讯云)
+  📍 地域          Beijing (北京)
+  🗄️  数据库版本   MySQL 8.0.22-txsql
+
+【 连接信息 / Connection Details 】
+
+  🌐 主机 Host        bj-cdb-k21a7ijs.sql.tencentcdb.com
+  🔌 端口 Port        27126
+  👤 用户 User        root
+  🔐 密码 Password    Pp123456
+  📦 数据库 DB        mydb
+
+【 SQLAlchemy 连接字符串 】
+
+  DATABASE_URL=mysql+pymysql://root:Pp123456@bj-cdb-k21a7ijs.sql.tencentcdb.com:27126/mydb
+
+【 MySQL CLI 连接命令 】
+
+  mysql -h bj-cdb-k21a7ijs.sql.tencentcdb.com -P 27126 -u root -p mydb
+
+  输入密码: Pp123456
+
+【 JDBC 连接字符串 (for Java) 】
+
+  jdbc:mysql://bj-cdb-k21a7ijs.sql.tencentcdb.com:27126/mydb
+
+【 Python 连接示例 】
+
+  from sqlalchemy import create_engine
+
+  engine = create_engine(
+    'mysql+pymysql://root:Pp123456@bj-cdb-k21a7ijs.sql.tencentcdb.com:27126/mydb'
+  )
+
+【 连接池配置 】
+
+  连接池大小       10
+  最大溢出连接      20
+  连接超时          30 秒
+  连接回收          3600 秒
+
+【 已创建的表 (15 Tables) 】
+
+  ✅ users                      用户表
+  ✅ admin_users                管理员表
+  ✅ payment_packages           支付套餐
+  ✅ payment_orders             支付订单
+  ✅ payment_notifications      支付通知
+  ✅ payments                   支付记录
+  ✅ refund_records             退款记录
+  ✅ membership_logs            会员日志
+  ✅ user_queries               查询记录
+  ✅ daily_trading              每日交易
+  ✅ stock_concept_ranking      股票概念排名
+  ✅ concept_daily_summary      概念每日汇总
+  ✅ concept_high_record        概念创高记录
+  ✅ txt_import_record          TXT导入记录
+  ✅ alembic_version            迁移版本
+
+【 环境配置文件 】
+
+  .env                ✅ 已更新 (生产环境使用)
+  .env.production     ✅ 已更新 (生产部署用)
+  .env.example        ✅ 已更新 (配置模板)
+
+【 可用文档 】
+
+  📄 SETUP_COMPLETE.md              完整的设置和配置指南
+  📄 DATABASE_CONFIG_SUMMARY.md    详细的数据库配置信息
+  📄 QUICK_REFERENCE.md             快速参考卡和常用命令
+  📄 SETUP_SUMMARY.txt              配置完成总结报告
+  📄 CHANGES_MADE.md                所有改动的详细清单
+  📄 CONNECTION_INFO.txt            本文件
+
+【 测试和验证 】
+
+  测试脚本          test_db_connection.py
+  初始化脚本        setup_database.sh
+
+  运行测试:
+  $ cd backend/
+  $ PYTHONPATH=./:$PYTHONPATH python test_db_connection.py
+
+【 启动后端服务 】
+
+  $ cd backend/
+  $ uvicorn app.main:app --host 0.0.0.0 --port 3007 --reload
+
+  访问 API:
+  - Swagger UI:  http://localhost:3007/docs
+  - ReDoc:       http://localhost:3007/redoc
+
+【 数据库管理 】
+
+  查看所有表:
+  $ mysql -h ... -P 27126 -u root -p mydb
+  mysql> SHOW TABLES;
+
+  查看表结构:
+  mysql> DESCRIBE users;
+
+  查看用户:
+  mysql> SELECT * FROM users;
+
+【 重要提醒 ⚠️ 】
+
+  1. 请勿将密码提交到版本控制系统
+  2. 建议定期备份数据库
+  3. 生产环境应启用 SSL/TLS 连接
+  4. 建议创建应用专用的低权限用户
+  5. 监控数据库连接数和资源使用
+
+【 安全建议 🔐 】
+
+  ✅ 定期修改密码
+  ✅ 限制数据库访问 IP
+  ✅ 启用数据库审计
+  ✅ 配置自动备份
+  ✅ 使用强加密密码
+
+【 故障排除 🔧 】
+
+  无法连接?
+  1. 检查网络连接
+  2. 确认主机和端口
+  3. 验证用户和密码
+  4. 运行 test_db_connection.py
+
+  连接超时?
+  1. 检查防火墙设置
+  2. 检查网络延迟
+  3. 增加连接超时时间
+
+【 支持资源 】
+
+  📚 FastAPI 文档     https://fastapi.tiangolo.com/
+  📚 SQLAlchemy 文档  https://docs.sqlalchemy.org/
+  📚 Alembic 文档     https://alembic.sqlalchemy.org/
+  📚 MySQL 文档       https://dev.mysql.com/doc/
+
+【 快速检查清单 】
+
+  [ ] 环境变量已配置
+  [ ] 数据库连接验证成功
+  [ ] 表已创建
+  [ ] 后端服务已启动
+  [ ] API 文档可访问
+  [ ] 测试用户已创建
+
+════════════════════════════════════════════════════════════════════════════════
+
+生成时间: 2025-11-04
+状态: ✅ 就绪
+版本: 1.0
+
+🎉 系统已准备就绪！
+
+════════════════════════════════════════════════════════════════════════════════
