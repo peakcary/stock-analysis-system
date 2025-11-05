@@ -109,7 +109,7 @@ const UniversalImportPage: React.FC = () => {
 
     setRecordsLoading(true);
     try {
-      const response = await adminApiClient.get(`/api/universal-import/${fileType}/records?limit=50`);
+      const response = await adminApiClient.get(`/universal-import/${fileType}/records?limit=50`);
       if (response.data.success) {
         setImportRecords(response.data.records);
       }
@@ -127,7 +127,7 @@ const UniversalImportPage: React.FC = () => {
 
     setStatisticsLoading(true);
     try {
-      const response = await adminApiClient.get(`/api/universal-import/${fileType}/statistics?days=30`);
+      const response = await adminApiClient.get(`/universal-import/${fileType}/statistics?days=30`);
       if (response.data.success) {
         setStatistics(prev => ({
           ...prev,
@@ -155,7 +155,7 @@ const UniversalImportPage: React.FC = () => {
   // 文件上传配置
   const uploadProps: UploadProps = {
     name: 'file',
-    action: `/api/universal-import/import`,
+    action: `/universal-import/import`,
     data: {
       file_type: selectedFileType,
       trading_date: selectedDate.format('YYYY-MM-DD'),

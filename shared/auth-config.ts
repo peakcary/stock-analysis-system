@@ -44,17 +44,17 @@ export const getApiBaseUrl = (): string => {
 
     // 开发环境检测 - 直接指向backend服务
     if (hostname === 'localhost' || hostname === '127.0.0.1') {
-      return `http://${hostname}:3007`;
+      return `http://${hostname}:3007/api/v1`;
     }
 
-    // 生产环境 - 使用当前域名作为基础URL（API调用会通过Nginx反向代理）
-    // 注意：前端代码使用绝对路径如 /api/v1/... 会直接通过Nginx转发到后端
-    return window.location.origin;
+    // 生产环境 - 使用相对路径 /api/v1，Nginx会代理到Backend
+    // Nginx 配置: location /api/v1 { proxy_pass http://backend; }
+    return '/api/v1';
   } else {
     // Node.js 环境
     return process.env.REACT_APP_API_URL ||
            process.env.VITE_API_URL ||
-           '';
+           '/api/v1';
   }
 };
 
@@ -62,10 +62,10 @@ export const getApiBaseUrl = (): string => {
 export const USER_AUTH_CONFIG: AuthConfig = {
   apiBaseUrl: getApiBaseUrl(),
   endpoints: {
-    login: '/api/auth/login',
-    register: '/api/auth/register',
-    logout: '/api/auth/logout',
-    me: '/api/auth/me'
+    login: '/auth/login',
+    register: '/auth/register',
+    logout: '/auth/logout',
+    me: '/auth/me'
   },
   storage: {
     tokenKey: 'app_token',
@@ -81,10 +81,10 @@ export const USER_AUTH_CONFIG: AuthConfig = {
 export const ADMIN_AUTH_CONFIG: AuthConfig = {
   apiBaseUrl: getApiBaseUrl(),
   endpoints: {
-    login: '/api/admin/auth/login',
-    logout: '/api/admin/auth/logout',
-    refresh: '/api/admin/auth/refresh',
-    me: '/api/admin/auth/me'
+    login: '/admin/auth/login',
+    logout: '/admin/auth/logout',
+    refresh: '/admin/auth/refresh',
+    me: '/admin/auth/me'
   },
   storage: {
     tokenKey: 'admin_token',

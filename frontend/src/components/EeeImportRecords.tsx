@@ -60,7 +60,7 @@ const EeeImportRecords: React.FC<EeeImportRecordsProps> = ({ refreshTrigger }) =
     try {
       const limit = pageSize;
       const offset = (page - 1) * pageSize;
-      const url = new URL(`/api/universal-import/eee/records`, window.location.origin);
+      const url = new URL(`/universal-import/eee/records`, window.location.origin);
       url.searchParams.set('limit', String(limit));
       url.searchParams.set('offset', String(offset));
       if (tradingDate) url.searchParams.set('trading_date', tradingDate);
@@ -108,7 +108,7 @@ const EeeImportRecords: React.FC<EeeImportRecordsProps> = ({ refreshTrigger }) =
     const hideLoading = message.loading(`正在重新计算 ${tradingDate} 的EEE数据，请耐心等待...`, 0);
     
     try {
-      const response = await adminApiClient.post(`/api/universal-import/eee/recalculate?trading_date=${tradingDate}`, {}, {
+      const response = await adminApiClient.post(`/universal-import/eee/recalculate?trading_date=${tradingDate}`, {}, {
         timeout: 180000
       });
       

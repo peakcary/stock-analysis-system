@@ -55,7 +55,7 @@ const StockListPage: React.FC = () => {
     setLoading(true);
     try {
       const response = await adminApiClient.get(
-        `/api/stock-analysis/stocks/daily-summary?trading_date=${tradingDate}&size=10000`
+        `/stock-analysis/stocks/daily-summary?trading_date=${tradingDate}&size=10000`
       );
       
       if (response.data?.summaries) {
@@ -94,7 +94,7 @@ const StockListPage: React.FC = () => {
     setConceptLoading(true);
     try {
       const response = await adminApiClient.get(
-        `/api/stock-analysis/stock/${encodeURIComponent(stockCode)}/concepts?trading_date=${tradingDate}`
+        `/stock-analysis/stock/${encodeURIComponent(stockCode)}/concepts?trading_date=${tradingDate}`
       );
       
       if (response.data?.concepts) {

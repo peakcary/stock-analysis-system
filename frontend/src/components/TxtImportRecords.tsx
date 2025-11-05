@@ -68,7 +68,7 @@ const TxtImportRecords: React.FC<TxtImportRecordsProps> = ({ refreshTrigger }) =
         params.append('trading_date', tradingDate);
       }
       
-      const response = await adminApiClient.get(`/api/txt-import/records?${params}`);
+      const response = await adminApiClient.get(`/txt-import/records?${params}`);
       
       if (response.data?.records) {
         setRecords(response.data.records);
@@ -92,7 +92,7 @@ const TxtImportRecords: React.FC<TxtImportRecordsProps> = ({ refreshTrigger }) =
   // 获取可用日期列表
   const fetchAvailableDates = async () => {
     try {
-      const response = await adminApiClient.get('/api/txt-import/dates');
+      const response = await adminApiClient.get('/txt-import/dates');
       if (response.data?.dates) {
         setAvailableDates(response.data.dates);
       }
@@ -109,7 +109,7 @@ const TxtImportRecords: React.FC<TxtImportRecordsProps> = ({ refreshTrigger }) =
     const hideLoading = message.loading(`正在重新计算 ${tradingDate} 的数据，请耐心等待...`, 0);
     
     try {
-      const response = await adminApiClient.post(`/api/txt-import/recalculate?trading_date=${tradingDate}`, {}, {
+      const response = await adminApiClient.post(`/txt-import/recalculate?trading_date=${tradingDate}`, {}, {
         timeout: 180000 // 3分钟超时，专门为重新计算设置
       });
       

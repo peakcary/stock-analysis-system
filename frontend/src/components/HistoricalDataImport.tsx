@@ -299,7 +299,7 @@ const HistoricalDataImport: React.FC = () => {
 
   // 开始进度监控
   const startProgressMonitoring = (taskId: string, progressUrl?: string) => {
-    const url = progressUrl ? `${progressUrl}${taskId}` : `/api/historical-txt-import/progress/${taskId}`;
+    const url = progressUrl ? `${progressUrl}${taskId}` : `/historical-txt-import/progress/${taskId}`;
 
     progressInterval.current = setInterval(async () => {
       try {

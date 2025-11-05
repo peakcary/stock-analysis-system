@@ -55,7 +55,7 @@ const StockSearchPage: React.FC = () => {
 
     setLoading(true);
     try {
-      const response = await clientApiClient.get(`/api/stocks/${searchValue.trim().toUpperCase()}`);
+      const response = await clientApiClient.get(`/stocks/${searchValue.trim().toUpperCase()}`);
 
       if (response.data) {
         setStockDetail(response.data);
@@ -86,7 +86,7 @@ const StockSearchPage: React.FC = () => {
     setLoadingConcepts(prev => new Set(prev).add(conceptName));
 
     try {
-      const response = await clientApiClient.get(`/api/concepts/${encodeURIComponent(conceptName)}/stocks`);
+      const response = await clientApiClient.get(`/concepts/${encodeURIComponent(conceptName)}/stocks`);
 
       if (response.data) {
         setConceptStocksMap(prev => new Map(prev).set(conceptName, response.data));
