@@ -2,37 +2,37 @@
 
 ## Summary of Changes
 
-The API path duplication issue has been fixed in commit `ce39e399`.
+The API path duplication issue has been fixed in commit `66153fd2`.
 
 **Issue**: API calls were being duplicated, resulting in paths like `/api/v1/api/v1/stocks/count`
 
 **Root Cause**:
 - Frontend axios client had baseURL set to root origin
-- All API calls were using absolute paths like `/api/v1/stocks/count`
-- Nginx location `/api` proxies directly to backend without stripping `/api/v1` prefix
-- This resulted in duplication
+- API calls lacked the `/api` prefix needed for Nginx routing
+- Without `/api` prefix, Nginx `location /api` couldn't capture the requests
+- Requests were falling through to default SPA routing instead of API routing
 
 **Solution**:
-- Changed `getApiBaseUrl()` in `shared/auth-config.ts` to return root origin URL
-- Removed `/api/v1` prefix from all API calls - now they are relative paths like `/stocks/count`
-- Updated authentication endpoint paths to not include `/api/v1` prefix (e.g., `/admin/auth/login`)
-- Nginx routes `/api` requests to backend with proper path handling
+- Changed `getApiBaseUrl()` in `shared/auth-config.ts` to return root origin URL (not `/api/v1`)
+- Added `/api` prefix to ALL API calls: `/stocks` → `/api/stocks`, `/admin/auth/login` → `/api/admin/auth/login`
+- Updated authentication endpoint paths with `/api` prefix
+- Now Nginx `location /api` properly captures and routes all API requests to backend
 
 ## Files Modified
 
 1. **shared/auth-config.ts**
    - Line 51: Changed from `${window.location.origin}/api/v1` to `window.location.origin`
-   - Lines 65-68: Updated USER_AUTH_CONFIG endpoints to remove `/api/v1` prefix
-   - Lines 84-87: Updated ADMIN_AUTH_CONFIG endpoints to remove `/api/v1` prefix
+   - Lines 65-68: Updated USER_AUTH_CONFIG endpoints with `/api` prefix
+   - Lines 84-87: Updated ADMIN_AUTH_CONFIG endpoints with `/api` prefix
 
 2. **frontend/src/App.tsx and all components**
-   - Removed `/api/v1/` prefix from all API calls
-   - Examples: `/api/v1/stocks` → `/stocks`, `/api/v1/admin/auth/login` → `/admin/auth/login`
+   - Added `/api` prefix to all API calls
+   - Examples: `/stocks` → `/api/stocks`, `/admin/auth/login` → `/api/admin/auth/login`
    - 30+ API calls updated in App.tsx and 13 component files
 
 ## Deployment Steps
 
-The code has been committed and pushed to GitHub (commit `ce39e399`). Now you need to deploy to the server.
+The code has been committed and pushed to GitHub (commit `66153fd2`). Now you need to deploy to the server.
 
 ### Option 1: Via Server Git Pull (Recommended)
 
@@ -189,7 +189,25 @@ Actually, the real flow with correct Nginx config:
 6. Backend receives /stocks, matches /api/v1/stocks prefix route
 ```
 
-**The fix ensures**: Frontend calls `/api/stocks` → Nginx `/api` location captures and strips prefix → Backend `/api/v1` router handles `/stocks`
+**The fix ensures**:
+```
+Frontend: GET /api/stocks (axios baseURL = origin)
+    ↓
+Browser: https://qwquant.com/api/stocks
+    ↓
+Nginx location /api { proxy_pass http://backend; }
+    ↓ (strips /api prefix via proxy_pass without proxy URL path)
+Backend: GET /stocks
+    ↓
+FastAPI: app.include_router(api_router, prefix="/api/v1")
+    ↓ (adds /api/v1 prefix internally)
+Route matches: /api/v1/stocks
+```
+
+No duplication because:
+- Nginx strips `/api` when proxying to backend
+- Backend adds `/api/v1` as internal routing prefix
+- Final route is clean: `/api/v1/stocks`
 
 ## Rollback
 
