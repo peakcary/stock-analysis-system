@@ -27,7 +27,7 @@ export const MembershipPage: React.FC<MembershipPageProps> = ({ user, onUpgrade 
   // 客户端不需要支付统计数据，注释掉
   // const fetchUserStats = async () => {
   //   try {
-  //     const response = await axios.get('/api/v1/payment/stats');
+  //     const response = await axios.get('/payment/stats');
   //     setUserStats(response.data);
   //   } catch (error) {
   //     console.error('获取用户统计失败:', error);

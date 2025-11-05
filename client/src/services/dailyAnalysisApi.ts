@@ -60,7 +60,7 @@ export interface ConceptDetail {
 
 // API服务类
 export class DailyAnalysisApi {
-  private static baseUrl = '/api/v1/daily-analysis';
+  private static baseUrl = '/daily-analysis';
 
   /**
    * 生成每日分析报告
