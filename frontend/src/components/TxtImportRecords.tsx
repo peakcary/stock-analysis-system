@@ -92,7 +92,7 @@ const TxtImportRecords: React.FC<TxtImportRecordsProps> = ({ refreshTrigger }) =
   // 获取可用日期列表
   const fetchAvailableDates = async () => {
     try {
-      const response = await adminApiClient.get('/txt-import/dates');
+      const response = await adminApiClient.get('/api/txt-import/dates');
       if (response.data?.dates) {
         setAvailableDates(response.data.dates);
       }

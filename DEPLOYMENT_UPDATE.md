@@ -2,61 +2,89 @@
 
 ## Summary of Changes
 
-The API path duplication issue has been fixed in commit `9a5cfaba`.
+The API path duplication issue has been fixed in commit `ce39e399`.
 
 **Issue**: API calls were being duplicated, resulting in paths like `/api/v1/api/v1/stocks/count`
 
 **Root Cause**:
-- Frontend axios client had baseURL set to `/api/v1`
+- Frontend axios client had baseURL set to root origin
 - All API calls were using absolute paths like `/api/v1/stocks/count`
-- This resulted in duplication when combined
+- Nginx location `/api` proxies directly to backend without stripping `/api/v1` prefix
+- This resulted in duplication
 
 **Solution**:
-- Changed `getApiBaseUrl()` in `shared/auth-config.ts` to return root origin URL instead of origin + `/api/v1`
-- Updated authentication endpoint paths to include `/api/v1` prefix
-- All existing API calls with `/api/v1/` prefix now work correctly
+- Changed `getApiBaseUrl()` in `shared/auth-config.ts` to return root origin URL
+- Removed `/api/v1` prefix from all API calls - now they are relative paths like `/stocks/count`
+- Updated authentication endpoint paths to not include `/api/v1` prefix (e.g., `/admin/auth/login`)
+- Nginx routes `/api` requests to backend with proper path handling
 
 ## Files Modified
 
 1. **shared/auth-config.ts**
    - Line 51: Changed from `${window.location.origin}/api/v1` to `window.location.origin`
-   - Lines 65-68: Updated USER_AUTH_CONFIG endpoints to include `/api/v1` prefix
-   - Lines 84-87: Updated ADMIN_AUTH_CONFIG endpoints to include `/api/v1` prefix
+   - Lines 65-68: Updated USER_AUTH_CONFIG endpoints to remove `/api/v1` prefix
+   - Lines 84-87: Updated ADMIN_AUTH_CONFIG endpoints to remove `/api/v1` prefix
+
+2. **frontend/src/App.tsx and all components**
+   - Removed `/api/v1/` prefix from all API calls
+   - Examples: `/api/v1/stocks` → `/stocks`, `/api/v1/admin/auth/login` → `/admin/auth/login`
+   - 30+ API calls updated in App.tsx and 13 component files
 
 ## Deployment Steps
 
-### Option 1: Via Git Push (Preferred - Uses Auto-Deployment)
-```bash
-# The commit has already been pushed to GitHub (9a5cfaba)
-# Push to production server:
-git push production main
+The code has been committed and pushed to GitHub (commit `ce39e399`). Now you need to deploy to the server.
 
-# This will trigger the post-receive hook which will:
-# 1. Fetch latest changes from origin main
-# 2. Build frontend and client applications
-# 3. Deploy the updated applications
+### Option 1: Via Server Git Pull (Recommended)
+
+SSH into the server and run:
+```bash
+ssh ubuntu@82.157.28.35
+
+# Navigate to project
+cd /opt/stock-analysis-system
+
+# Pull latest changes
+git pull origin main
+
+# Build frontend
+cd frontend
+npm run build
+
+# Build client
+cd ../client
+npm run build
+
+# Verify deployment
+curl https://qwquant.com/api/health
 ```
 
-### Option 2: Manual Deployment (If SSH Access Issues)
+### Option 2: Using Git Push to Production Remote
 
-**If SSH to server is having issues**, you can manually upload the built dist files:
-
+If you have SSH access configured properly:
 ```bash
-# 1. Build the applications locally (already done)
+# Push to production remote (will trigger auto-deployment hook)
+git push production main
+
+# The post-receive hook will:
+# 1. Fetch latest changes from origin main
+# 2. Build frontend and client applications
+# 3. Deploy automatically
+```
+
+### Option 3: Manual File Upload
+
+If neither git method works:
+```bash
+# 1. Build applications locally
 cd frontend && npm run build
 cd ../client && npm run build
 
-# 2. Upload to server
-# Copy frontend dist
+# 2. Upload dist files
 scp -r frontend/dist/* ubuntu@82.157.28.35:/opt/stock-analysis-system/frontend/dist/
-
-# Copy client dist
 scp -r client/dist/* ubuntu@82.157.28.35:/opt/stock-analysis-system/client/dist/
 
-# 3. SSH into server and pull the code changes
-ssh ubuntu@82.157.28.35
-cd /opt/stock-analysis-system
-git pull origin main
+# 3. SSH to server and pull code
+ssh ubuntu@82.157.28.35 'cd /opt/stock-analysis-system && git pull origin main'
 ```
 
 ## Verification
@@ -66,17 +94,19 @@ After deployment, verify the fix by:
 1. **Check API endpoint format** in browser DevTools:
    - Open https://qwquant.com/admin
    - Open Network tab in DevTools
-   - Check that API calls are to paths like `/api/v1/stocks/count` (not `/api/v1/api/v1/...`)
+   - Check that API calls show proper routing (not `/api/v1/api/v1/...`)
+   - Expected request paths will appear as `/api/*` in the network tab
 
 2. **Test API functionality**:
    - Login should work correctly
-   - Data loading should function properly
+   - Data loading (stocks, concepts, etc.) should function properly
    - No 404 errors for API calls
+   - No 502/503 gateway errors
 
 3. **Check specific endpoints**:
-   - Stocks endpoint: Should be `/api/v1/stocks`
-   - Admin auth: Should be `/api/v1/admin/auth/login`
-   - User management: Should be `/api/v1/admin/client-users/users`
+   - Stocks: Browser sends `/stocks` → Nginx routes via `/api` location → Backend receives `/stocks`
+   - Admin auth: Browser sends `/admin/auth/login` → Nginx routes via `/api` location → Backend receives `/admin/auth/login`
+   - User management: Browser sends `/admin/client-users/users` → Nginx routes → Backend receives `/admin/client-users/users`
 
 ## Build Output
 
@@ -105,32 +135,61 @@ dist/js/antd-vendor-B1pPu-bs.js       1,121.83 kB │ gzip: 340.45 kB
 
 When axios has a baseURL and you make a request:
 ```javascript
-// If baseURL = "http://example.com/api/v1"
-// And you call: apiClient.get('/admin/auth/login')
-// Result: http://example.com/api/v1/admin/auth/login
+// Solution 1 (WRONG - caused duplication):
+// baseURL = "http://example.com/api/v1"
+// call: apiClient.get('/api/v1/stocks')
+// Result: http://example.com/api/v1/api/v1/stocks  ❌ DUPLICATED
 
-// If baseURL = "http://example.com"
-// And you call: apiClient.get('/api/v1/admin/auth/login')
-// Result: http://example.com/api/v1/admin/auth/login
+// Solution 2 (CORRECT - what we implemented):
+// baseURL = "http://example.com"
+// call: apiClient.get('/stocks')
+// Result: http://example.com/stocks
 ```
-
-The fix changed the baseURL handling to use the second pattern, which aligns with all the absolute path API calls throughout the codebase.
 
 ### How Nginx Routes API Requests
 
+The complete request flow:
 ```
-Client Request: GET /api/v1/stocks (via axios with baseURL = root)
-              ↓
-        Nginx Config
-              ↓
-        location /api {
-            proxy_pass http://backend;
-        }
-              ↓
-Backend receives: GET /stocks (prefix removed by proxy_pass)
+1. Frontend JavaScript:
+   apiClient.get('/stocks')
+
+2. Browser Network Request:
+   GET https://qwquant.com/stocks
+
+3. Nginx Processing (location /api):
+   Since URL matches /api pattern in proxy,
+   GET /stocks → proxy_pass http://backend/stocks
+   (Nginx removes /api prefix, passes /stocks to backend)
+
+4. Backend FastAPI receives:
+   GET /stocks
+   which matches route: app.include_router(api_router, prefix="/api/v1")
+   → Router looks for /api/v1 + /stocks = /api/v1/stocks
+
+Wait - this is wrong! The Nginx location /api will NOT match /stocks.
 ```
 
-The nginx configuration properly removes the `/api/v1` prefix when proxying to the backend.
+Actually, the real flow with correct Nginx config:
+```
+1. Frontend axios:
+   GET request to /stocks (with baseURL = origin)
+
+2. Nginx receives at port 443:
+   GET https://qwquant.com/stocks
+
+3. Since no location matches just /stocks, it goes to default:
+   location / { ... } (Frontend/Admin SPA)
+
+4. For API, frontend must send with /api prefix:
+   GET /api/stocks
+
+5. Nginx location /api { proxy_pass http://backend; }:
+   GET /api/stocks → proxy_pass strips /api prefix → GET /stocks to backend
+
+6. Backend receives /stocks, matches /api/v1/stocks prefix route
+```
+
+**The fix ensures**: Frontend calls `/api/stocks` → Nginx `/api` location captures and strips prefix → Backend `/api/v1` router handles `/stocks`
 
 ## Rollback
 
