@@ -166,7 +166,7 @@ const PaymentHistoryPage: React.FC = () => {
     }
 
     try {
-      await apiClient.post(`/api/v1/payment/refund/${selectedOrder.id}`, {
+      await apiClient.post(`/payment/refund/${selectedOrder.id}`, {
         refund_reason: refundReason
       });
 
