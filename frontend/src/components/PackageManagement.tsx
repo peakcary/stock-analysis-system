@@ -126,7 +126,7 @@ const PackageManagement: React.FC = () => {
     if (!editingPackage) return;
     
     try {
-      await adminApiClient.put(`/api/v1/admin/packages/${editingPackage.id}`, values);
+      await adminApiClient.put(`/api/admin/packages/${editingPackage.id}`, values);
       message.success('套餐更新成功');
       setShowEditModalVisible(false);
       setEditingPackage(null);
@@ -142,7 +142,7 @@ const PackageManagement: React.FC = () => {
   // 切换套餐状态
   const handleToggleStatus = async (packageId: number) => {
     try {
-      const response = await adminApiClient.post(`/api/v1/admin/packages/${packageId}/toggle-status`, {});
+      const response = await adminApiClient.post(`/api/admin/packages/${packageId}/toggle-status`, {});
       message.success(response.data.message);
       fetchPackages();
       fetchStats();
@@ -155,7 +155,7 @@ const PackageManagement: React.FC = () => {
   // 删除套餐
   const handleDelete = async (packageId: number) => {
     try {
-      const response = await adminApiClient.delete(`/api/v1/admin/packages/${packageId}`);
+      const response = await adminApiClient.delete(`/api/admin/packages/${packageId}`);
       message.success(response.data.message);
       fetchPackages();
       fetchStats();

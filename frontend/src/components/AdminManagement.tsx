@@ -111,7 +111,7 @@ const AdminManagement: React.FC = () => {
     try {
       if (editingAdmin) {
         // 更新管理员
-        await adminApiClient.put(`/api/v1/admin/admins/${editingAdmin.id}`, values);
+        await adminApiClient.put(`/api/admin/admins/${editingAdmin.id}`, values);
         message.success('管理员更新成功');
       } else {
         // 创建管理员
@@ -131,7 +131,7 @@ const AdminManagement: React.FC = () => {
   // 删除管理员
   const handleDeleteAdmin = async (adminId: number) => {
     try {
-      await adminApiClient.delete(`/api/v1/admin/admins/${adminId}`);
+      await adminApiClient.delete(`/api/admin/admins/${adminId}`);
       message.success('管理员删除成功');
       fetchAdmins();
     } catch (error) {
@@ -144,7 +144,7 @@ const AdminManagement: React.FC = () => {
   const handleResetPassword = async (adminId: number) => {
     const newPassword = 'admin123';
     try {
-      await adminApiClient.post(`/api/v1/admin/admins/${adminId}/reset-password?new_password=${newPassword}`, {});
+      await adminApiClient.post(`/api/admin/admins/${adminId}/reset-password?new_password=${newPassword}`, {});
       message.success(`密码重置成功，新密码: ${newPassword}`);
     } catch (error) {
       console.error('重置密码失败:', error);
@@ -155,7 +155,7 @@ const AdminManagement: React.FC = () => {
   // 切换管理员状态
   const handleToggleStatus = async (adminId: number) => {
     try {
-      await adminApiClient.post(`/api/v1/admin/admins/${adminId}/toggle-status`, {});
+      await adminApiClient.post(`/api/admin/admins/${adminId}/toggle-status`, {});
       message.success('管理员状态切换成功');
       fetchAdmins();
     } catch (error) {

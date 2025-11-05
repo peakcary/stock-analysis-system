@@ -73,7 +73,7 @@ const ClientPaymentPage: React.FC = () => {
     const checkStatus = async () => {
       try {
         const response = await apiClient.get(
-          `/api/v1/payment/orders/${paymentOrder.out_trade_no}/status`
+          `/api/payment/orders/${paymentOrder.out_trade_no}/status`
         );
         const status = response.data.status;
         setOrderStatus(status);
@@ -146,7 +146,7 @@ const ClientPaymentPage: React.FC = () => {
         try {
           setLoading(true);
           await apiClient.post(
-            `/api/v1/payment/mock/complete/${paymentOrder.out_trade_no}`
+            `/api/payment/mock/complete/${paymentOrder.out_trade_no}`
           );
           message.success('模拟支付成功');
           // Status check will automatically update via polling

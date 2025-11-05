@@ -164,7 +164,7 @@ const FileTypeManagement: React.FC = () => {
 
       if (editingType) {
         // 更新
-        await adminApiClient.put(`/api/v1/file-types/${editingType.file_type}`, payload);
+        await adminApiClient.put(`/api/file-types/${editingType.file_type}`, payload);
         message.success('文件类型更新成功');
       } else {
         // 新增
@@ -184,7 +184,7 @@ const FileTypeManagement: React.FC = () => {
   // 删除文件类型
   const deleteFileType = async (fileType: string) => {
     try {
-      await adminApiClient.delete(`/api/v1/file-types/${fileType}`);
+      await adminApiClient.delete(`/api/file-types/${fileType}`);
       message.success('文件类型删除成功');
       fetchFileTypes();
       fetchSystemSummary();
@@ -197,7 +197,7 @@ const FileTypeManagement: React.FC = () => {
   // 切换启用状态
   const toggleEnabled = async (fileType: string, enabled: boolean) => {
     try {
-      await adminApiClient.patch(`/api/v1/file-types/${fileType}/toggle`, { enabled });
+      await adminApiClient.patch(`/api/file-types/${fileType}/toggle`, { enabled });
       message.success(`文件类型已${enabled ? '启用' : '禁用'}`);
       fetchFileTypes();
       fetchSystemSummary();
@@ -209,7 +209,7 @@ const FileTypeManagement: React.FC = () => {
   // 修复文件类型
   const repairFileType = async (fileType: string) => {
     try {
-      await adminApiClient.post(`/api/v1/file-types/${fileType}/repair`);
+      await adminApiClient.post(`/api/file-types/${fileType}/repair`);
       message.success('文件类型修复成功');
       fetchHealthStatuses();
     } catch (error: any) {

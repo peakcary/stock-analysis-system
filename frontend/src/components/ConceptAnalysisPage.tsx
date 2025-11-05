@@ -74,7 +74,7 @@ const ConceptAnalysisPage: React.FC = () => {
     setLoading(true);
     try {
       const response = await adminApiClient.get(
-        `/api/v1/stock-analysis/concepts/daily-summary?trading_date=${tradingDate}&sort_by=total_volume&sort_order=desc&size=1000`
+        `/api/stock-analysis/concepts/daily-summary?trading_date=${tradingDate}&sort_by=total_volume&sort_order=desc&size=1000`
       );
       
       if (response.data?.summaries) {
@@ -113,7 +113,7 @@ const ConceptAnalysisPage: React.FC = () => {
     try {
       // 使用较大的页面大小来获取所有数据，避免分页问题
       const response = await adminApiClient.get(
-        `/api/v1/stock-analysis/concepts/${encodeURIComponent(conceptName)}/rankings?trading_date=${tradingDate}&page=1&size=10000`
+        `/api/stock-analysis/concepts/${encodeURIComponent(conceptName)}/rankings?trading_date=${tradingDate}&page=1&size=10000`
       );
       
       if (response.data?.rankings) {

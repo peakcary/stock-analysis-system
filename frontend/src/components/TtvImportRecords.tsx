@@ -61,7 +61,7 @@ const TtvImportRecords: React.FC<TtvImportRecordsProps> = ({ refreshTrigger }) =
       // 通用导入记录接口，使用limit/offset，并支持trading_date筛选
       const limit = pageSize;
       const offset = (page - 1) * pageSize;
-      const url = new URL(`/api/v1/universal-import/ttv/records`, window.location.origin);
+      const url = new URL(`/api/universal-import/ttv/records`, window.location.origin);
       url.searchParams.set('limit', String(limit));
       url.searchParams.set('offset', String(offset));
       if (tradingDate) url.searchParams.set('trading_date', tradingDate);
@@ -109,7 +109,7 @@ const TtvImportRecords: React.FC<TtvImportRecordsProps> = ({ refreshTrigger }) =
     const hideLoading = message.loading(`正在重新计算 ${tradingDate} 的TTV数据，请耐心等待...`, 0);
     
     try {
-      const response = await adminApiClient.post(`/api/v1/universal-import/ttv/recalculate?trading_date=${tradingDate}`, {}, {
+      const response = await adminApiClient.post(`/api/universal-import/ttv/recalculate?trading_date=${tradingDate}`, {}, {
         timeout: 180000
       });
       

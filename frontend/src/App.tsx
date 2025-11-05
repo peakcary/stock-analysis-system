@@ -249,7 +249,7 @@ const AdminApp: React.FC = () => {
   // 获取单个股票的概念信息
   const getStockConcepts = async (stockCode: string) => {
     try {
-      const response = await adminApiClient.get(`/api/v1/stocks/${stockCode}`);
+      const response = await adminApiClient.get(`/api/stocks/${stockCode}`);
       // 后端返回的数据结构是 {stock: ..., concepts: [...]}
       const concepts = response.data?.concepts || [];
       return concepts;
@@ -292,7 +292,7 @@ const AdminApp: React.FC = () => {
     try {
       console.log('🚀 开始删除股票，ID:', deleteStockId);
       setDeleteLoading(true);
-      await adminApiClient.delete(`/api/v1/stocks/${deleteStockId}`);
+      await adminApiClient.delete(`/api/stocks/${deleteStockId}`);
       console.log('✅ 删除成功，ID:', deleteStockId);
       message.success('删除成功');
       // 刷新列表
@@ -421,7 +421,7 @@ const AdminApp: React.FC = () => {
 
     setLoading(true);
     try {
-      const response = await adminApiClient.get(`/api/v1/stocks`, {
+      const response = await adminApiClient.get(`/api/stocks`, {
         params: { search: searchText }
       });
       setStocks(response.data || []);
@@ -456,7 +456,7 @@ const AdminApp: React.FC = () => {
     try {
       const today = new Date().toISOString().split('T')[0];
       console.log('获取导入状态，日期:', today);
-      const response = await adminApiClient.get(`/api/v1/data/import-status/${today}`);
+      const response = await adminApiClient.get(`/api/data/import-status/${today}`);
       console.log('导入状态响应:', response.data);
       setTodayImportStatus(response.data);
       

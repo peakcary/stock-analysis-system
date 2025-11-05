@@ -77,7 +77,7 @@ const ConvertibleBondPage: React.FC = () => {
     setLoading(true);
     try {
       const token = localStorage.getItem('admin_token') || localStorage.getItem('token');
-      const response = await fetch(`/api/v1/stock-analysis/convertible-bonds/concepts?trading_date=${tradingDate}&limit=${limit}`, {
+      const response = await fetch(`/api/stock-analysis/convertible-bonds/concepts?trading_date=${tradingDate}&limit=${limit}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -136,7 +136,7 @@ const ConvertibleBondPage: React.FC = () => {
   const viewBondChart = async (bondCode: string, conceptName: string) => {
     try {
       const token = localStorage.getItem('admin_token') || localStorage.getItem('token');
-      const response = await fetch(`/api/v1/stock-analysis/stock/${bondCode}/chart-data?concept_name=${conceptName}&days=30`, {
+      const response = await fetch(`/api/stock-analysis/stock/${bondCode}/chart-data?concept_name=${conceptName}&days=30`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',

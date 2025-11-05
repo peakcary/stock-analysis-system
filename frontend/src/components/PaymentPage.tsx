@@ -113,7 +113,7 @@ const PaymentPage: React.FC = () => {
     const checkStatus = async () => {
       try {
         const response = await adminApiClient.get(
-          `/api/v1/payment/orders/${paymentOrder.out_trade_no}/status`
+          `/api/payment/orders/${paymentOrder.out_trade_no}/status`
         );
         setOrderStatus(response.data);
 
@@ -179,7 +179,7 @@ const PaymentPage: React.FC = () => {
       onOk: async () => {
         try {
           await adminApiClient.post(
-            `/api/v1/payment/orders/${paymentOrder.out_trade_no}/cancel`
+            `/api/payment/orders/${paymentOrder.out_trade_no}/cancel`
           );
           message.success('订单已取消');
           setPaymentOrder(null);
@@ -462,7 +462,7 @@ const PaymentPage: React.FC = () => {
               onClick={async () => {
                 try {
                   const response = await adminApiClient.get(
-                    `/api/v1/payment/orders/${paymentOrder.out_trade_no}/status`
+                    `/api/payment/orders/${paymentOrder.out_trade_no}/status`
                   );
                   setOrderStatus(response.data);
                   if (response.data.status === 'PAID' || response.data.status === 'SUCCESS') {
