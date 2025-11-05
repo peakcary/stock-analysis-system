@@ -7,6 +7,7 @@ from sqlalchemy.sql import func
 from passlib.context import CryptContext
 
 from app.models.admin_user import AdminUser
+from app.utils.password_validator import validate_password
 
 
 class AdminUserCRUD:
@@ -34,9 +35,14 @@ class AdminUserCRUD:
         """根据邮箱获取管理员"""
         return self.db.query(AdminUser).filter(AdminUser.email == email).first()
     
-    def create(self, username: str, email: str, password: str, 
+    def create(self, username: str, email: str, password: str,
                full_name: str = None, is_superuser: bool = False) -> AdminUser:
         """创建管理员用户"""
+        # 验证密码复杂度
+        is_valid, errors = validate_password(password)
+        if not is_valid:
+            raise ValueError(f"密码不符合复杂度要求: {'; '.join(errors)}")
+
         password_hash = self.get_password_hash(password)
         admin_user = AdminUser(
             username=username,
@@ -130,11 +136,16 @@ class AdminUserCRUD:
         # 检查用户名是否已存在
         if self.get_by_username(admin_create.username):
             raise ValueError(f"用户名 '{admin_create.username}' 已存在")
-        
+
         # 检查邮箱是否已存在
         if self.get_by_email(admin_create.email):
             raise ValueError(f"邮箱 '{admin_create.email}' 已存在")
-        
+
+        # 验证密码复杂度
+        is_valid, errors = validate_password(admin_create.password)
+        if not is_valid:
+            raise ValueError(f"密码不符合复杂度要求: {'; '.join(errors)}")
+
         # 创建新管理员
         password_hash = self.get_password_hash(admin_create.password)
         admin_user = AdminUser(
@@ -145,7 +156,7 @@ class AdminUserCRUD:
             is_active=admin_create.is_active,
             is_superuser=False  # 默认不是超级管理员
         )
-        
+
         self.db.add(admin_user)
         self.db.commit()
         self.db.refresh(admin_user)
@@ -172,6 +183,10 @@ class AdminUserCRUD:
             admin_user.is_active = admin_update.is_active
         
         if admin_update.password is not None:
+            # 验证新密码复杂度
+            is_valid, errors = validate_password(admin_update.password)
+            if not is_valid:
+                raise ValueError(f"密码不符合复杂度要求: {'; '.join(errors)}")
             admin_user.password_hash = self.get_password_hash(admin_update.password)
         
         # 暂时跳过role更新，因为数据库字段被注释了

@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Card, Row, Col, Statistic, Select, DatePicker, Space, Typography, 
+import {
+  Card, Row, Col, Statistic, Select, DatePicker, Space, Typography,
   Badge, Tooltip, Button, Drawer, Table, Tag, Segmented, Empty,
   Input, Tabs, Progress, Alert, Spin, List, Avatar, message
 } from 'antd';
-import { 
+import {
   ArrowUpOutlined, ArrowDownOutlined, FireOutlined,
   SearchOutlined, BulbOutlined, DollarOutlined, BarChartOutlined,
   LineChartOutlined, PieChartOutlined, FundOutlined, StockOutlined,
@@ -19,6 +19,8 @@ import { ConceptAnalysisApi, ChartDataApi, conceptAnalysisUtils } from '../servi
 import StockAnalysisPage from '../components/StockAnalysisPage';
 import InnovationAnalysisPage from '../components/InnovationAnalysisPage';
 import ConvertibleBondPage from '../components/ConvertibleBondPage';
+import StockSearchPage from '../components/StockSearchPage';
+import './AnalysisPage.css';
 
 const { Title, Text, Paragraph } = Typography;
 const { RangePicker } = DatePicker;
@@ -68,12 +70,13 @@ export interface ConvertibleBondData {
 }
 
 export const AnalysisPage: React.FC<AnalysisPageProps> = ({ user }) => {
-  const [selectedView, setSelectedView] = useState<'overview' | 'stock-analysis' | 'innovation' | 'convertible-bond'>('overview');
+  const [selectedView, setSelectedView] = useState<'overview' | 'stock-analysis' | 'innovation' | 'convertible-bond' | 'stock-search'>('overview');
   const [detailVisible, setDetailVisible] = useState(false);
   const [selectedStock, setSelectedStock] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [searchText, setSearchText] = useState('');
-  const [selectedDate, setSelectedDate] = useState<string>(dayjs().format('YYYY-MM-DD'));
+  // 使用 2024 年的日期作为默认值，因为数据库中主要是 2024 年的数据
+  const [selectedDate, setSelectedDate] = useState<string>('2024-09-02');
   
   // 概念分析数据状态
   const [innovationConcepts, setInnovationConcepts] = useState<InnovationConceptData[]>([]);
@@ -493,7 +496,7 @@ export const AnalysisPage: React.FC<AnalysisPageProps> = ({ user }) => {
   );
 
   return (
-    <div style={{ 
+    <div className="analysis-page-container" style={{
       minHeight: '100vh',
       background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
       padding: '20px'
@@ -563,7 +566,7 @@ export const AnalysisPage: React.FC<AnalysisPageProps> = ({ user }) => {
                   value: 'innovation',
                   disabled: !isMember
                 },
-                { 
+                {
                   label: (
                     <Tooltip title={!isMember ? "升级会员解锁" : "可转债分析"}>
                       <Space>
@@ -572,14 +575,25 @@ export const AnalysisPage: React.FC<AnalysisPageProps> = ({ user }) => {
                         {!isMember && <Badge dot />}
                       </Space>
                     </Tooltip>
-                  ), 
+                  ),
                   value: 'convertible-bond',
                   disabled: !isMember
+                },
+                {
+                  label: (
+                    <Tooltip title="个股查询">
+                      <Space>
+                        <SearchOutlined />
+                        <span>个股查询</span>
+                      </Space>
+                    </Tooltip>
+                  ),
+                  value: 'stock-search'
                 }
               ]}
             />
             
-            <DatePicker 
+            <DatePicker
               value={dayjs(selectedDate)}
               onChange={handleDateChange}
               size="middle"
@@ -587,6 +601,13 @@ export const AnalysisPage: React.FC<AnalysisPageProps> = ({ user }) => {
               format="YYYY-MM-DD"
               placeholder="选择日期"
               allowClear={false}
+              disabledDate={(current) => {
+                // 禁用 2024年12月31日之后的日期（数据库只有2024年数据）
+                const isAfter2024 = current && current.isAfter(dayjs('2024-12-31').endOf('day'));
+                // 禁用 2020年之前的日期
+                const isTooOld = current && current.isBefore(dayjs('2020-01-01'));
+                return !!isAfter2024 || !!isTooOld;
+              }}
             />
             
             {analysisStatus === 'completed' && (
@@ -627,6 +648,7 @@ export const AnalysisPage: React.FC<AnalysisPageProps> = ({ user }) => {
             {selectedView === 'stock-analysis' && <StockAnalysisPage user={user} tradeDate={selectedDate} />}
             {selectedView === 'innovation' && <InnovationAnalysisPage user={user} tradeDate={selectedDate} />}
             {selectedView === 'convertible-bond' && <ConvertibleBondPage user={user} tradeDate={selectedDate} />}
+            {selectedView === 'stock-search' && <StockSearchPage />}
           </motion.div>
         </AnimatePresence>
 

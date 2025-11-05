@@ -47,3 +47,8 @@ def create_tables():
 def drop_tables():
     """删除所有数据表"""
     Base.metadata.drop_all(bind=engine)
+
+
+def get_engine():
+    """获取数据库引擎"""
+    return engine

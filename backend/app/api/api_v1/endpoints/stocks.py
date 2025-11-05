@@ -205,21 +205,31 @@ def get_stocks_simple(
 
 @router.get("/{stock_code}", response_model=StockWithConcepts)
 def get_stock_by_code(
-    stock_code: str, 
+    stock_code: str,
     db: Session = Depends(get_db),
-    current_admin = Depends(get_current_admin_user)
+    current_user: Optional[Union[User, None]] = Depends(get_optional_user)
 ):
-    """根据股票代码获取股票信息和所属概念（管理员专用）"""
+    """根据股票代码获取股票信息和所属概念（客户端和管理员均可使用）"""
     stock = db.query(Stock).filter(Stock.stock_code == stock_code).first()
-    
+
     if not stock:
         raise HTTPException(status_code=404, detail="股票不存在")
-    
-    # 管理员无需查询限制，直接获取股票概念
+
+    # 如果是客户端用户，消费查询次数并记录查询
+    if current_user:
+        user_crud = UserCRUD(db)
+        # 检查并消费查询次数
+        if not user_crud.consume_query(current_user.id, QueryType.STOCK_SEARCH, {
+            "stock_code": stock_code,
+            "stock_name": stock.stock_name
+        }):
+            raise HTTPException(status_code=403, detail="查询次数不足，请升级会员或购买查询包")
+
+    # 获取股票概念
     concepts = db.query(Concept).join(StockConcept).filter(
         StockConcept.stock_id == stock.id
     ).limit(50).all()  # 限制概念数量避免过大查询
-    
+
     return {
         "stock": stock,
         "concepts": concepts

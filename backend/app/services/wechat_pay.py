@@ -24,13 +24,19 @@ class WechatPayException(Exception):
 
 class WechatPayService:
     """微信支付服务"""
-    
+
     def __init__(self):
         self.appid = settings.WECHAT_APPID or "mock_appid"
         self.mch_id = settings.WECHAT_MCH_ID or "mock_mch_id"
         self.api_key = settings.WECHAT_API_KEY or "mock_api_key"
-        self.notify_url = f"{settings.BASE_URL}/api/v1/payment/notify"
+        self.cert_path = settings.WECHAT_CERT_PATH
+        self.key_path = settings.WECHAT_KEY_PATH
+        self.notify_url = settings.WECHAT_NOTIFY_URL or f"{settings.BASE_URL}/api/v1/payment/notify"
         self.mock_mode = settings.PAYMENT_MOCK_MODE
+
+        # 验证生产环境必需配置
+        if not self.mock_mode:
+            self._validate_production_config()
         
         # API URLs
         self.unified_order_url = "https://api.mch.weixin.qq.com/pay/unifiedorder"
@@ -38,6 +44,55 @@ class WechatPayService:
         self.close_order_url = "https://api.mch.weixin.qq.com/pay/closeorder"
         self.refund_url = "https://api.mch.weixin.qq.com/secapi/pay/refund"
         self.refund_query_url = "https://api.mch.weixin.qq.com/pay/refundquery"
+
+    def _validate_production_config(self):
+        """验证生产环境配置"""
+        required_configs = {
+            'WECHAT_APPID': self.appid,
+            'WECHAT_MCH_ID': self.mch_id,
+            'WECHAT_API_KEY': self.api_key
+        }
+
+        missing_configs = [key for key, value in required_configs.items() if not value or value.startswith('mock_')]
+
+        if missing_configs:
+            raise WechatPayException(f"生产环境缺少必需配置: {', '.join(missing_configs)}")
+
+        # 验证证书文件（退款功能需要）
+        if self.cert_path:
+            import os
+            if not os.path.exists(self.cert_path):
+                logger.warning(f"微信支付证书文件不存在: {self.cert_path}")
+
+        if self.key_path:
+            import os
+            if not os.path.exists(self.key_path):
+                logger.warning(f"微信支付私钥文件不存在: {self.key_path}")
+
+    def is_production_ready(self) -> bool:
+        """检查是否准备好生产环境"""
+        try:
+            if self.mock_mode:
+                return True
+            self._validate_production_config()
+            return True
+        except WechatPayException:
+            return False
+
+    def get_config_status(self) -> Dict[str, Any]:
+        """获取配置状态"""
+        import os
+
+        return {
+            'mock_mode': self.mock_mode,
+            'appid_configured': bool(self.appid and not self.appid.startswith('mock_')),
+            'mch_id_configured': bool(self.mch_id and not self.mch_id.startswith('mock_')),
+            'api_key_configured': bool(self.api_key and not self.api_key.startswith('mock_')),
+            'cert_file_exists': bool(self.cert_path and os.path.exists(self.cert_path)),
+            'key_file_exists': bool(self.key_path and os.path.exists(self.key_path)),
+            'notify_url': self.notify_url,
+            'production_ready': self.is_production_ready()
+        }
 
     def generate_nonce_str(self, length: int = 32) -> str:
         """生成随机字符串"""
@@ -319,22 +374,38 @@ class WechatPayService:
     def process_notify(self, xml_data: str) -> Dict[str, Any]:
         """处理支付通知"""
         try:
+            logger.info(f"[DEBUG] Received XML data: {xml_data[:500] if len(xml_data) > 500 else xml_data}")
             data = self.xml_to_dict(xml_data)
-            logger.info(f"Payment notify data: {data}")
-            
-            # 验证签名
-            if not self.verify_sign(data):
-                logger.error("Payment notify signature verification failed")
-                return {
-                    'success': False,
-                    'message': '签名验证失败',
-                    'data': data
-                }
+            logger.info(f"[DEBUG] Parsed data: {data}")
+
+            # 验证签名（mock模式下跳过签名验证）
+            # 检查是否为mock模式（处理字符串和布尔值）
+            mock_mode = settings.PAYMENT_MOCK_MODE
+            logger.info(f"[DEBUG] PAYMENT_MOCK_MODE raw value: {repr(mock_mode)}, type: {type(mock_mode)}")
+
+            if isinstance(mock_mode, str):
+                mock_mode = mock_mode.lower() in ('true', '1', 'yes', 'on')
+
+            logger.info(f"[DEBUG] mock_mode after conversion: {mock_mode}")
+
+            if not mock_mode:
+                if not self.verify_sign(data):
+                    logger.error("Payment notify signature verification failed")
+                    return {
+                        'success': False,
+                        'message': '签名验证失败',
+                        'data': data
+                    }
+            else:
+                logger.info("Mock mode enabled: skipping signature verification")
             
             # 检查支付结果
-            if (data.get('return_code') == 'SUCCESS' and 
-                data.get('result_code') == 'SUCCESS'):
-                
+            return_code = data.get('return_code')
+            result_code = data.get('result_code')
+            logger.info(f"[DEBUG] return_code={repr(return_code)}, result_code={repr(result_code)}")
+
+            if (return_code == 'SUCCESS' and result_code == 'SUCCESS'):
+                logger.info(f"[DEBUG] Payment successful, returning success response")
                 return {
                     'success': True,
                     'message': '支付成功',
@@ -348,6 +419,7 @@ class WechatPayService:
                     }
                 }
             else:
+                logger.warning(f"[DEBUG] Payment failed, returning failure response")
                 return {
                     'success': False,
                     'message': f"支付失败: {data.get('err_code_des', data.get('return_msg', '未知错误'))}",
@@ -565,5 +637,40 @@ class WechatPayService:
             }
 
 
-# 创建全局实例
-wechat_pay_service = WechatPayService()
+# 全局实例 (使用懒加载)
+_wechat_pay_service_instance = None
+
+def get_wechat_pay_service() -> WechatPayService:
+    """获取微信支付服务实例 (懒加载单例)"""
+    global _wechat_pay_service_instance
+    if _wechat_pay_service_instance is None:
+        try:
+            _wechat_pay_service_instance = WechatPayService()
+        except WechatPayException as e:
+            logger.error(f"初始化微信支付服务失败: {e}")
+            # 返回一个模拟模式实例，允许系统继续运行
+            _wechat_pay_service_instance = WechatPayService.__new__(WechatPayService)
+            _wechat_pay_service_instance.appid = "mock_appid"
+            _wechat_pay_service_instance.mch_id = "mock_mch_id"
+            _wechat_pay_service_instance.api_key = "mock_api_key"
+            _wechat_pay_service_instance.cert_path = None
+            _wechat_pay_service_instance.key_path = None
+            _wechat_pay_service_instance.notify_url = settings.BASE_URL + "/api/v1/payment/notify"
+            _wechat_pay_service_instance.mock_mode = True
+            _wechat_pay_service_instance.unified_order_url = "https://api.mch.weixin.qq.com/pay/unifiedorder"
+            _wechat_pay_service_instance.order_query_url = "https://api.mch.weixin.qq.com/pay/orderquery"
+            _wechat_pay_service_instance.close_order_url = "https://api.mch.weixin.qq.com/pay/closeorder"
+            _wechat_pay_service_instance.refund_url = "https://api.mch.weixin.qq.com/secapi/pay/refund"
+            _wechat_pay_service_instance.refund_query_url = "https://api.mch.weixin.qq.com/pay/refundquery"
+    return _wechat_pay_service_instance
+
+# 向后兼容: 使用getter属性
+try:
+    wechat_pay_service = WechatPayService()
+except Exception:
+    # 如果初始化失败，延迟创建实例
+    class LazyWechatPayService:
+        def __getattr__(self, name):
+            return getattr(get_wechat_pay_service(), name)
+
+    wechat_pay_service = LazyWechatPayService()

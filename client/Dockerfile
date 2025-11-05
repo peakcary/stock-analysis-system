@@ -28,8 +28,8 @@ WORKDIR /app
 # 复制 package 文件
 COPY package*.json ./
 
-# 安装依赖
-RUN npm ci --only=production
+# 安装依赖（包括dev依赖用于构建）
+RUN npm ci
 
 # 复制源代码
 COPY . .

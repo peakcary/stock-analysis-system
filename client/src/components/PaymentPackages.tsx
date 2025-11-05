@@ -8,7 +8,7 @@ import {
   CheckOutlined, WechatOutlined
 } from '@ant-design/icons';
 import { apiClient } from '../utils/auth';
-import PaymentModal from './PaymentModal';
+import EnhancedPaymentModal from './EnhancedPaymentModal';
 
 const { Title, Text } = Typography;
 
@@ -41,7 +41,7 @@ const PaymentPackages: React.FC<PaymentPackagesProps> = ({
   const [packages, setPackages] = useState<PaymentPackage[]>([]);
   const [loading, setLoading] = useState(false);
   const [paymentModalVisible, setPaymentModalVisible] = useState(false);
-  const [selectedPackage, setSelectedPackage] = useState<string>('');
+  const [selectedPackageObj, setSelectedPackageObj] = useState<PaymentPackage | null>(null);
 
   // 获取支付套餐列表
   const fetchPackages = async () => {
@@ -60,13 +60,19 @@ const PaymentPackages: React.FC<PaymentPackagesProps> = ({
   useEffect(() => {
     if (visible) {
       fetchPackages();
-      // 如果有预选的套餐类型，直接跳转到支付页面
-      if (selectedPackageType) {
-        setSelectedPackage(selectedPackageType);
+    }
+  }, [visible]);
+
+  // 当packages加载完成且有预选套餐类型时，自动打开支付弹窗
+  useEffect(() => {
+    if (packages.length > 0 && selectedPackageType) {
+      const foundPackage = packages.find(pkg => pkg.package_type === selectedPackageType);
+      if (foundPackage) {
+        setSelectedPackageObj(foundPackage);
         setPaymentModalVisible(true);
       }
     }
-  }, [visible, selectedPackageType]);
+  }, [packages, selectedPackageType]);
 
   // 获取套餐图标
   const getPackageIcon = (packageType: string, membershipType: string) => {
@@ -116,8 +122,11 @@ const PaymentPackages: React.FC<PaymentPackagesProps> = ({
 
   // 选择套餐
   const selectPackage = (packageType: string) => {
-    setSelectedPackage(packageType);
-    setPaymentModalVisible(true);
+    const foundPackage = packages.find(pkg => pkg.package_type === packageType);
+    if (foundPackage) {
+      setSelectedPackageObj(foundPackage);
+      setPaymentModalVisible(true);
+    }
   };
 
   // 支付成功回调
@@ -448,11 +457,11 @@ const PaymentPackages: React.FC<PaymentPackagesProps> = ({
       </Modal>
 
       {/* 支付弹窗 */}
-      <PaymentModal
+      <EnhancedPaymentModal
         visible={paymentModalVisible}
         onCancel={() => setPaymentModalVisible(false)}
         onSuccess={handlePaymentSuccess}
-        packageType={selectedPackage}
+        selectedPackage={selectedPackageObj}
       />
     </>
   );

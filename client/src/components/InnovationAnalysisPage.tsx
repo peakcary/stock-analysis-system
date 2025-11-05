@@ -32,6 +32,8 @@ import {
 } from '@ant-design/icons';
 import type { ColumnType } from 'antd/es/table';
 import dayjs from 'dayjs';
+import './InnovationAnalysisPage.css';
+import { analysisAPI } from '../api/apiClient';
 
 const { Title, Text } = Typography;
 const { Panel } = Collapse;
@@ -78,34 +80,26 @@ const InnovationAnalysisPage: React.FC = () => {
 
     setLoading(true);
     try {
-      const token = localStorage.getItem('admin_token') || localStorage.getItem('token');
-      const response = await fetch(`/api/v1/stock-analysis/concepts/new-highs?days=${days}&trading_date=${tradingDate}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
+      const response = await analysisAPI.getNewHighConcepts({
+        days,
+        trading_date: tradingDate,
       });
-      
-      if (!response.ok) {
-        throw new Error('查询失败');
-      }
-      
-      const data = await response.json();
-      setNewHighConcepts(data.new_high_concepts || []);
-      
+
+      const concepts = response.data?.new_high_concepts || [];
+      setNewHighConcepts(concepts);
+
       // 初始化显示状态
       const initialVisible: Record<string, number> = {};
-      const concepts = data.new_high_concepts || [];
       concepts.forEach((concept: NewHighConcept) => {
         initialVisible[concept.concept_name] = 10;
       });
       setVisibleStocks(initialVisible);
-      
+
       const conceptCount = concepts.length;
       message.success(`查询成功，找到${conceptCount}个创新高概念`);
-    } catch (error) {
-      message.error('查询失败，请检查网络连接');
-      console.error(error);
+    } catch (error: any) {
+      console.error('查询创新高概念失败:', error);
+      message.error(error.response?.data?.detail || '查询失败，请检查网络连接');
     } finally {
       setLoading(false);
     }
@@ -114,25 +108,17 @@ const InnovationAnalysisPage: React.FC = () => {
   // 查看股票图表
   const viewStockChart = async (stockCode: string, conceptName: string) => {
     try {
-      const token = localStorage.getItem('admin_token') || localStorage.getItem('token');
-      const response = await fetch(`/api/v1/stock-analysis/stock/${stockCode}/chart-data?concept_name=${conceptName}&days=30`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
+      const response = await analysisAPI.getStockChartData(stockCode, {
+        concept_name: conceptName,
+        days: 30,
       });
-      
-      if (!response.ok) {
-        throw new Error('获取图表数据失败');
-      }
-      
-      const data = await response.json();
-      setChartData(data.chart_data || []);
+
+      setChartData(response.data?.chart_data || []);
       setSelectedStock(`${stockCode} - ${conceptName}`);
       message.success('图表数据加载成功');
-    } catch (error) {
-      message.error('获取图表数据失败');
-      console.error(error);
+    } catch (error: any) {
+      console.error('获取图表数据失败:', error);
+      message.error(error.response?.data?.detail || '获取图表数据失败');
     }
   };
 
@@ -214,7 +200,7 @@ const InnovationAnalysisPage: React.FC = () => {
   ];
 
   return (
-    <div style={{ padding: '24px' }}>
+    <div className="innovation-analysis-page" style={{ padding: '24px' }}>
       <Title level={2}>
         <RocketOutlined style={{ color: '#ff4d4f', marginRight: 8 }} />
         创新高概念分析

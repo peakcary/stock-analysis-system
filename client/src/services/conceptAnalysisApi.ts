@@ -1,12 +1,10 @@
 // 概念分析API服务
-const API_BASE_URL = process.env.NODE_ENV === 'production' 
-  ? 'https://your-domain.com/api/v1' 
-  : 'http://localhost:3007/api/v1';
+import { getApiBaseUrl } from 'shared/auth-config';
 
 class ConceptAnalysisApi {
   // 获取股票在各概念中的排名
   static async getStockRanking(stockCode: string, tradeDate?: string) {
-    const url = `${API_BASE_URL}/concept-analysis/stocks/${stockCode}/ranking`;
+    const url = `${getApiBaseUrl()}/concept-analysis/stocks/${stockCode}/ranking`;
     const params = tradeDate ? `?trade_date=${tradeDate}` : '';
     
     const response = await fetch(`${url}${params}`);
@@ -23,7 +21,7 @@ class ConceptAnalysisApi {
     params.append('page', page.toString());
     params.append('page_size', pageSize.toString());
     
-    const response = await fetch(`${API_BASE_URL}/concept-analysis/concepts/${conceptId}/ranking?${params}`);
+    const response = await fetch(`${getApiBaseUrl()}/concept-analysis/concepts/${conceptId}/ranking?${params}`);
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
@@ -38,7 +36,7 @@ class ConceptAnalysisApi {
     params.append('page', page.toString());
     params.append('page_size', pageSize.toString());
     
-    const response = await fetch(`${API_BASE_URL}/concept-analysis/concepts/innovation?${params}`);
+    const response = await fetch(`${getApiBaseUrl()}/concept-analysis/concepts/innovation?${params}`);
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
@@ -52,7 +50,7 @@ class ConceptAnalysisApi {
     params.append('page', page.toString());
     params.append('page_size', pageSize.toString());
     
-    const response = await fetch(`${API_BASE_URL}/concept-analysis/convertible-bonds?${params}`);
+    const response = await fetch(`${getApiBaseUrl()}/concept-analysis/convertible-bonds?${params}`);
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
@@ -63,7 +61,7 @@ class ConceptAnalysisApi {
   static async triggerAnalysis(tradeDate?: string) {
     const params = tradeDate ? `?trade_date=${tradeDate}` : '';
     
-    const response = await fetch(`${API_BASE_URL}/concept-analysis/analysis/trigger${params}`, {
+    const response = await fetch(`${getApiBaseUrl()}/concept-analysis/analysis/trigger${params}`, {
       method: 'POST',
     });
     if (!response.ok) {
@@ -76,7 +74,7 @@ class ConceptAnalysisApi {
   static async getAnalysisStatus(tradeDate?: string) {
     const params = tradeDate ? `?trade_date=${tradeDate}` : '';
     
-    const response = await fetch(`${API_BASE_URL}/concept-analysis/analysis/status${params}`);
+    const response = await fetch(`${getApiBaseUrl()}/concept-analysis/analysis/status${params}`);
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
@@ -88,7 +86,7 @@ class ConceptAnalysisApi {
 class ChartDataApi {
   // 获取概念热度趋势
   static async getConceptHeatTrend(conceptId: number, days = 30) {
-    const response = await fetch(`${API_BASE_URL}/chart-data/concept/${conceptId}/heat-trend?days=${days}`);
+    const response = await fetch(`${getApiBaseUrl()}/chart-data/concept/${conceptId}/heat-trend?days=${days}`);
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
@@ -101,7 +99,7 @@ class ChartDataApi {
     if (tradeDate) params.append('trade_date', tradeDate);
     params.append('top_n', topN.toString());
     
-    const response = await fetch(`${API_BASE_URL}/chart-data/daily-hot-concepts?${params}`);
+    const response = await fetch(`${getApiBaseUrl()}/chart-data/daily-hot-concepts?${params}`);
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
@@ -112,7 +110,7 @@ class ChartDataApi {
   static async getStockDistribution(conceptId: number, tradeDate?: string) {
     const params = tradeDate ? `?trade_date=${tradeDate}` : '';
     
-    const response = await fetch(`${API_BASE_URL}/chart-data/concept/${conceptId}/stock-distribution${params}`);
+    const response = await fetch(`${getApiBaseUrl()}/chart-data/concept/${conceptId}/stock-distribution${params}`);
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
@@ -121,7 +119,7 @@ class ChartDataApi {
 
   // 获取创新高时间线
   static async getInnovationTimeline(days = 30) {
-    const response = await fetch(`${API_BASE_URL}/chart-data/innovation-timeline?days=${days}`);
+    const response = await fetch(`${getApiBaseUrl()}/chart-data/innovation-timeline?days=${days}`);
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
@@ -132,7 +130,7 @@ class ChartDataApi {
   static async getConvertibleBondsChart(tradeDate?: string) {
     const params = tradeDate ? `?trade_date=${tradeDate}` : '';
     
-    const response = await fetch(`${API_BASE_URL}/chart-data/convertible-bonds-analysis${params}`);
+    const response = await fetch(`${getApiBaseUrl()}/chart-data/convertible-bonds-analysis${params}`);
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
@@ -143,7 +141,7 @@ class ChartDataApi {
   static async getConceptComparison(conceptIds: number[], days = 30) {
     const idsParam = conceptIds.join(',');
     
-    const response = await fetch(`${API_BASE_URL}/chart-data/concept-comparison?concept_ids=${idsParam}&days=${days}`);
+    const response = await fetch(`${getApiBaseUrl()}/chart-data/concept-comparison?concept_ids=${idsParam}&days=${days}`);
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
@@ -154,7 +152,7 @@ class ChartDataApi {
   static async getMarketOverview(tradeDate?: string) {
     const params = tradeDate ? `?trade_date=${tradeDate}` : '';
     
-    const response = await fetch(`${API_BASE_URL}/chart-data/market-overview${params}`);
+    const response = await fetch(`${getApiBaseUrl()}/chart-data/market-overview${params}`);
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
@@ -165,7 +163,7 @@ class ChartDataApi {
   static async getStockConceptPerformance(stockId: number, tradeDate?: string) {
     const params = tradeDate ? `?trade_date=${tradeDate}` : '';
     
-    const response = await fetch(`${API_BASE_URL}/chart-data/stock/${stockId}/concept-performance${params}`);
+    const response = await fetch(`${getApiBaseUrl()}/chart-data/stock/${stockId}/concept-performance${params}`);
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }

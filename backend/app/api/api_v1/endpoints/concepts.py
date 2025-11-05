@@ -7,6 +7,10 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 from app.core.database import get_db
 from app.core.admin_auth import get_current_admin_user
+from app.core.auth import get_optional_user
+from app.crud.user import UserCRUD
+from app.models.user import QueryType, User
+from typing import Union
 from app.core.cache import cache_result
 from app.models import Concept, Stock, StockConcept, DailyConceptSum
 from app.schemas.concept import ConceptResponse, ConceptWithStocks, NewHighConcept
@@ -37,21 +41,30 @@ def get_concepts(
 
 @router.get("/{concept_name}/stocks", response_model=ConceptWithStocks)
 def get_concept_stocks(
-    concept_name: str, 
+    concept_name: str,
     db: Session = Depends(get_db),
-    current_admin = Depends(get_current_admin_user)
+    current_user: Optional[Union[User, None]] = Depends(get_optional_user)
 ):
-    """获取概念下的所有股票"""
+    """获取概念下的所有股票（客户端和管理员均可使用）"""
     concept = db.query(Concept).filter(Concept.concept_name == concept_name).first()
-    
+
     if not concept:
         raise HTTPException(status_code=404, detail="概念不存在")
-    
+
+    # 如果是客户端用户，消费查询次数并记录查询
+    if current_user:
+        user_crud = UserCRUD(db)
+        # 检查并消费查询次数
+        if not user_crud.consume_query(current_user.id, QueryType.CONCEPT_SEARCH, {
+            "concept_name": concept_name
+        }):
+            raise HTTPException(status_code=403, detail="查询次数不足，请升级会员或购买查询包")
+
     # 获取概念下的所有股票 - 优化查询性能
     stocks = db.query(Stock).join(StockConcept).filter(
         StockConcept.concept_id == concept.id
     ).limit(200).all()  # 限制股票数量避免过大查询
-    
+
     return {
         "concept": concept,
         "stocks": stocks

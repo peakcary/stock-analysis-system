@@ -1,8 +1,13 @@
-# Environment files
+# Environment files - 包含敏感信息
 .env
+.env.*
+!.env.example
 .env.local
 .env.production
 .env.development
+.env.prod
+.env.docker
+.env.deploy
 
 # Python
 __pycache__/
@@ -61,10 +66,23 @@ frontend/dist/
 *.log
 logs/
 *.pid
+.admin_pid
+.client_pid
+optimization_deployment.log
 
 # Database
 *.sqlite
 *.db
+*.sql.backup
+
+# Security and sensitive files
+*.pem
+*.key
+*.crt
+*.p12
+certs/
+secrets/
+private/
 
 # OS
 .DS_Store

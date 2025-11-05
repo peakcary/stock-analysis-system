@@ -33,6 +33,7 @@ import {
 } from '@ant-design/icons';
 import type { ColumnType } from 'antd/es/table';
 import dayjs from 'dayjs';
+import { analysisAPI } from '../api/apiClient';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -76,20 +77,12 @@ const ConvertibleBondPage: React.FC = () => {
   const searchConvertibleBonds = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('admin_token') || localStorage.getItem('token');
-      const response = await fetch(`/api/v1/stock-analysis/convertible-bonds/concepts?trading_date=${tradingDate}&limit=${limit}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
+      const response = await analysisAPI.getConvertibleBonds({
+        trading_date: tradingDate,
+        limit,
       });
-      
-      if (!response.ok) {
-        throw new Error('查询失败');
-      }
-      
-      const data = await response.json();
-      let concepts = data.concepts || [];
+
+      let concepts = response.data?.concepts || [];
       
       // 排序
       switch (sortBy) {
@@ -119,9 +112,9 @@ const ConvertibleBondPage: React.FC = () => {
       const conceptCount = concepts.length;
       const totalBonds = concepts.reduce((sum, concept) => sum + concept.convertible_bond_count, 0);
       message.success(`查询成功，找到${conceptCount}个概念，共${totalBonds}只转债`);
-    } catch (error) {
-      message.error('查询失败，请检查网络连接');
-      console.error(error);
+    } catch (error: any) {
+      console.error('查询转债概念失败:', error);
+      message.error(error.response?.data?.detail || '查询失败，请检查网络连接');
     } finally {
       setLoading(false);
     }
@@ -135,25 +128,17 @@ const ConvertibleBondPage: React.FC = () => {
   // 查看转债图表
   const viewBondChart = async (bondCode: string, conceptName: string) => {
     try {
-      const token = localStorage.getItem('admin_token') || localStorage.getItem('token');
-      const response = await fetch(`/api/v1/stock-analysis/stock/${bondCode}/chart-data?concept_name=${conceptName}&days=30`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
+      const response = await analysisAPI.getStockChartData(bondCode, {
+        concept_name: conceptName,
+        days: 30,
       });
-      
-      if (!response.ok) {
-        throw new Error('获取图表数据失败');
-      }
-      
-      const data = await response.json();
-      setChartData(data.chart_data || []);
+
+      setChartData(response.data?.chart_data || []);
       setSelectedBond(`${bondCode} - ${conceptName}`);
       message.success('图表数据加载成功');
-    } catch (error) {
-      message.error('获取图表数据失败');
-      console.error(error);
+    } catch (error: any) {
+      console.error('获取图表数据失败:', error);
+      message.error(error.response?.data?.detail || '获取图表数据失败');
     }
   };
 

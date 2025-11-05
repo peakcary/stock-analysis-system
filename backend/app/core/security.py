@@ -15,12 +15,16 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """验证密码"""
-    return pwd_context.verify(plain_password, hashed_password)
+    # Bcrypt has a 72-byte limit, so truncate password if needed
+    plain_password_truncated = plain_password[:72]
+    return pwd_context.verify(plain_password_truncated, hashed_password)
 
 
 def get_password_hash(password: str) -> str:
     """获取密码哈希"""
-    return pwd_context.hash(password)
+    # Bcrypt has a 72-byte limit, so truncate password if needed
+    password_truncated = password[:72]
+    return pwd_context.hash(password_truncated)
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
@@ -63,3 +67,9 @@ def validate_token_data(token_data: dict) -> bool:
     """验证令牌数据"""
     required_fields = ["user_id", "username"]
     return all(field in token_data for field in required_fields)
+
+
+def get_current_user() -> str:
+    """获取当前用户 - 临时实现，返回system用户"""
+    # TODO: 实现真正的用户认证逻辑
+    return "system"

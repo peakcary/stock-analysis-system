@@ -254,22 +254,40 @@ async def get_market_overview_chart(
             DailyConceptSummary.trade_date == trade_date
         ).first()
         
-        # 热度分布统计
+        # 热度分布统计 - 使用MySQL的CASE语句进行一次性统计，提升性能
+        from sqlalchemy import case
         heat_distribution = db.query(
-            func.count(DailyStockData.id).label('count'),
-            func.case([
-                (DailyStockData.heat_value < 10, '0-10'),
-                (DailyStockData.heat_value < 20, '10-20'),
-                (DailyStockData.heat_value < 50, '20-50'),
-                (DailyStockData.heat_value < 100, '50-100'),
-                (DailyStockData.heat_value >= 100, '100+')
-            ]).label('range')
+            func.sum(case(
+                (DailyStockData.heat_value.between(0, 9.99), 1),
+                else_=0
+            )).label('range_0_10'),
+            func.sum(case(
+                (DailyStockData.heat_value.between(10, 19.99), 1),
+                else_=0
+            )).label('range_10_20'),
+            func.sum(case(
+                (DailyStockData.heat_value.between(20, 49.99), 1),
+                else_=0
+            )).label('range_20_50'),
+            func.sum(case(
+                (DailyStockData.heat_value.between(50, 99.99), 1),
+                else_=0
+            )).label('range_50_100'),
+            func.sum(case(
+                (DailyStockData.heat_value >= 100, 1),
+                else_=0
+            )).label('range_100_plus')
         ).filter(
-            DailyStockData.trade_date == trade_date,
-            DailyStockData.heat_value > 0
-        ).group_by('range').all()
-        
-        distribution_data = {item.range: item.count for item in heat_distribution}
+            DailyStockData.trade_date == trade_date
+        ).first()
+
+        distribution_data = {
+            "0-10": heat_distribution.range_0_10 or 0,
+            "10-20": heat_distribution.range_10_20 or 0,
+            "20-50": heat_distribution.range_20_50 or 0,
+            "50-100": heat_distribution.range_50_100 or 0,
+            "100+": heat_distribution.range_100_plus or 0
+        }
         
         return {
             "trade_date": trade_date.isoformat(),

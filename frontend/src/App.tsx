@@ -1,23 +1,29 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Layout, Menu, Button, Input, Card, Table, message, Upload, Space, 
-  Divider, Alert, Row, Col, Typography, Steps, Progress, Statistic, 
+import {
+  Layout, Menu, Button, Input, Card, Table, message, Upload, Space,
+  Divider, Alert, Row, Col, Typography, Steps, Progress, Statistic,
   Tag, Badge, Tooltip, Spin, Modal, Tabs
 } from 'antd';
-import { 
-  SearchOutlined, UserOutlined, ApiOutlined, UploadOutlined, 
+import {
+  SearchOutlined, UserOutlined, ApiOutlined, UploadOutlined,
   CloudUploadOutlined, FileTextOutlined, DatabaseOutlined,
   CheckCircleOutlined, ClockCircleOutlined, GiftOutlined, DeleteOutlined,
-  FireOutlined, ExclamationCircleOutlined
+  FireOutlined, ExclamationCircleOutlined, CreditCardOutlined, LogoutOutlined
 } from '@ant-design/icons';
 import { adminApiClient } from '../../shared/admin-auth';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { ClientAuthProvider, useClientAuth } from './contexts/ClientAuthContext';
 import LoginPage from './components/LoginPage';
+import ClientLoginPage from './components/ClientLoginPage';
+import ClientPaymentPage from './components/ClientPaymentPage';
+import SimplePaymentPage from './components/SimplePaymentPage';
+import AdvancedPaymentPage from './components/AdvancedPaymentPage';
 import AdminLayout from './components/AdminLayout';
 import Dashboard from './components/Dashboard';
 import UserManagement from './components/UserManagement';
 import AdminManagement from './components/AdminManagement';
 import PackageManagement from './components/PackageManagement';
+import PaymentPage from './components/PaymentPage';
 import StockListPage from './components/StockListPage';
 import NewStockAnalysisPage from './components/NewStockAnalysisPage';
 import InnovationAnalysisPage from './components/InnovationAnalysisPage';
@@ -29,9 +35,10 @@ import DataImportPage from './components/DataImportPage';
 const { Header, Content, Sider } = Layout;
 const { Title, Text, Paragraph } = Typography;
 
-const AppContent: React.FC = () => {
+// Admin App Content
+const AdminAppContent: React.FC = () => {
   const { isAuthenticated, loading } = useAuth();
-  
+
   if (loading) {
     return (
       <div style={{
@@ -50,6 +57,65 @@ const AppContent: React.FC = () => {
   }
 
   return <AdminApp />;
+};
+
+// Client App Content
+const ClientAppContent: React.FC = () => {
+  const { isAuthenticated, loading, user, logout } = useClientAuth();
+
+  if (loading) {
+    return (
+      <div style={{
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        minHeight: '100vh'
+      }}>
+        <Spin size="large" />
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <ClientLoginPage />;
+  }
+
+  // User authenticated - show payment page with logout option
+  return (
+    <div style={{
+      minHeight: '100vh',
+      background: '#f5f5f5'
+    }}>
+      {/* Top Header */}
+      <div style={{
+        background: 'white',
+        padding: '12px 24px',
+        borderBottom: '1px solid #f0f0f0',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center'
+      }}>
+        <div>
+          <Text strong style={{ fontSize: '16px' }}>
+            股票分析系统
+          </Text>
+          <Text type="secondary" style={{ marginLeft: '16px' }}>
+            欢迎, {user?.username}
+          </Text>
+        </div>
+        <Button
+          type="text"
+          icon={<LogoutOutlined />}
+          onClick={logout}
+        >
+          退出登录
+        </Button>
+      </div>
+
+      {/* Payment Page */}
+      <ClientPaymentPage />
+    </div>
+  );
 };
 
 const AdminApp: React.FC = () => {
@@ -792,7 +858,7 @@ const AdminApp: React.FC = () => {
       console.log('✅ 新TXT导入成功:', response.data);
       hideLoading();
       
-      if (response.data.success) {
+        if (response.data.success) {
         const stats = response.data.stats;
         setImportResult({
           message: response.data.message,
@@ -804,7 +870,31 @@ const AdminApp: React.FC = () => {
           filename: file.name
         });
         
-        message.success(`TXT导入成功！交易数据${stats?.trading_data_count || 0}条，概念汇总${stats?.concept_summary_count || 0}个`);
+        const parseFail = stats?.parse_error_count || 0;
+        const extra = parseFail > 0 ? `，解析失败${parseFail}条` : '';
+        message.success(`TXT导入成功！交易数据${stats?.trading_data_count || 0}条，概念汇总${stats?.concept_summary_count || 0}个${extra}`);
+        // 若存在解析失败，弹出预览详情
+        if ((stats?.parse_error_count || 0) > 0 && stats?.parse_errors_preview?.length) {
+          Modal.info({
+            title: `解析失败 ${stats.parse_error_count} 条（仅显示前${stats.parse_errors_preview.length}条）`,
+            width: 720,
+            content: (
+              <div style={{ maxHeight: 360, overflowY: 'auto' }}>
+                {stats.parse_errors_preview.map((e: any, idx: number) => (
+                  <div key={idx} style={{ padding: '6px 0', borderBottom: '1px solid #f0f0f0' }}>
+                    <div style={{ color: '#fa541c' }}>第 {e.line_number} 行：{e.reason}</div>
+                    <div style={{ fontFamily: 'monospace', whiteSpace: 'pre-wrap', color: '#555' }}>{e.content}</div>
+                  </div>
+                ))}
+                {stats.parse_errors_truncated && (
+                  <div style={{ marginTop: 8 }}>
+                    <Tag color="warning">仅显示前{stats.parse_errors_preview.length}条</Tag>
+                  </div>
+                )}
+              </div>
+            )
+          });
+        }
         
         // 发送全局事件通知TXT导入记录组件刷新
         window.dispatchEvent(new CustomEvent('txtImportSuccess', {
@@ -1105,6 +1195,11 @@ const AdminApp: React.FC = () => {
       icon: <GiftOutlined />,
       label: '套餐管理',
     },
+    {
+      key: 'payment',
+      icon: <CreditCardOutlined />,
+      label: '支付购买',
+    },
   ];
 
   return (
@@ -1151,6 +1246,7 @@ const AdminApp: React.FC = () => {
         {activeTab === 'client-users' && <UserManagement />}
         {activeTab === 'admin-users' && <AdminManagement />}
         {activeTab === 'packages' && <PackageManagement />}
+        {activeTab === 'payment' && <PaymentPage />}
       </div>
 
       {/* 删除确认Modal */}
@@ -1214,12 +1310,71 @@ const AdminApp: React.FC = () => {
   );
 };
 
-const App: React.FC = () => {
+// App Selector Component - Choose between admin, client flows, or simple payment
+const AppSelector: React.FC = () => {
+  const [appMode, setAppMode] = useState<'admin' | 'client' | 'payment' | 'advanced-payment'>('admin');
+
+  // Check URL or localStorage for app mode preference
+  useEffect(() => {
+    const path = window.location.pathname;
+
+    console.log('🔍 AppSelector: Current path:', path);
+
+    // 优先检查 /client-payment - 显示高级支付页面
+    if (path === '/client-payment' || path === '/client-payment/') {
+      console.log('✅ Detected /client-payment route - showing AdvancedPaymentPage');
+      setAppMode('advanced-payment');
+      return;
+    }
+
+    // 其次检查 /payment - 显示简单支付页面
+    if (path === '/payment' || path === '/payment/') {
+      console.log('✅ Detected /payment route - showing SimplePaymentPage');
+      setAppMode('payment');
+      return;
+    }
+
+    // 其次检查是否是客户端路由（但不包括 /client-payment）
+    if (path.includes('/client') && !path.includes('/client-payment')) {
+      console.log('✅ Detected /client route - showing ClientAppContent');
+      setAppMode('client');
+      return;
+    }
+
+    // 默认显示管理员界面
+    console.log('✅ Default mode - showing AdminAppContent');
+    setAppMode('admin');
+  }, []);
+
+  // 高级支付页面
+  if (appMode === 'advanced-payment') {
+    return <AdvancedPaymentPage />;
+  }
+
+  // 简单支付页面
+  if (appMode === 'payment') {
+    return <SimplePaymentPage />;
+  }
+
+  // 客户端应用
+  if (appMode === 'client') {
+    return (
+      <ClientAuthProvider>
+        <ClientAppContent />
+      </ClientAuthProvider>
+    );
+  }
+
+  // 管理员应用
   return (
     <AuthProvider>
-      <AppContent />
+      <AdminAppContent />
     </AuthProvider>
   );
+};
+
+const App: React.FC = () => {
+  return <AppSelector />;
 };
 
 export default App;

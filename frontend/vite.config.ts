@@ -1,12 +1,36 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import path from 'path';
 
 export default defineConfig({
   plugins: [react()],
-  
+
+  // 生产环境下使用根路径
+  base: '/',
+
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+      'shared': path.resolve(__dirname, '../shared')
+    }
+  },
+
   server: {
     port: 8006,
     host: true,
+    proxy: {
+      '/api': {
+        target: 'http://127.0.0.1:3007',
+        changeOrigin: true,
+        secure: false
+      }
+    }
+  },
+
+  preview: {
+    port: 8006,
+    host: true,
+    allowedHosts: ['localhost', '127.0.0.1', 'qwquant.com', 'www.qwquant.com', '82.157.28.35'],
     proxy: {
       '/api': {
         target: 'http://127.0.0.1:3007',
@@ -23,10 +47,10 @@ export default defineConfig({
         manualChunks: {
           // React核心库单独打包
           'react-vendor': ['react', 'react-dom'],
-          // Ant Design组件库单独打包  
+          // Ant Design组件库单独打包
           'antd-vendor': ['antd', '@ant-design/icons'],
           // 工具库
-          'utils-vendor': ['axios', 'dayjs']
+          'utils-vendor': ['dayjs']
         },
         chunkFileNames: 'js/[name]-[hash].js',
         entryFileNames: 'js/[name]-[hash].js',
@@ -55,11 +79,12 @@ export default defineConfig({
   optimizeDeps: {
     include: [
       'react',
-      'react-dom', 
+      'react-dom',
       'antd',
       '@ant-design/icons',
       'axios',
       'dayjs'
-    ]
+    ],
+    exclude: []
   }
 });

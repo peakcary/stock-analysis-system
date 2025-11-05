@@ -52,6 +52,8 @@ const TxtImportRecords: React.FC<TxtImportRecordsProps> = ({ refreshTrigger }) =
   const [availableDates, setAvailableDates] = useState<string[]>([]);
   const [recalculating, setRecalculating] = useState<Record<string, boolean>>({});
   const [isVisible, setIsVisible] = useState(false);
+  const [errorModalVisible, setErrorModalVisible] = useState(false);
+  const [errorModalData, setErrorModalData] = useState<{ tradingDate?: string; errors: any[]; truncated?: boolean }>({ errors: [] });
 
   // 获取导入记录
   const fetchRecords = async (page: number = 1, pageSize: number = 20, tradingDate?: string) => {
@@ -258,21 +260,32 @@ const TxtImportRecords: React.FC<TxtImportRecordsProps> = ({ refreshTrigger }) =
       title: '导入记录',
       key: 'records',
       width: 120,
-      render: (record: ImportRecord) => (
-        <div>
-          <div style={{ fontSize: '12px', color: '#52c41a' }}>
-            ✓ 成功: {record.success_records || 0}
-          </div>
-          {(record.error_records || 0) > 0 && (
-            <div style={{ fontSize: '12px', color: '#ff4d4f' }}>
-              ✗ 失败: {record.error_records}
+      render: (record: ImportRecord) => {
+        let extras: any = {};
+        try {
+          extras = record.notes ? JSON.parse(record.notes) : {};
+        } catch {}
+        return (
+          <div>
+            <div style={{ fontSize: '12px', color: '#52c41a' }}>
+              ✓ 成功: {record.success_records || 0}
             </div>
-          )}
-          <div style={{ fontSize: '12px', color: '#666' }}>
-            总计: {record.total_records || 0}
+            {(record.error_records || 0) > 0 && (
+              <div style={{ fontSize: '12px', color: '#ff4d4f' }}>
+                ✗ 解析失败: {record.error_records}
+              </div>
+            )}
+            {typeof extras.file_internal_duplicates === 'number' && (
+              <div style={{ fontSize: '12px', color: '#faad14' }}>
+                ≈ 重复合并: {extras.file_internal_duplicates}
+              </div>
+            )}
+            <div style={{ fontSize: '12px', color: '#666' }}>
+              总计: {record.total_records || 0}
+            </div>
           </div>
-        </div>
-      )
+        );
+      }
     },
     {
       title: '计算汇总结果',
@@ -315,28 +328,47 @@ const TxtImportRecords: React.FC<TxtImportRecordsProps> = ({ refreshTrigger }) =
       title: '操作',
       key: 'actions',
       width: 120,
-      render: (record: ImportRecord) => (
-        <Space size="small" direction="vertical">
-          <Tooltip title="重新计算该日期的汇总数据">
-            <Button
-              size="small"
-              icon={<ReloadOutlined />}
-              loading={recalculating[record.trading_date]}
-              onClick={() => handleRecalculate(record.trading_date)}
-              block
-            >
-              {recalculating[record.trading_date] ? '计算中...' : '重新计算'}
-            </Button>
-          </Tooltip>
-          {record.error_message && (
-            <Tooltip title={record.error_message}>
-              <Button size="small" danger type="text" block>
-                查看错误
+      render: (record: ImportRecord) => {
+        let extras: any = {};
+        try { extras = record.notes ? JSON.parse(record.notes) : {}; } catch {}
+        const parseErrorCount = extras.parse_error_count || 0;
+        const showErrorBtn = parseErrorCount > 0 || !!record.error_message;
+        return (
+          <Space size="small" direction="vertical">
+            <Tooltip title="重新计算该日期的汇总数据">
+              <Button
+                size="small"
+                icon={<ReloadOutlined />}
+                loading={recalculating[record.trading_date]}
+                onClick={() => handleRecalculate(record.trading_date)}
+                block
+              >
+                {recalculating[record.trading_date] ? '计算中...' : '重新计算'}
               </Button>
             </Tooltip>
-          )}
-        </Space>
-      )
+            {showErrorBtn && (
+              <Tooltip title={record.error_message ? record.error_message : `解析失败 ${parseErrorCount} 条，点击查看详情`}>
+                <Button
+                  size="small"
+                  danger
+                  type="text"
+                  block
+                  onClick={() => {
+                    setErrorModalData({
+                      tradingDate: record.trading_date,
+                      errors: extras.parse_errors || [],
+                      truncated: extras.parse_errors_truncated || false
+                    });
+                    setErrorModalVisible(true);
+                  }}
+                >
+                  查看失败
+                </Button>
+              </Tooltip>
+            )}
+          </Space>
+        );
+      }
     }
   ];
 
@@ -423,6 +455,32 @@ const TxtImportRecords: React.FC<TxtImportRecordsProps> = ({ refreshTrigger }) =
           size="middle"
         />
       </Card>
+
+      <Modal
+        title={`解析失败详情${errorModalData.tradingDate ? ' - ' + errorModalData.tradingDate : ''}`}
+        open={errorModalVisible}
+        onCancel={() => setErrorModalVisible(false)}
+        footer={null}
+        width={720}
+      >
+        {(!errorModalData.errors || errorModalData.errors.length === 0) ? (
+          <Text type="secondary">暂无失败详情</Text>
+        ) : (
+          <div style={{ maxHeight: 400, overflowY: 'auto' }}>
+            {errorModalData.errors.map((e: any, idx: number) => (
+              <div key={idx} style={{ padding: '6px 0', borderBottom: '1px solid #f0f0f0' }}>
+                <div style={{ color: '#fa541c' }}>第 {e.line_number} 行：{e.reason}</div>
+                <div style={{ fontFamily: 'monospace', whiteSpace: 'pre-wrap', color: '#555' }}>{e.content}</div>
+              </div>
+            ))}
+            {errorModalData.truncated && (
+              <div style={{ marginTop: 8 }}>
+                <Tag color="warning">仅显示前50条</Tag>
+              </div>
+            )}
+          </div>
+        )}
+      </Modal>
     </div>
   );
 };

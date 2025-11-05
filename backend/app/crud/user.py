@@ -2,7 +2,7 @@
 用户相关的数据库操作
 """
 
-from typing import Optional, List
+from typing import Optional, List, Tuple
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
 from app.models.user import User, UserQuery, Payment, MembershipType, QueryType
@@ -208,7 +208,7 @@ class UserCRUD:
         """根据ID获取用户（管理员专用）"""
         return self.get_user(user_id)
     
-    def get_users_with_filters(self, skip: int = 0, limit: int = 50, search: Optional[str] = None, membership_type: Optional[str] = None) -> tuple[List[User], int]:
+    def get_users_with_filters(self, skip: int = 0, limit: int = 50, search: Optional[str] = None, membership_type: Optional[str] = None) -> Tuple[List[User], int]:
         """获取用户列表（支持筛选）"""
         query = self.db.query(User)
         

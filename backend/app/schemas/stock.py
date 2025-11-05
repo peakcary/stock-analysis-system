@@ -11,6 +11,8 @@ from decimal import Decimal
 class StockBase(BaseModel):
     """股票基础模式"""
     stock_code: str
+    original_stock_code: Optional[str] = None
+    stock_code_prefix: Optional[str] = None
     stock_name: str
     industry: Optional[str] = None
     is_convertible_bond: bool = False
@@ -21,7 +23,7 @@ class StockResponse(StockBase):
     id: int
     created_at: datetime
     updated_at: datetime
-    
+
     class Config:
         from_attributes = True
 

@@ -1,0 +1,156 @@
+version: '3.8'
+
+services:
+  # MySQL 数据库
+  mysql:
+    image: mirror.ccs.tencentyun.com/library/mysql:8.0
+    container_name: stock_mysql_prod
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - ./database/my.cnf:/etc/mysql/conf.d/my.cnf:ro
+    command: --default-authentication-plugin=mysql_native_password
+    networks:
+      - stock_network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "${MYSQL_USER}", "-p${MYSQL_PASSWORD}"]
+      timeout: 20s
+      retries: 10
+
+  # Redis 缓存
+  redis:
+    image: mirror.ccs.tencentyun.com/library/redis:7-alpine
+    container_name: stock_redis_prod
+    restart: unless-stopped
+    command: redis-server --requirepass ${REDIS_PASSWORD}
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - stock_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      timeout: 10s
+      retries: 5
+
+  # FastAPI 后端
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.prod.cn
+    image: stock-analysis-system-backend:latest
+    container_name: stock_backend_prod
+    restart: unless-stopped
+    environment:
+      - DATABASE_URL=mysql+pymysql://${MYSQL_USER}:${MYSQL_PASSWORD}@mysql:3306/${MYSQL_DATABASE}
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
+      - SECRET_KEY=${SECRET_KEY}
+      - ADMIN_SECRET_KEY=${ADMIN_SECRET_KEY}
+      - ACCESS_TOKEN_EXPIRE_MINUTES=${ACCESS_TOKEN_EXPIRE_MINUTES}
+      - ENVIRONMENT=production
+      - DEBUG=false
+      - LOG_LEVEL=INFO
+      - BASE_URL=https://${DOMAIN}
+      - WECHAT_APPID=${WECHAT_APPID}
+      - WECHAT_MCH_ID=${WECHAT_MCH_ID}
+      - WECHAT_API_V3_KEY=${WECHAT_API_V3_KEY}
+      - WECHAT_CERT_SERIAL=${WECHAT_CERT_SERIAL}
+      - WECHAT_CERT_PATH=${WECHAT_CERT_PATH}
+      - WECHAT_KEY_PATH=${WECHAT_KEY_PATH}
+      - WECHAT_NOTIFY_URL=https://${DOMAIN}/api/v1/payment/notify
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend/logs:/app/logs
+      - ./backend/certs:/app/certs:ro
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - stock_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      timeout: 10s
+      retries: 5
+
+  # React 前端 (后台管理)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+      args:
+        VITE_API_BASE: https://${DOMAIN}/api
+    image: stock-analysis-system-frontend:latest
+    container_name: stock_frontend_prod
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    networks:
+      - stock_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      timeout: 10s
+      retries: 3
+
+  # React 客户端应用
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE: https://${DOMAIN}/api
+    image: stock-analysis-system-client:latest
+    container_name: stock_client_prod
+    restart: unless-stopped
+    ports:
+      - "8006:8006"
+    networks:
+      - stock_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8006"]
+      timeout: 10s
+      retries: 3
+
+  # Nginx 反向代理
+  nginx:
+    image: mirror.ccs.tencentyun.com/library/nginx:alpine
+    container_name: stock_nginx_prod
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.prod.complete.conf:/etc/nginx/nginx.conf:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - /var/www/certbot:/var/www/certbot:ro
+    depends_on:
+      - backend
+      - frontend
+      - client
+    networks:
+      - stock_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/nginx-health"]
+      timeout: 10s
+      retries: 3
+
+networks:
+  stock_network:
+    driver: bridge
+
+volumes:
+  mysql_data:
+    driver: local
+  redis_data:
+    driver: local

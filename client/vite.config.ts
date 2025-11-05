@@ -1,12 +1,36 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import path from 'path';
 
 export default defineConfig({
   plugins: [react()],
-  
+
+  // 生产环境下使用 /app 子路径
+  base: '/app',
+
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+      'shared': path.resolve(__dirname, '../shared')
+    }
+  },
+
   server: {
     port: 8005,
     host: true,
+    proxy: {
+      '/api': {
+        target: 'http://127.0.0.1:3007',
+        changeOrigin: true,
+        secure: false
+      }
+    }
+  },
+
+  preview: {
+    port: 8005,
+    host: true,
+    allowedHosts: ['localhost', '127.0.0.1', 'qwquant.com', 'www.qwquant.com', '82.157.28.35'],
     proxy: {
       '/api': {
         target: 'http://127.0.0.1:3007',
@@ -23,12 +47,12 @@ export default defineConfig({
         manualChunks: {
           // React核心库单独打包
           'react-vendor': ['react', 'react-dom'],
-          // Ant Design组件库单独打包  
+          // Ant Design组件库单独打包
           'antd-vendor': ['antd', '@ant-design/icons', '@ant-design/charts'],
           // 图表库
           'charts-vendor': ['echarts', 'echarts-for-react'],
           // 工具库
-          'utils-vendor': ['axios', 'dayjs', 'numeral'],
+          'utils-vendor': ['dayjs', 'numeral'],
           // 动画库
           'animation-vendor': ['framer-motion']
         },
@@ -60,7 +84,7 @@ export default defineConfig({
   optimizeDeps: {
     include: [
       'react',
-      'react-dom', 
+      'react-dom',
       'antd',
       '@ant-design/icons',
       'axios',
