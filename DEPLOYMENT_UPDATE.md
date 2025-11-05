@@ -2,23 +2,33 @@
 
 ## Summary of Changes
 
-The API path duplication issue has been fixed in commit `66153fd2`.
+The API path duplication issue has been fixed in commits `66153fd2` (frontend) and `96d0624d` (Nginx configuration).
 
 **Issue**: API calls were being duplicated, resulting in paths like `/api/v1/api/v1/stocks/count`
 
 **Root Cause**:
-- Frontend axios client had baseURL set to root origin
-- API calls lacked the `/api` prefix needed for Nginx routing
-- Without `/api` prefix, Nginx `location /api` couldn't capture the requests
-- Requests were falling through to default SPA routing instead of API routing
+Nginx proxy_pass behavior combined with backend routing:
+- Frontend sends: `GET /api/stocks`
+- Nginx `location /api/ { proxy_pass http://backend; }` (without rewrite)
+  - Preserves the full URL path when forwarding to backend
+- Backend receives: `GET /api/stocks` with `app.include_router(api_router, prefix="/api/v1")`
+- Result: Router tries to match `/api/v1 + /api/stocks` = `/api/v1/api/stocks` ❌ DUPLICATED
 
 **Solution**:
-- Changed `getApiBaseUrl()` in `shared/auth-config.ts` to return root origin URL (not `/api/v1`)
-- Added `/api` prefix to ALL API calls: `/stocks` → `/api/stocks`, `/admin/auth/login` → `/api/admin/auth/login`
-- Updated authentication endpoint paths with `/api` prefix
-- Now Nginx `location /api` properly captures and routes all API requests to backend
+1. **Frontend changes** (commit 66153fd2):
+   - Added `/api` prefix to all API calls: `/stocks` → `/api/stocks`
+   - Updated auth endpoints with `/api` prefix
+
+2. **Nginx changes** (commit 96d0624d):
+   - Added rewrite rule: `rewrite ^/api/(.*)$ /api/v1/$1 break;`
+   - This transforms `/api/stocks` → `/api/v1/stocks` BEFORE proxy_pass
+   - Backend now receives the correct path format
+
+**Result**: Clean request flow with no path duplication
 
 ## Files Modified
+
+### Frontend (Commit 66153fd2)
 
 1. **shared/auth-config.ts**
    - Line 51: Changed from `${window.location.origin}/api/v1` to `window.location.origin`
@@ -30,9 +40,21 @@ The API path duplication issue has been fixed in commit `66153fd2`.
    - Examples: `/stocks` → `/api/stocks`, `/admin/auth/login` → `/api/admin/auth/login`
    - 30+ API calls updated in App.tsx and 13 component files
 
+### Nginx Configuration (Commit 96d0624d)
+
+1. **nginx/nginx.prod.complete.conf** (line 128)
+   - Added rewrite rule: `rewrite ^/api/(.*)$ /api/v1/$1 break;`
+
+2. **nginx/nginx.prod.conf** (lines 133, 237)
+   - Admin section: Added rewrite rule for `/api/` location
+   - Client section: Added rewrite rule for `/api/` location
+
+3. **nginx/nginx.prod.route.conf** (line 135)
+   - Added rewrite rule for `/api/` location
+
 ## Deployment Steps
 
-The code has been committed and pushed to GitHub (commit `66153fd2`). Now you need to deploy to the server.
+The code has been committed and pushed to GitHub (commits `66153fd2` and `96d0624d`). Now you need to deploy to the server.
 
 ### Option 1: Via Server Git Pull (Recommended)
 
@@ -189,25 +211,35 @@ Actually, the real flow with correct Nginx config:
 6. Backend receives /stocks, matches /api/v1/stocks prefix route
 ```
 
-**The fix ensures**:
+**The correct request flow**:
 ```
-Frontend: GET /api/stocks (axios baseURL = origin)
+Frontend JavaScript:
+    adminApiClient.get('/api/stocks')
     ↓
-Browser: https://qwquant.com/api/stocks
+Browser Network Request:
+    GET https://qwquant.com/api/stocks
     ↓
-Nginx location /api { proxy_pass http://backend; }
-    ↓ (strips /api prefix via proxy_pass without proxy URL path)
-Backend: GET /stocks
+Nginx location /api/ receives request and applies rewrite rule:
+    rewrite ^/api/(.*)$ /api/v1/$1 break;
+    /api/stocks → /api/v1/stocks
     ↓
-FastAPI: app.include_router(api_router, prefix="/api/v1")
-    ↓ (adds /api/v1 prefix internally)
-Route matches: /api/v1/stocks
+Nginx forwards to backend:
+    proxy_pass http://backend
+    ↓
+Backend FastAPI receives:
+    GET /api/v1/stocks
+    ↓
+FastAPI router: app.include_router(api_router, prefix="/api/v1")
+    Matches route: /api/v1/stocks → /stocks handler
+    ✅ No duplication!
 ```
 
-No duplication because:
-- Nginx strips `/api` when proxying to backend
-- Backend adds `/api/v1` as internal routing prefix
-- Final route is clean: `/api/v1/stocks`
+Why this works:
+1. Frontend sends `/api/stocks` (with /api prefix for Nginx routing)
+2. Nginx rewrite transforms it to `/api/v1/stocks` (adds /v1)
+3. Backend receives clean `/api/v1/stocks` path
+4. Backend router matches: `prefix=/api/v1` + `/stocks` = correct route
+5. No path duplication because rewrite happens before proxy_pass
 
 ## Rollback
 
