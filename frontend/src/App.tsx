@@ -174,10 +174,10 @@ const AdminApp: React.FC = () => {
       // 并行获取统计数据
       const [stocksCountResponse, conceptsCountResponse] = await Promise.all([
         // 获取股票真实总数
-        adminApiClient.get('/api/v1/stocks/count'),
+        adminApiClient.get('/stocks/count'),
         
         // 获取概念真实总数
-        adminApiClient.get('/api/v1/concepts/count')
+        adminApiClient.get('/concepts/count')
       ]);
       
       console.log('获取到的数据:', {
@@ -213,7 +213,7 @@ const AdminApp: React.FC = () => {
   const getStockList = async (searchText: string = '') => {
     setStockLoading(true);
     try {
-      let url = '/api/v1/stocks/simple?limit=10000&include_concepts=true'; // 包含概念信息
+      let url = '/stocks/simple?limit=10000&include_concepts=true'; // 包含概念信息
       if (searchText.trim()) {
         url += `&search=${encodeURIComponent(searchText.trim())}`;
       }
@@ -331,7 +331,7 @@ const AdminApp: React.FC = () => {
       console.log('🚀 开始批量删除，IDs:', selectedRowKeys);
       setDeleteLoading(true);
       // 批量删除API调用
-      await adminApiClient.delete('/api/v1/stocks/batch', {
+      await adminApiClient.delete('/stocks/batch', {
         data: { stock_ids: selectedRowKeys }
       });
       console.log('✅ 批量删除成功');
@@ -439,7 +439,7 @@ const AdminApp: React.FC = () => {
   const getAllStocks = async () => {
     setLoading(true);
     try {
-      const response = await adminApiClient.get('/api/v1/stocks');
+      const response = await adminApiClient.get('/stocks');
       setStocks(response.data || []);
       message.success(`获取到 ${response.data?.length || 0} 只股票`);
     } catch (error) {
@@ -524,8 +524,8 @@ const AdminApp: React.FC = () => {
         formData.append('file', file);
         
         const url = todayImportStatus.csv_imported 
-          ? '/api/v1/data/import-csv?allow_overwrite=true' 
-          : '/api/v1/data/import-csv';
+          ? '/data/import-csv?allow_overwrite=true' 
+          : '/data/import-csv';
         
         console.log('📡 发送请求到:', url);
         
@@ -586,7 +586,7 @@ const AdminApp: React.FC = () => {
         const formData = new FormData();
         formData.append('file', file);
         
-        const result = await adminApiClient.post('/api/v1/simple-import/simple-csv', formData, {
+        const result = await adminApiClient.post('/simple-import/simple-csv', formData, {
           headers: { 'Content-Type': 'multipart/form-data' },
           timeout: 600000 // 10分钟超时
         });
@@ -627,7 +627,7 @@ const AdminApp: React.FC = () => {
         const formData = new FormData();
         formData.append('file', file);
         
-        const result = await adminApiClient.post('/api/v1/simple-import/simple-txt', formData, {
+        const result = await adminApiClient.post('/simple-import/simple-txt', formData, {
           headers: { 'Content-Type': 'multipart/form-data' },
           timeout: 1800000 // 30分钟超时，TXT文件很大
         });
@@ -669,7 +669,7 @@ const AdminApp: React.FC = () => {
         const formData = new FormData();
         formData.append('file', file);
         
-        const response = await adminApiClient.post('/api/v1/data/import-csv?allow_overwrite=true', formData, {
+        const response = await adminApiClient.post('/data/import-csv?allow_overwrite=true', formData, {
           headers: { 'Content-Type': 'multipart/form-data' },
           timeout: 600000 // 10分钟超时
         });
@@ -805,7 +805,7 @@ const AdminApp: React.FC = () => {
         }
 
         // 检查该日期是否已有导入记录
-        const checkResponse = await adminApiClient.post('/api/v1/txt-import/check-date', {
+        const checkResponse = await adminApiClient.post('/txt-import/check-date', {
           trading_date: tradingDate
         });
 
@@ -850,7 +850,7 @@ const AdminApp: React.FC = () => {
       const formData = new FormData();
       formData.append('file', file);
       
-      const response = await adminApiClient.post('/api/v1/txt-import/import', formData, {
+      const response = await adminApiClient.post('/txt-import/import', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
         timeout: 1800000 // 30分钟超时
       });
@@ -988,7 +988,7 @@ const AdminApp: React.FC = () => {
         const formData = new FormData();
         formData.append('file', file);
         
-        const response = await adminApiClient.post('/api/v1/data/import-txt?allow_overwrite=true', formData, {
+        const response = await adminApiClient.post('/data/import-txt?allow_overwrite=true', formData, {
           headers: { 'Content-Type': 'multipart/form-data' },
           timeout: 1800000 // 30分钟超时
         });
@@ -1073,8 +1073,8 @@ const AdminApp: React.FC = () => {
         
         // 构建请求URL
         const url = todayImportStatus.txt_imported 
-          ? '/api/v1/data/import-txt?allow_overwrite=true' 
-          : '/api/v1/data/import-txt';
+          ? '/data/import-txt?allow_overwrite=true' 
+          : '/data/import-txt';
         
         console.log('🚀 开始TXT导入:', {
           fileName: selectedFile.name,

@@ -95,7 +95,7 @@ const UserManagement: React.FC = () => {
       }
 
       // 使用新的客户端用户管理API
-      const response = await adminApiClient.get('/api/v1/admin/client-users/users', {
+      const response = await adminApiClient.get('/admin/client-users/users', {
         params
       });
 
@@ -139,7 +139,7 @@ const UserManagement: React.FC = () => {
   // 获取用户统计
   const fetchStats = async () => {
     try {
-      const response = await adminApiClient.get('/api/v1/admin/client-users/stats');
+      const response = await adminApiClient.get('/admin/client-users/stats');
       setStats(response.data);
     } catch (error) {
       console.error('获取统计数据失败:', error);
@@ -191,7 +191,7 @@ const UserManagement: React.FC = () => {
         message.success('用户更新成功');
       } else {
         // 创建用户
-        await adminApiClient.post('/api/v1/admin/users', values);
+        await adminApiClient.post('/admin/users', values);
         message.success('用户创建成功');
       }
       setUserModalVisible(false);

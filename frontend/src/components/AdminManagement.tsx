@@ -60,7 +60,7 @@ const AdminManagement: React.FC = () => {
         params.role = selectedRole;
       }
 
-      const response = await adminApiClient.get('/api/v1/admin/admins', {
+      const response = await adminApiClient.get('/admin/admins', {
         params
       });
 
@@ -115,7 +115,7 @@ const AdminManagement: React.FC = () => {
         message.success('管理员更新成功');
       } else {
         // 创建管理员
-        await adminApiClient.post('/api/v1/admin/admins', values);
+        await adminApiClient.post('/admin/admins', values);
         message.success('管理员创建成功');
       }
       setAdminModalVisible(false);

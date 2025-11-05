@@ -71,7 +71,7 @@ const PaymentPage: React.FC = () => {
   const fetchPackages = async () => {
     try {
       setPackagesLoading(true);
-      const response = await adminApiClient.get('/api/v1/payment/packages');
+      const response = await adminApiClient.get('/payment/packages');
       setPackages(response.data);
       if (response.data.length > 0) {
         setSelectedPackageType(response.data[0].package_type);
@@ -151,7 +151,7 @@ const PaymentPage: React.FC = () => {
       setLoading(true);
       setCurrentStep(1);
 
-      const response = await adminApiClient.post('/api/v1/payment/orders', {
+      const response = await adminApiClient.post('/payment/orders', {
         package_type: selectedPackageType,
         payment_method: 'wechat_native'
       });

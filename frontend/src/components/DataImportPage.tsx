@@ -415,7 +415,7 @@ const DataImportPage: React.FC<DataImportPageProps> = ({
       formData.append('file_type', fileType);
       formData.append('trading_date', tradingDate);
 
-      const response = await adminApiClient.post('/api/v1/universal-import/import', formData, {
+      const response = await adminApiClient.post('/universal-import/import', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },

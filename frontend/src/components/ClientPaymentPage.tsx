@@ -113,7 +113,7 @@ const ClientPaymentPage: React.FC = () => {
       setLoading(true);
       setCurrentStep(1);
 
-      const response = await apiClient.post<PaymentOrder>('/api/v1/payment/orders', {
+      const response = await apiClient.post<PaymentOrder>('/payment/orders', {
         package_type: 'free_trial',
         payment_method: 'wechat_native'
       });

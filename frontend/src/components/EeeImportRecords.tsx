@@ -93,7 +93,7 @@ const EeeImportRecords: React.FC<EeeImportRecordsProps> = ({ refreshTrigger }) =
 
   const fetchAvailableDates = async () => {
     try {
-      const response = await adminApiClient.get('/api/v1/universal-import/eee/dates?limit=365');
+      const response = await adminApiClient.get('/universal-import/eee/dates?limit=365');
       if (response.data?.success) {
         setAvailableDates(response.data.dates || []);
       }

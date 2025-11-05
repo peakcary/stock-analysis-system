@@ -83,7 +83,7 @@ const FileTypeManagement: React.FC = () => {
   // 获取系统概览
   const fetchSystemSummary = async () => {
     try {
-      const response = await adminApiClient.get('/api/v1/file-types/system/summary');
+      const response = await adminApiClient.get('/file-types/system/summary');
       if (response.data.success) {
         setSystemSummary(response.data.summary);
       }
@@ -97,7 +97,7 @@ const FileTypeManagement: React.FC = () => {
   const fetchFileTypes = async () => {
     setLoading(true);
     try {
-      const response = await adminApiClient.get('/api/v1/file-types');
+      const response = await adminApiClient.get('/file-types');
       if (response.data.success) {
         const map = response.data.file_types || {};
         const list = Object.values(map) as FileTypeConfig[];
@@ -114,7 +114,7 @@ const FileTypeManagement: React.FC = () => {
   // 获取健康状态
   const fetchHealthStatuses = async () => {
     try {
-      const response = await adminApiClient.get('/api/v1/file-types/health/all');
+      const response = await adminApiClient.get('/file-types/health/all');
       if (response.data.success) {
         const healthMap: Record<string, HealthStatus> = {};
         response.data.health_statuses.forEach((status: HealthStatus) => {
@@ -168,7 +168,7 @@ const FileTypeManagement: React.FC = () => {
         message.success('文件类型更新成功');
       } else {
         // 新增
-        await adminApiClient.post('/api/v1/file-types', payload);
+        await adminApiClient.post('/file-types', payload);
         message.success('文件类型创建成功');
       }
 

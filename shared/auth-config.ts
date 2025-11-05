@@ -62,10 +62,10 @@ export const getApiBaseUrl = (): string => {
 export const USER_AUTH_CONFIG: AuthConfig = {
   apiBaseUrl: getApiBaseUrl(),
   endpoints: {
-    login: '/api/v1/auth/login',
-    register: '/api/v1/auth/register',
-    logout: '/api/v1/auth/logout',
-    me: '/api/v1/auth/me'
+    login: '/auth/login',
+    register: '/auth/register',
+    logout: '/auth/logout',
+    me: '/auth/me'
   },
   storage: {
     tokenKey: 'app_token',
@@ -81,10 +81,10 @@ export const USER_AUTH_CONFIG: AuthConfig = {
 export const ADMIN_AUTH_CONFIG: AuthConfig = {
   apiBaseUrl: getApiBaseUrl(),
   endpoints: {
-    login: '/api/v1/admin/auth/login',
-    logout: '/api/v1/admin/auth/logout',
-    refresh: '/api/v1/admin/auth/refresh',
-    me: '/api/v1/admin/auth/me'
+    login: '/admin/auth/login',
+    logout: '/admin/auth/logout',
+    refresh: '/admin/auth/refresh',
+    me: '/admin/auth/me'
   },
   storage: {
     tokenKey: 'admin_token',

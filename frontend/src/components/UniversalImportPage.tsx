@@ -88,7 +88,7 @@ const UniversalImportPage: React.FC = () => {
   // 获取支持的文件类型
   const fetchSupportedTypes = async () => {
     try {
-      const response = await adminApiClient.get('/api/v1/universal-import/supported-types');
+      const response = await adminApiClient.get('/universal-import/supported-types');
       if (response.data.success) {
         setSupportedTypes(response.data.type_configs);
         // 自动选择第一个支持的文件类型

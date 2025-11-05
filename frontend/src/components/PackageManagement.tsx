@@ -65,7 +65,7 @@ const PackageManagement: React.FC = () => {
   const fetchPackages = async () => {
     setLoading(true);
     try {
-      const response = await adminApiClient.get('/api/v1/admin/packages');
+      const response = await adminApiClient.get('/admin/packages');
       setPackages(response.data);
       setFilteredPackages(response.data);
     } catch (error: any) {
@@ -79,7 +79,7 @@ const PackageManagement: React.FC = () => {
   // 获取统计信息
   const fetchStats = async () => {
     try {
-      const response = await adminApiClient.get('/api/v1/admin/packages/stats');
+      const response = await adminApiClient.get('/admin/packages/stats');
       setStats(response.data);
     } catch (error: any) {
       console.error('获取统计信息失败:', error);
@@ -109,7 +109,7 @@ const PackageManagement: React.FC = () => {
   // 创建套餐
   const handleCreate = async (values: any) => {
     try {
-      await adminApiClient.post('/api/v1/admin/packages', values);
+      await adminApiClient.post('/admin/packages', values);
       message.success('套餐创建成功');
       setShowCreateModal(false);
       form.resetFields();
