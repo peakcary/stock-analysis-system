@@ -194,7 +194,7 @@ const App: React.FC = () => {
       button={{ className: 'custom-button' }}
     >
       <AntApp>
-        <Router>
+        <Router basename="/app">
           {isMobile ? (
             <MobileLayout 
               user={user}
