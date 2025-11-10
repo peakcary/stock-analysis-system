@@ -5,8 +5,8 @@ import path from 'path';
 export default defineConfig({
   plugins: [react()],
 
-  // 生产环境下使用 /app 子路径
-  base: '/app',
+  // 生产环境下使用根路径（部署在 app.qwquant.com）
+  base: '/',
 
   resolve: {
     alias: {
