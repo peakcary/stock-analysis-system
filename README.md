@@ -2,18 +2,38 @@
 
 ⚡ 高性能股票分析系统，支持多格式数据导入、概念分析、个股查询、会员支付管理
 
-## 快速开始
+## 🚀 快速开始
+
+### 最简单的方式（推荐）
 
 ```bash
-# 1. 启动开发环境
-./start-dev.sh
-
-# 2. 访问系统
-# 后端API: http://localhost:3007
-# 管理端: http://localhost:8006 (admin/admin123)
-# 客户端: http://localhost:8005 (fullaccess_user/fullaccess123)
-# API文档: http://localhost:3007/docs
+# 一键启动（包含环境检查和依赖安装）
+./start.sh
 ```
+
+### 或者分步操作
+
+```bash
+# 1. 检查环境
+./check-env.sh
+
+# 2. 快速安装依赖（如需要）
+./quick-deploy.sh
+
+# 3. 启动服务
+./start.sh
+```
+
+### 访问系统
+
+启动完成后，访问以下地址：
+
+| 服务 | 地址 | 账户 | 密码 |
+|------|------|------|------|
+| 后端 API | http://localhost:3007 | - | - |
+| API 文档 | http://localhost:3007/docs | - | - |
+| 管理端 | http://localhost:8006 | admin | admin123 |
+| 客户端 | http://localhost:8005 | fullaccess_user | fullaccess123 |
 
 ## 环境要求
 
@@ -54,10 +74,23 @@ brew services start mysql
 - ⏰ 订单超时自动处理
 - 🛡️ 多层次安全防护机制
 
-## 管理命令
+## 📋 脚本命令
+
+### 核心命令
+
+| 命令 | 说明 | 用途 |
+|------|------|------|
+| `./start.sh` | 启动服务 | 一键启动所有服务（推荐） |
+| `./stop.sh` | 停止服务 | 优雅地停止所有服务 |
+| `./restart.sh` | 重启服务 | 重启所有服务 |
+| `./status.sh` | 检查状态 | 查看服务运行状态 |
+| `./check-env.sh` | 环境检查 | 验证系统环境是否满足要求 |
+| `./quick-deploy.sh` | 快速部署 | 快速安装依赖 |
+
+### 传统命令（兼容）
 
 ```bash
-# 开发环境
+# 旧脚本（兼容但不推荐）
 ./start-dev.sh     # 启动开发服务
 ./stop-dev.sh      # 停止开发服务
 
@@ -65,9 +98,30 @@ brew services start mysql
 docker-compose up -d              # 启动容器服务
 docker-compose down               # 停止容器服务
 docker-compose logs -f [service]  # 查看服务日志
+```
 
-# 数据库管理
-python init_database.py          # 初始化数据库
+### 常见操作
+
+```bash
+# 启动所有服务
+./start.sh
+
+# 停止所有服务
+./stop.sh
+
+# 重启所有服务
+./restart.sh
+
+# 检查服务状态
+./status.sh
+
+# 查看日志
+tail -f logs/backend.log      # 后端日志
+tail -f logs/frontend.log     # 前端日志
+tail -f logs/client.log       # 客户端日志
+
+# 查看所有日志
+tail -f logs/*.log
 ```
 
 ## 服务地址
@@ -103,8 +157,58 @@ python init_database.py          # 初始化数据库
 
 **API权限错误**：检查用户登录状态和token有效性
 
-## 技术栈
+## 📚 文档指南
 
-- 后端：FastAPI + SQLAlchemy + MySQL
-- 前端：React + TypeScript + Ant Design
-- 部署：Docker支持
+项目包含详细的文档和指南：
+
+| 文档 | 说明 | 何时查看 |
+|------|------|--------|
+| **QUICKSTART.md** | 快速开始指南 | 第一次启动系统 |
+| **TROUBLESHOOTING.md** | 故障排除指南 | 遇到问题或错误 |
+| **DEVELOPMENT_PROGRESS.md** | 开发进度文档 | 了解项目功能和版本 |
+| **README.md** | 项目主文档 | 了解项目概览 |
+
+### 常见问题速查
+
+- ❌ **无法启动？** → 查看 `QUICKSTART.md` [一键启动](#-快速开始)
+- ❌ **端口被占用？** → 查看 `TROUBLESHOOTING.md` [端口问题](#端口问题)
+- ❌ **数据库连接失败？** → 查看 `TROUBLESHOOTING.md` [数据库问题](#数据库问题)
+- ❌ **依赖安装失败？** → 查看 `TROUBLESHOOTING.md` [依赖问题](#依赖问题)
+- ❌ **API 返回错误？** → 查看 `TROUBLESHOOTING.md` [API 问题](#api-问题)
+
+## 🛠️ 技术栈
+
+- **后端**: FastAPI + SQLAlchemy + MySQL + Redis
+- **前端**: React 18 + TypeScript + Ant Design + Vite
+- **部署**: Docker + Nginx + Linux
+- **支付**: 微信支付 V2/V3
+- **缓存**: Redis + 内存缓存
+
+## 📞 获取帮助
+
+1. **查看文档**:
+   ```bash
+   # 快速开始指南
+   cat QUICKSTART.md
+
+   # 故障排除指南
+   cat TROUBLESHOOTING.md
+
+   # 开发进度
+   cat DEVELOPMENT_PROGRESS.md
+   ```
+
+2. **检查环境**:
+   ```bash
+   ./check-env.sh
+   ```
+
+3. **查看日志**:
+   ```bash
+   tail -f logs/backend.log
+   tail -f logs/frontend.log
+   tail -f logs/client.log
+   ```
+
+4. **API 文档**:
+   访问 http://localhost:3007/docs 查看完整的 API 文档

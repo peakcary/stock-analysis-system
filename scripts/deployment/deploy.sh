@@ -153,31 +153,45 @@ if [ "$STOCK_CODE_UPGRADE" = true ]; then
 elif [ "$MIGRATION_MODE" = false ]; then
     # 在完整部署时检查是否需要字段升级
     echo "🔍 检查股票代码字段..."
-    python -c "
+
+    # 检查是否使用远程数据库
+    if grep -q "tencentcdb.com\|aliyuncs.com\|amazonaws.com" backend/.env 2>/dev/null; then
+        log_warn "检测到远程数据库，跳过字段检查（避免超时）"
+        log_warn "如需检查字段，请运行: ./deploy.sh --upgrade-stock-codes"
+    else
+        # 使用timeout命令限制执行时间为5秒（本地数据库应该很快）
+        timeout 5 python -c "
 from app.core.database import engine
 from sqlalchemy import text
 import sys
 
 try:
     with engine.connect() as conn:
-        result = conn.execute(text('''
-            SELECT COLUMN_NAME 
-            FROM information_schema.COLUMNS 
-            WHERE TABLE_NAME = 'daily_trading' 
-            AND COLUMN_NAME IN ('original_stock_code', 'normalized_stock_code')
-        '''))
-        existing_columns = [row[0] for row in result.fetchall()]
-        
-        if len(existing_columns) < 2:
-            print('⚠️  股票代码字段需要升级')
-            print('💡 运行: ./deploy.sh --upgrade-stock-codes')
-            sys.exit(1)
-        else:
-            print('✅ 股票代码字段已升级')
-except Exception as e:
-    print(f'⚠️  字段检查失败: {str(e)[:50]}...')
-    print('💡 如果是新安装可忽略此警告')
-" 2>/dev/null || log_warn "字段检查完成"
+        # 使用DESCRIBE查询，比information_schema快很多
+        try:
+            result = conn.execute(text('DESCRIBE daily_trading'))
+            columns = {row[0] for row in result.fetchall()}
+
+            has_fields = 'original_stock_code' in columns and 'normalized_stock_code' in columns
+
+            if not has_fields:
+                print('⚠️  股票代码字段需要升级')
+                print('💡 运行: ./deploy.sh --upgrade-stock-codes')
+                sys.exit(1)
+            else:
+                print('✅ 股票代码字段已升级')
+        except:
+            print('⚠️  daily_trading表不存在，跳过字段检查')
+            sys.exit(0)
+except:
+    print('⚠️  字段检查失败，跳过')
+    sys.exit(0)
+" 2>/dev/null
+
+        if [ $? -eq 124 ]; then
+            log_warn "字段检查超时，跳过"
+        fi
+    fi
 fi
 
 cd ..
