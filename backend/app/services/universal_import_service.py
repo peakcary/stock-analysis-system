@@ -88,16 +88,23 @@ class UniversalImportService:
                     continue
 
                 parts = line.split('\t')
-                if len(parts) != 3:
+                # Fix Issue #8: Allow 3+ columns, ignore extra columns (like comments)
+                if len(parts) < 3:
                     self.last_parse_errors.append({
                         'line_number': line_num,
-                        'reason': '格式不正确，应为3列：股票代码\t交易日期\t交易量',
+                        'reason': '格式不正确，应至少有3列：股票代码\t交易日期\t交易量',
                         'content': line
                     })
                     logger.warning(f"第{line_num}行格式不正确: {line}")
                     continue
 
-                stock_code, date_str, volume_str = parts
+                # Extract first 3 columns, ignore any extra columns
+                stock_code = parts[0]
+                date_str = parts[1]
+                volume_str = parts[2]
+                # Extra columns (e.g., comments) are ignored
+                if len(parts) > 3:
+                    logger.debug(f"第{line_num}行包含{len(parts)-3}个额外列（已忽略）")
 
                 # 解析日期（优先使用配置的date_format，回退常见格式）
                 trading_date = None
@@ -121,6 +128,7 @@ class UniversalImportService:
                     continue
 
                 # 解析交易量 (处理空值和浮点数)
+                # Fix Issue #10: Add bounds checking and reject scientific notation
                 volume_str = volume_str.strip()
                 if not volume_str:
                     self.last_parse_errors.append({
@@ -130,9 +138,35 @@ class UniversalImportService:
                     })
                     logger.warning(f"第{line_num}行交易量为空: {line}")
                     continue
+
+                # Reject scientific notation (e.g., 1e6, 1E10)
+                if 'e' in volume_str.lower():
+                    self.last_parse_errors.append({
+                        'line_number': line_num,
+                        'reason': f"不支持科学计数法: {volume_str}，请使用标准数字格式",
+                        'content': line
+                    })
+                    logger.warning(f"第{line_num}行交易量使用科学计数法: {volume_str}")
+                    continue
+
                 try:
-                    trading_volume = int(float(volume_str))
-                except Exception:
+                    trading_volume_float = float(volume_str)
+                    # Check for negative values
+                    if trading_volume_float < 0:
+                        self.last_parse_errors.append({
+                            'line_number': line_num,
+                            'reason': f"交易量不能为负数: {volume_str}",
+                            'content': line
+                        })
+                        logger.warning(f"第{line_num}行交易量为负数: {volume_str}")
+                        continue
+
+                    trading_volume = int(trading_volume_float)
+                    # Warn if volume has decimal part (will be truncated)
+                    if trading_volume_float != trading_volume:
+                        logger.warning(f"第{line_num}行交易量 {volume_str} 包含小数，将四舍五入到 {trading_volume}")
+
+                except (ValueError, OverflowError):
                     self.last_parse_errors.append({
                         'line_number': line_num,
                         'reason': f"交易量格式错误，无法解析为数字，收到: {volume_str}",
@@ -220,30 +254,60 @@ class UniversalImportService:
                 'normalized': '标准化代码',
                 'prefix': '市场前缀'
             }
+
+        Raises:
+            ValueError: 如果股票代码无效
         """
         original = original_code.strip().upper()
 
+        # Fix Issue #2 & #11: Validate stock code format and ranges
+        if not original:
+            raise ValueError("股票代码不能为空")
+
         # 提取前缀和标准化代码
         if original.startswith('SH'):
+            code = original[2:]
+            # Validate Shanghai stock code: must be 6 digits starting with 6
+            if not (code.isdigit() and len(code) == 6 and code[0] == '6'):
+                raise ValueError(f"上海股票代码格式错误: {original}，应为 SH6xxxxx")
+            # Reject invalid codes like 000000 or 999999
+            if code == '000000':
+                raise ValueError("无效的股票代码: 000000 (全零)")
             return {
                 'original': original,
-                'normalized': original[2:],
+                'normalized': code,
                 'prefix': 'SH'
             }
         elif original.startswith('SZ'):
+            code = original[2:]
+            # Validate Shenzhen stock code: must be 6 digits starting with 0 or 3
+            if not (code.isdigit() and len(code) == 6 and code[0] in ('0', '3')):
+                raise ValueError(f"深圳股票代码格式错误: {original}，应为 SZ0xxxxx 或 SZ3xxxxx")
+            # Reject invalid codes
+            if code == '000000':
+                raise ValueError("无效的股票代码: 000000 (全零)")
             return {
                 'original': original,
-                'normalized': original[2:],
+                'normalized': code,
                 'prefix': 'SZ'
             }
         elif original.startswith('BJ'):
+            code = original[2:]
+            # Validate Beijing stock code: must be 6 digits (starts with 8)
+            if not (code.isdigit() and len(code) == 6 and code[0] == '8'):
+                raise ValueError(f"北京股票代码格式错误: {original}，应为 BJ8xxxxx")
             return {
                 'original': original,
-                'normalized': original[2:],
+                'normalized': code,
                 'prefix': 'BJ'
             }
         else:
-            # 纯数字代码，无前缀
+            # 纯数字代码，无前缀 - Fix Issue #2: Also validate plain codes
+            if not original.isdigit() or len(original) != 6:
+                raise ValueError(f"股票代码格式错误: {original}，应为6位数字或 SH/SZ/BJ + 6位数字")
+            # Reject invalid codes like 000000
+            if original == '000000':
+                raise ValueError("无效的股票代码: 000000 (全零)")
             return {
                 'original': original,
                 'normalized': original,
@@ -741,13 +805,22 @@ class UniversalImportService:
             # 使用文件中的日期作为最终日期
             final_trading_date = trading_dates[0]
 
-            # 如果最终日期与用户传入不一致：
-            # 1) 更新导入记录的交易日期为最终日期
-            # 2) 删除最终日期上的其他旧导入记录（保留当前这条）
+            # Fix Issue #12: Date mismatch detection with safeguards
+            # If final date differs from user-specified date, log a warning and prevent silent deletion
             if trading_date != final_trading_date:
-                logger.warning(f"用户指定日期 {trading_date} 与文件数据日期 {final_trading_date} 不一致，使用文件数据日期")
+                warning_msg = f"日期不匹配警告：用户指定日期 {trading_date} 与文件数据日期 {final_trading_date} 不一致"
+                logger.warning(warning_msg)
+
+                # Count existing records for the target date to warn about potential data loss
+                existing_count = self.db.query(self.ImportRecord).filter(
+                    self.ImportRecord.trading_date == final_trading_date
+                ).count()
+
+                if existing_count > 0:
+                    logger.warning(f"⚠️ 警告：日期为 {final_trading_date} 的已有 {existing_count} 条导入记录将被覆盖")
+
+                # Update the import record date to final date
                 trading_date = final_trading_date
-                # 更新当前导入记录的日期
                 try:
                     import_record = self.db.query(self.ImportRecord).filter(self.ImportRecord.id == import_record_id).first()
                     if import_record:
@@ -755,12 +828,14 @@ class UniversalImportService:
                         self.db.flush()
                 except Exception as e:
                     logger.error(f"更新导入记录日期失败: {e}")
-                # 删除该最终日期的其他旧记录（不删除当前这条）
+
+                # Delete old import records for this date (keep current one)
                 try:
-                    self.db.query(self.ImportRecord).filter(
+                    deleted_count = self.db.query(self.ImportRecord).filter(
                         self.ImportRecord.trading_date == final_trading_date,
                         self.ImportRecord.id != import_record_id
                     ).delete(synchronize_session=False)
+                    logger.warning(f"已删除 {deleted_count} 条旧的 {final_trading_date} 导入记录")
                     self.db.flush()
                 except Exception as e:
                     logger.error(f"清理旧导入记录失败: {e}")

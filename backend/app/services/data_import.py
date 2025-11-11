@@ -80,8 +80,18 @@ class DataImportService:
                     "already_exists": True
                 }
             
-            # 解析CSV内容
-            df = pd.read_csv(io.BytesIO(content), encoding='utf-8')
+            # 解析CSV内容 - Fix Issue #4: Try multiple encodings
+            df = None
+            for encoding in ['utf-8', 'gbk', 'gb2312', 'gb18030', 'latin-1']:
+                try:
+                    df = pd.read_csv(io.BytesIO(content), encoding=encoding)
+                    print(f"✅ CSV文件编码识别: {encoding}")
+                    break
+                except (UnicodeDecodeError, UnicodeError):
+                    continue
+
+            if df is None:
+                raise ValueError("CSV文件编码不支持，请使用 UTF-8、GBK 或 GB2312 编码")
             
             # 检测CSV格式并进行列名映射
             df = self._normalize_csv_columns(df)
@@ -465,18 +475,31 @@ class DataImportService:
         """
         
         # 第一步：预解析TXT内容以确定日期和数据范围
-        text_content = content.decode('utf-8')
+        # Fix Issue #4: Try multiple encodings to handle non-UTF-8 files
+        text_content = None
+        for encoding in ['utf-8', 'gbk', 'gb2312', 'gb18030']:
+            try:
+                text_content = content.decode(encoding)
+                print(f"✅ 文件编码识别: {encoding}")
+                break
+            except UnicodeDecodeError:
+                continue
+
+        if text_content is None:
+            raise ValueError("文件编码不支持，请使用 UTF-8、GBK 或 GB2312 编码")
+
         lines = text_content.strip().split('\n')
         
         # 从文件内容中提取日期
         detected_dates = set()
         valid_lines = []
-        
+        date_parse_errors = []  # Fix Issue #1: Track failed date parsing
+
         for line_num, line in enumerate(lines, 1):
             line = line.strip()
             if not line:
                 continue
-                
+
             parts = line.split('\t') if '\t' in line else line.split()
             if len(parts) >= 3:
                 try:
@@ -486,8 +509,20 @@ class DataImportService:
                     if parsed_date:
                         detected_dates.add(parsed_date)
                         valid_lines.append((line_num, line, parsed_date))
-                except:
-                    continue
+                    else:
+                        # Fix Issue #1: Log failed date parsing with details
+                        date_parse_errors.append({
+                            'line_number': line_num,
+                            'content': line,
+                            'reason': f"日期格式不支持: '{date_str}'"
+                        })
+                except Exception as e:
+                    # Fix Issue #1: Log exception with context
+                    date_parse_errors.append({
+                        'line_number': line_num,
+                        'content': line,
+                        'reason': f"日期解析异常: {str(e)}"
+                    })
         
         # 确定导入的目标日期
         if trade_date:
@@ -504,18 +539,29 @@ class DataImportService:
             print(f"📅 检测到多个日期，使用最常见的: {target_date} (出现{date_counts[target_date]}次)")
         else:
             # 从文件名提取日期
+            # Fix Issue #6: Add warning when falling back to TODAY
             target_date = self._extract_date_from_filename(filename)
             if not target_date:
                 target_date = date.today()
-            print(f"📅 从文件名提取日期: {target_date}")
+                print(f"⚠️  警告：文件名中未找到日期，使用今天日期: {target_date}")
+                logger.warning(f"文件'{filename}'中未检测到交易日期，使用系统今日日期 {target_date} 进行导入")
+            else:
+                print(f"📅 从文件名提取日期: {target_date}")
         
         import_type = 'txt'
         
         print(f"📊 TXT文件预分析:")
         print(f"   📋 文件名: {filename}")
-        print(f"   📅 目标日期: {target_date}")  
+        print(f"   📅 目标日期: {target_date}")
         print(f"   📝 有效行数: {len(valid_lines)}")
         print(f"   🔍 检测到日期: {sorted(detected_dates)}")
+        # Fix Issue #1: Log date parse errors if any
+        if date_parse_errors:
+            print(f"   ⚠️  日期解析失败: {len(date_parse_errors)}行")
+            for error in date_parse_errors[:10]:  # Show first 10 errors
+                print(f"      第{error['line_number']}行: {error['reason']}")
+            if len(date_parse_errors) > 10:
+                print(f"      ... 还有{len(date_parse_errors) - 10}行错误（仅显示前10条）")
         
         try:
             # 检查是否已经导入过该日期的数据
