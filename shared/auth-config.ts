@@ -41,14 +41,16 @@ export const getApiBaseUrl = (): string => {
 
     // 自动检测环境
     const hostname = window.location.hostname;
+    const isDev = import.meta.env.DEV || hostname === 'localhost' || hostname === '127.0.0.1';
 
-    // 开发环境检测
-    if (hostname === 'localhost' || hostname === '127.0.0.1') {
-      return `http://${hostname}:3007/api/v1`;
+    // 开发环境 - 使用相对路径，Vite代理会拦截 /api 并转发到 :3007
+    // 这样避免跨域问题，并让代理处理路由
+    if (isDev) {
+      return '/api/v1';
     }
 
-    // 生产环境 - 使用当前域名 + Nginx代理路径
-    return `${window.location.origin}/api/v1`;
+    // 生产环境 - 使用相对路径，Nginx会处理 /api 反向代理
+    return '/api/v1';
   } else {
     // Node.js 环境
     return process.env.REACT_APP_API_URL ||
