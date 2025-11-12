@@ -44,7 +44,7 @@ export const getApiBaseUrl = (): string => {
 
     // 开发环境检测
     if (hostname === 'localhost' || hostname === '127.0.0.1') {
-      return `http://${hostname}:3007`;
+      return `http://${hostname}:3007/api/v1`;
     }
 
     // 生产环境 - 使用当前域名 + Nginx代理路径
@@ -80,10 +80,10 @@ export const USER_AUTH_CONFIG: AuthConfig = {
 export const ADMIN_AUTH_CONFIG: AuthConfig = {
   apiBaseUrl: getApiBaseUrl(),
   endpoints: {
-    login: '/admin/auth/login',
-    logout: '/admin/auth/logout',
-    refresh: '/admin/auth/refresh',
-    me: '/admin/auth/me'
+    login: '/admin-auth/login',
+    logout: '/admin-auth/logout',
+    refresh: '/admin-auth/refresh',
+    me: '/admin-auth/me'
   },
   storage: {
     tokenKey: 'admin_token',

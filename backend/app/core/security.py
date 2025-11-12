@@ -9,13 +9,17 @@ from passlib.context import CryptContext
 from fastapi import HTTPException, status
 from app.core.config import settings
 
-# 密码加密上下文
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# 密码加密上下文 - 使用 argon2 替代 bcrypt 以避免版本兼容性问题
+pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """验证密码"""
-    return pwd_context.verify(plain_password, hashed_password)
+    try:
+        return pwd_context.verify(plain_password, hashed_password)
+    except Exception as e:
+        print(f"密码验证错误: {e}")
+        return False
 
 
 def get_password_hash(password: str) -> str:

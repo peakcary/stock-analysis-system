@@ -57,18 +57,8 @@ const App: React.FC = () => {
       try {
         // 初始化认证token
         tokenManager.initToken();
-        
-        // 尝试自动登录用于测试
-        if (!tokenManager.getToken()) {
-          const loginResult = await mockLogin('admin', 'admin123');
-          if (loginResult.success) {
-            console.log('自动登录成功:', loginResult.user);
-          } else {
-            console.log('自动登录失败:', loginResult.error);
-          }
-        }
-        
-        // 这里会调用API获取用户信息
+
+        // 尝试从本地存储恢复用户信息
         const savedUser = localStorage.getItem('user');
         if (savedUser) {
           setUser(JSON.parse(savedUser));
@@ -83,7 +73,7 @@ const App: React.FC = () => {
             loadingEl.remove();
           }
           setLoading(false);
-        }, 1000);
+        }, 500);
       }
     };
 
