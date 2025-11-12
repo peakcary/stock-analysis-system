@@ -37,7 +37,7 @@ export const StockAnalysisPage: React.FC<StockAnalysisPageProps> = ({ user, trad
     setLoading(true);
     try {
       // 获取股票概念信息 - 使用 apiClient 自动处理认证
-      const response = await apiClient.get(`/api/v1/stock-analysis/stock/${stockCode}/concepts`, {
+      const response = await apiClient.get(`/stock-analysis/stock/${stockCode}/concepts`, {
         params: { trading_date: tradeDate }
       });
 
@@ -60,7 +60,7 @@ export const StockAnalysisPage: React.FC<StockAnalysisPageProps> = ({ user, trad
       // 获取图表数据
       if (stockData.concepts?.length > 0) {
         try {
-          const chartResponse = await apiClient.get(`/api/v1/stock-analysis/stock/${stockCode}/chart-data`, {
+          const chartResponse = await apiClient.get(`/stock-analysis/stock/${stockCode}/chart-data`, {
             params: {
               concept_name: stockData.concepts[0].concept_name,
               days: 30
