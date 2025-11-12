@@ -7,10 +7,14 @@ Database Initialization Script
 import os
 import sys
 from pathlib import Path
+from dotenv import load_dotenv
 
 # 添加项目路径到sys.path
 project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root))
+
+# 加载 .env 文件
+load_dotenv(project_root / ".env")
 
 # 设置环境变量 - 统一使用MySQL
 # 如果没有设置DATABASE_URL环境变量，则使用默认MySQL配置
@@ -75,10 +79,10 @@ def init_database():
             admin_user = User(
                 username="admin",
                 email="admin@example.com",
-                password_hash=get_password_hash("admin")
+                password_hash=get_password_hash("admin123")
             )
             db.add(admin_user)
-            print("✅ 创建默认客户端用户: admin/admin")
+            print("✅ 创建默认客户端用户: admin/admin123")
         else:
             print("ℹ️ 默认客户端用户已存在")
 
@@ -88,12 +92,12 @@ def init_database():
             admin_admin = AdminUser(
                 username="admin",
                 email="admin@admin.com",
-                password_hash=get_password_hash("admin"),
+                password_hash=get_password_hash("admin123"),
                 is_active=True,
                 is_superuser=True
             )
             db.add(admin_admin)
-            print("✅ 创建默认后台管理员用户: admin/admin")
+            print("✅ 创建默认后台管理员用户: admin/admin123")
         else:
             print("ℹ️ 默认后台管理员用户已存在")
 
@@ -159,7 +163,7 @@ def init_database():
         print("\n🎉 数据库初始化完成！")
         print("📝 默认登录信息:")
         print("   用户名: admin")
-        print("   密码: admin")
+        print("   密码: admin123")
         print("💰 支付套餐已初始化")
 
     except Exception as e:
