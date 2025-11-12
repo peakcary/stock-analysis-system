@@ -5,8 +5,8 @@ import path from 'path';
 export default defineConfig({
   plugins: [react()],
 
-  // 使用根路径 - 所有环境统一使用/
-  base: '/',
+  // 开发环境使用根路径，生产环境使用 /app 子路径
+  base: process.env.NODE_ENV === 'production' ? '/app' : '/',
 
   resolve: {
     alias: {
