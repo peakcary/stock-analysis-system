@@ -71,7 +71,7 @@ const PaymentPage: React.FC = () => {
   const fetchPackages = async () => {
     try {
       setPackagesLoading(true);
-      const response = await adminApiClient.get('/api/v1/payment/packages');
+      const response = await adminApiClient.get('/payment/packages');
       setPackages(response.data);
       if (response.data.length > 0) {
         setSelectedPackageType(response.data[0].package_type);
@@ -113,7 +113,7 @@ const PaymentPage: React.FC = () => {
     const checkStatus = async () => {
       try {
         const response = await adminApiClient.get(
-          `/api/v1/payment/orders/${paymentOrder.out_trade_no}/status`
+          `/payment/orders/${paymentOrder.out_trade_no}/status`
         );
         setOrderStatus(response.data);
 
@@ -151,7 +151,7 @@ const PaymentPage: React.FC = () => {
       setLoading(true);
       setCurrentStep(1);
 
-      const response = await adminApiClient.post('/api/v1/payment/orders', {
+      const response = await adminApiClient.post('/payment/orders', {
         package_type: selectedPackageType,
         payment_method: 'wechat_native'
       });
@@ -179,7 +179,7 @@ const PaymentPage: React.FC = () => {
       onOk: async () => {
         try {
           await adminApiClient.post(
-            `/api/v1/payment/orders/${paymentOrder.out_trade_no}/cancel`
+            `/payment/orders/${paymentOrder.out_trade_no}/cancel`
           );
           message.success('订单已取消');
           setPaymentOrder(null);
@@ -462,7 +462,7 @@ const PaymentPage: React.FC = () => {
               onClick={async () => {
                 try {
                   const response = await adminApiClient.get(
-                    `/api/v1/payment/orders/${paymentOrder.out_trade_no}/status`
+                    `/payment/orders/${paymentOrder.out_trade_no}/status`
                   );
                   setOrderStatus(response.data);
                   if (response.data.status === 'PAID' || response.data.status === 'SUCCESS') {

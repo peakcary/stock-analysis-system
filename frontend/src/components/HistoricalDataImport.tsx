@@ -136,7 +136,7 @@ const HistoricalDataImport: React.FC = () => {
         });
       }, 200);
 
-      const response = await adminApiClient.post('/api/v1/historical-txt-import/preview', formData, {
+      const response = await adminApiClient.post('/historical-txt-import/preview', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
 
@@ -172,7 +172,7 @@ const HistoricalDataImport: React.FC = () => {
 
       message.info('开始上传大文件，请耐心等待...');
 
-      const response = await adminApiClient.post('/api/v1/large-file-upload/direct-large-upload', formData, {
+      const response = await adminApiClient.post('/large-file-upload/direct-large-upload', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
         onUploadProgress: (progressEvent) => {
           if (progressEvent.total) {
@@ -185,7 +185,7 @@ const HistoricalDataImport: React.FC = () => {
       if (response.data.success) {
         setTaskId(response.data.upload_id);
         message.success('大文件上传完成，开始后台处理...');
-        startProgressMonitoring(response.data.upload_id, '/api/v1/large-file-upload/progress/');
+        startProgressMonitoring(response.data.upload_id, '/large-file-upload/progress/');
       }
     } catch (error: any) {
       setImporting(false);
@@ -234,7 +234,7 @@ const HistoricalDataImport: React.FC = () => {
           });
         }, 300);
 
-        response = await adminApiClient.post('/api/v1/historical-txt-import/import-async', formData, {
+        response = await adminApiClient.post('/historical-txt-import/import-async', formData, {
           headers: { 'Content-Type': 'multipart/form-data' }
         });
 
@@ -263,7 +263,7 @@ const HistoricalDataImport: React.FC = () => {
           });
         }, 500);
 
-        response = await adminApiClient.post('/api/v1/historical-txt-import/import-sync', formData, {
+        response = await adminApiClient.post('/historical-txt-import/import-sync', formData, {
           headers: { 'Content-Type': 'multipart/form-data' }
         });
 
@@ -299,7 +299,7 @@ const HistoricalDataImport: React.FC = () => {
 
   // 开始进度监控
   const startProgressMonitoring = (taskId: string, progressUrl?: string) => {
-    const url = progressUrl ? `${progressUrl}${taskId}` : `/api/v1/historical-txt-import/progress/${taskId}`;
+    const url = progressUrl ? `${progressUrl}${taskId}` : `/historical-txt-import/progress/${taskId}`;
 
     progressInterval.current = setInterval(async () => {
       try {

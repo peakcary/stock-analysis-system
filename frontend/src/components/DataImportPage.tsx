@@ -94,7 +94,7 @@ const DataImportPage: React.FC<DataImportPageProps> = ({
   // 获取单个股票的概念信息
   const getStockConcepts = async (stockCode: string) => {
     try {
-      const response = await adminApiClient.get(`/api/v1/stocks/${stockCode}`);
+      const response = await adminApiClient.get(`/stocks/${stockCode}`);
       return response.data?.concepts || [];
     } catch (error) {
       console.error(`获取股票${stockCode}的概念失败:`, error);
@@ -342,7 +342,7 @@ const DataImportPage: React.FC<DataImportPageProps> = ({
   // 检查日期是否已有导入记录
   const checkDateExists = async (fileType: 'ttv' | 'eee', tradingDate: string) => {
     try {
-      const response = await adminApiClient.post(`/api/v1/universal-import/${fileType}/check-date`, {
+      const response = await adminApiClient.post(`/universal-import/${fileType}/check-date`, {
         trading_date: tradingDate
       });
 
@@ -415,7 +415,7 @@ const DataImportPage: React.FC<DataImportPageProps> = ({
       formData.append('file_type', fileType);
       formData.append('trading_date', tradingDate);
 
-      const response = await adminApiClient.post('/api/v1/universal-import/import', formData, {
+      const response = await adminApiClient.post('/universal-import/import', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },

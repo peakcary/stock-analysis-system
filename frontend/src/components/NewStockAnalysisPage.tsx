@@ -63,7 +63,7 @@ const NewStockAnalysisPage: React.FC = () => {
     try {
       const searchParam = searchText.trim() ? `&search=${encodeURIComponent(searchText.trim())}` : '';
       const response = await adminApiClient.get(
-        `/api/v1/stock-analysis/stocks/daily-summary?trading_date=${tradingDate}&page=${page}&size=${pageSize}&sort_by=trading_volume&sort_order=desc${searchParam}`
+        `/stock-analysis/stocks/daily-summary?trading_date=${tradingDate}&page=${page}&size=${pageSize}&sort_by=trading_volume&sort_order=desc${searchParam}`
       );
       
       if (response.data?.summaries) {
@@ -98,7 +98,7 @@ const NewStockAnalysisPage: React.FC = () => {
     setConceptLoading(true);
     try {
       const response = await adminApiClient.get(
-        `/api/v1/stock-analysis/stock/${encodeURIComponent(stockCode)}/concepts?trading_date=${tradingDate}`
+        `/stock-analysis/stock/${encodeURIComponent(stockCode)}/concepts?trading_date=${tradingDate}`
       );
       
       if (response.data?.concepts) {

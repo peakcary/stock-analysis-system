@@ -95,7 +95,7 @@ const UserManagement: React.FC = () => {
       }
 
       // 使用新的客户端用户管理API
-      const response = await adminApiClient.get('/api/v1/admin/client-users/users', {
+      const response = await adminApiClient.get('/admin/client-users/users', {
         params
       });
 
@@ -139,7 +139,7 @@ const UserManagement: React.FC = () => {
   // 获取用户统计
   const fetchStats = async () => {
     try {
-      const response = await adminApiClient.get('/api/v1/admin/client-users/stats');
+      const response = await adminApiClient.get('/admin/client-users/stats');
       setStats(response.data);
     } catch (error) {
       console.error('获取统计数据失败:', error);
@@ -161,11 +161,11 @@ const UserManagement: React.FC = () => {
   const fetchUserDetail = async (userId: number) => {
     try {
       // 获取用户查询记录
-      const queriesResponse = await adminApiClient.get(`/api/v1/admin/users/${userId}/queries`);
+      const queriesResponse = await adminApiClient.get(`/admin/users/${userId}/queries`);
       setUserQueries(queriesResponse.data.queries || []);
 
       // 获取用户支付记录
-      const paymentsResponse = await adminApiClient.get(`/api/v1/admin/users/${userId}/payments`);
+      const paymentsResponse = await adminApiClient.get(`/admin/users/${userId}/payments`);
       setUserPayments(paymentsResponse.data.payments || []);
     } catch (error) {
       console.error('获取用户详情失败:', error);
@@ -187,11 +187,11 @@ const UserManagement: React.FC = () => {
     try {
       if (editingUser) {
         // 更新用户
-        await adminApiClient.put(`/api/v1/admin/users/${editingUser.id}`, values);
+        await adminApiClient.put(`/admin/users/${editingUser.id}`, values);
         message.success('用户更新成功');
       } else {
         // 创建用户
-        await adminApiClient.post('/api/v1/admin/users', values);
+        await adminApiClient.post('/admin/users', values);
         message.success('用户创建成功');
       }
       setUserModalVisible(false);
@@ -207,7 +207,7 @@ const UserManagement: React.FC = () => {
   // 删除用户
   const handleDeleteUser = async (userId: number) => {
     try {
-      await adminApiClient.delete(`/api/v1/admin/users/${userId}`);
+      await adminApiClient.delete(`/admin/users/${userId}`);
       message.success('用户删除成功');
       fetchUsers();
     } catch (error) {
@@ -219,7 +219,7 @@ const UserManagement: React.FC = () => {
   // 升级会员
   const handleUpgradeMembership = async (userId: number, membershipType: string) => {
     try {
-      await adminApiClient.post(`/api/v1/admin/users/${userId}/membership`, {
+      await adminApiClient.post(`/admin/users/${userId}/membership`, {
         membership_type: membershipType,
         queries_to_add: membershipType === 'pro' ? 1000 : membershipType === 'premium' ? 9999 : 0,
         days_to_add: membershipType === 'pro' ? 30 : membershipType === 'premium' ? 365 : 0
@@ -236,7 +236,7 @@ const UserManagement: React.FC = () => {
   const handleResetPassword = async (userId: number) => {
     const newPassword = 'reset123';
     try {
-      await adminApiClient.post(`/api/v1/admin/users/${userId}/reset-password?new_password=${newPassword}`, {});
+      await adminApiClient.post(`/admin/users/${userId}/reset-password?new_password=${newPassword}`, {});
       message.success(`密码重置成功，新密码: ${newPassword}`);
     } catch (error) {
       console.error('重置密码失败:', error);
