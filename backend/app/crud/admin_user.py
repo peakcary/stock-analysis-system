@@ -13,7 +13,7 @@ from app.utils.password_validator import validate_password
 class AdminUserCRUD:
     def __init__(self, db: Session):
         self.db = db
-        self.pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+        self.pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
     
     def get_password_hash(self, password: str) -> str:
         """生成密码哈希"""

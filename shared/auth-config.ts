@@ -82,10 +82,10 @@ export const USER_AUTH_CONFIG: AuthConfig = {
 export const ADMIN_AUTH_CONFIG: AuthConfig = {
   apiBaseUrl: getApiBaseUrl(),
   endpoints: {
-    login: '/admin-auth/login',
-    logout: '/admin-auth/logout',
-    refresh: '/admin-auth/refresh',
-    me: '/admin-auth/me'
+    login: '/admin/auth/login',
+    logout: '/admin/auth/logout',
+    refresh: '/admin/auth/refresh',
+    me: '/admin/auth/me'
   },
   storage: {
     tokenKey: 'admin_token',
