@@ -30,11 +30,11 @@ class StockInfo(Base):
 class DailyStockConceptData(Base):
     """每日股票概念数据表"""
     __tablename__ = "stock_concept_daily_data"
-    
+
     id = Column(Integer, primary_key=True, index=True)
-    stock_code = Column(String(20), nullable=False, index=True, comment="股票代码")
+    stock_code = Column(String(20), nullable=False, comment="股票代码")
     stock_name = Column(String(100), comment="股票名称")
-    trade_date = Column(Date, nullable=False, index=True, comment="交易日期")
+    trade_date = Column(Date, nullable=False, comment="交易日期")
     
     # 从CSV文件导入的数据
     total_pages = Column(Integer, comment="全部页数")
@@ -76,11 +76,11 @@ class StockConceptCategory(Base):
 class DailyStockConcept(Base):
     """每日股票概念关联表"""
     __tablename__ = "stock_concept_daily_relations"
-    
+
     id = Column(Integer, primary_key=True, index=True)
-    stock_code = Column(String(20), nullable=False, index=True, comment="股票代码")
+    stock_code = Column(String(20), nullable=False, comment="股票代码")
     concept_name = Column(String(100), nullable=False, comment="概念名称")
-    trade_date = Column(Date, nullable=False, index=True, comment="交易日期")
+    trade_date = Column(Date, nullable=False, comment="交易日期")
     created_at = Column(DateTime, default=datetime.now, comment="创建时间")
     
     __table_args__ = (
@@ -95,10 +95,10 @@ class DailyStockConcept(Base):
 class ConceptDailyStats(Base):
     """概念每日统计表"""
     __tablename__ = "stock_concept_daily_stats"
-    
+
     id = Column(Integer, primary_key=True, index=True)
-    concept_name = Column(String(100), nullable=False, index=True, comment="概念名称")
-    trade_date = Column(Date, nullable=False, index=True, comment="交易日期")
+    concept_name = Column(String(100), nullable=False, comment="概念名称")
+    trade_date = Column(Date, nullable=False, comment="交易日期")
     
     # 统计数据
     total_volume = Column(BigInteger, comment="概念总成交量")
@@ -125,12 +125,12 @@ class ConceptDailyStats(Base):
 class StockConceptRanking(Base):
     """股票在概念中的每日排名表"""
     __tablename__ = "stock_concept_daily_rankings"
-    
+
     id = Column(Integer, primary_key=True, index=True)
-    stock_code = Column(String(20), nullable=False, index=True, comment="股票代码")
+    stock_code = Column(String(20), nullable=False, comment="股票代码")
     stock_name = Column(String(100), comment="股票名称")
-    concept_name = Column(String(100), nullable=False, index=True, comment="概念名称")
-    trade_date = Column(Date, nullable=False, index=True, comment="交易日期")
+    concept_name = Column(String(100), nullable=False, comment="概念名称")
+    trade_date = Column(Date, nullable=False, comment="交易日期")
     
     # 排名数据
     volume_rank = Column(Integer, comment="成交量排名")

@@ -10,8 +10,8 @@ class DailyTrading(Base):
     id = Column(Integer, primary_key=True, index=True)
     original_stock_code = Column(String(20), nullable=False, index=True, comment="原始股票代码")
     normalized_stock_code = Column(String(10), nullable=False, index=True, comment="标准化股票代码")
-    stock_code = Column(String(20), nullable=False, index=True, comment="股票代码")
-    trading_date = Column(Date, nullable=False, index=True, comment="交易日期")
+    stock_code = Column(String(20), nullable=False, comment="股票代码")
+    trading_date = Column(Date, nullable=False, comment="交易日期")
     trading_volume = Column(Integer, nullable=False, comment="交易量")
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     
@@ -25,10 +25,10 @@ class DailyTrading(Base):
 class ConceptDailySummary(Base):
     """概念每日汇总表"""
     __tablename__ = "concept_daily_summary"
-    
+
     id = Column(Integer, primary_key=True, index=True)
-    concept_name = Column(String(100), nullable=False, index=True)  # 概念名称
-    trading_date = Column(Date, nullable=False, index=True)  # 交易日期
+    concept_name = Column(String(100), nullable=False)  # 概念名称
+    trading_date = Column(Date, nullable=False)  # 交易日期
     total_volume = Column(Integer, nullable=False)  # 概念总交易量
     stock_count = Column(Integer, nullable=False)  # 概念内股票数量
     average_volume = Column(Float, nullable=False)  # 平均交易量
@@ -45,11 +45,11 @@ class ConceptDailySummary(Base):
 class StockConceptRanking(Base):
     """股票在概念中的每日排名表"""
     __tablename__ = "stock_concept_ranking"
-    
+
     id = Column(Integer, primary_key=True, index=True)
-    stock_code = Column(String(20), nullable=False, index=True)  # 股票代码
-    concept_name = Column(String(100), nullable=False, index=True)  # 概念名称
-    trading_date = Column(Date, nullable=False, index=True)  # 交易日期
+    stock_code = Column(String(20), nullable=False)  # 股票代码
+    concept_name = Column(String(100), nullable=False)  # 概念名称
+    trading_date = Column(Date, nullable=False)  # 交易日期
     trading_volume = Column(Integer, nullable=False)  # 交易量
     concept_rank = Column(Integer, nullable=False)  # 在概念中的排名
     concept_total_volume = Column(Integer, nullable=False)  # 概念总量
@@ -66,10 +66,10 @@ class StockConceptRanking(Base):
 class ConceptHighRecord(Base):
     """概念创新高记录表"""
     __tablename__ = "concept_high_record"
-    
+
     id = Column(Integer, primary_key=True, index=True)
-    concept_name = Column(String(100), nullable=False, index=True)  # 概念名称
-    trading_date = Column(Date, nullable=False, index=True)  # 创新高日期
+    concept_name = Column(String(100), nullable=False)  # 概念名称
+    trading_date = Column(Date, nullable=False)  # 创新高日期
     total_volume = Column(Integer, nullable=False)  # 创新高交易量
     days_period = Column(Integer, nullable=False)  # 统计周期（天数）
     is_active = Column(Boolean, default=True)  # 是否为当前活跃的新高
