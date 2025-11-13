@@ -112,7 +112,6 @@ class RawImportData(Base):
     # 索引
     __table_args__ = (
         Index('idx_batch_row', 'import_batch_id', 'row_number'),
-        Index('idx_trade_date', 'trade_date'),
         Index('idx_stock_code', 'stock_code_normalized'),
         Index('idx_source_type', 'source_type'),
     )

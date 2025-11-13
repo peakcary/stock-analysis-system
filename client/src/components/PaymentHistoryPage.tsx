@@ -82,7 +82,7 @@ const PaymentHistoryPage: React.FC = () => {
   // 获取支付统计
   const fetchPaymentStats = async () => {
     try {
-      const response = await apiClient.get('/api/v1/payment/stats');
+      const response = await apiClient.get('/payment/stats');
       setStats(response.data);
     } catch (error) {
       console.error('获取支付统计失败:', error);
@@ -94,7 +94,7 @@ const PaymentHistoryPage: React.FC = () => {
   const fetchPaymentHistory = async () => {
     try {
       setLoading(true);
-      const response = await apiClient.get('/api/v1/payment/v2/orders/history');
+      const response = await apiClient.get('/payment/v2/orders/history');
 
       if (response.data.success) {
         setOrders(response.data.data.orders || []);
@@ -113,7 +113,7 @@ const PaymentHistoryPage: React.FC = () => {
   const fetchRefundHistory = async () => {
     try {
       setLoading(true);
-      const response = await apiClient.get('/api/v1/payment/refunds');
+      const response = await apiClient.get('/payment/refunds');
       setRefunds(response.data.refunds || []);
     } catch (error) {
       console.error('获取退款记录失败:', error);
@@ -166,7 +166,7 @@ const PaymentHistoryPage: React.FC = () => {
     }
 
     try {
-      await apiClient.post(`/api/v1/payment/refund/${selectedOrder.id}`, {
+      await apiClient.post(`/payment/refund/${selectedOrder.id}`, {
         refund_reason: refundReason
       });
 

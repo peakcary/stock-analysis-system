@@ -24,6 +24,7 @@ import {
   CheckCircleOutlined,
   CloseCircleOutlined
 } from '@ant-design/icons';
+import { apiClient } from '../utils/auth';
 
 const { Title, Text, Paragraph } = Typography;
 const { TabPane } = Tabs;
@@ -94,26 +95,17 @@ const EnhancedPaymentModal: React.FC<EnhancedPaymentModalProps> = ({
 
     setLoading(true);
     try {
-      const response = await fetch('/api/v1/payment/v2/orders/create', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        },
-        body: JSON.stringify({
-          package_type: selectedPackage.package_type,
-          payment_method: method,
-        }),
+      const result = await apiClient.post('/payment/v2/orders/create', {
+        package_type: selectedPackage.package_type,
+        payment_method: method,
       });
 
-      const result = await response.json();
-
-      if (result.success) {
-        setPaymentOrder(result.data);
+      if (result.data.success) {
+        setPaymentOrder(result.data.data);
         setPaymentMethod(method);
-        startPolling(result.data.out_trade_no);
+        startPolling(result.data.data.out_trade_no);
       } else {
-        message.error(result.message || '创建订单失败');
+        message.error(result.data.message || '创建订单失败');
       }
     } catch (error) {
       console.error('创建订单失败:', error);
@@ -127,26 +119,20 @@ const EnhancedPaymentModal: React.FC<EnhancedPaymentModalProps> = ({
   const startPolling = (outTradeNo: string) => {
     const interval = setInterval(async () => {
       try {
-        const response = await fetch(`/api/v1/payment/v2/orders/${outTradeNo}/status`, {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          },
-        });
+        const result = await apiClient.get(`/payment/v2/orders/${outTradeNo}/status`);
 
-        const result = await response.json();
-
-        if (result.success) {
-          if (result.data.status === 'paid') {
+        if (result.data.success) {
+          if (result.data.data.status === 'paid') {
             setOrderStatus('paid');
             clearInterval(interval);
             message.success('支付成功！');
             setTimeout(() => {
               onSuccess();
             }, 2000);
-          } else if (result.data.status === 'expired') {
+          } else if (result.data.data.status === 'expired') {
             setOrderStatus('expired');
             clearInterval(interval);
-          } else if (result.data.status === 'cancelled') {
+          } else if (result.data.data.status === 'cancelled') {
             setOrderStatus('cancelled');
             clearInterval(interval);
           }
@@ -172,16 +158,9 @@ const EnhancedPaymentModal: React.FC<EnhancedPaymentModalProps> = ({
     if (!paymentOrder) return;
 
     try {
-      const response = await fetch(`/api/v1/payment/v2/orders/${paymentOrder.out_trade_no}/cancel`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        },
-      });
+      const result = await apiClient.post(`/payment/v2/orders/${paymentOrder.out_trade_no}/cancel`);
 
-      const result = await response.json();
-
-      if (result.success) {
+      if (result.data.success) {
         setOrderStatus('cancelled');
         message.info('订单已取消');
         if (pollingInterval) {
@@ -199,16 +178,9 @@ const EnhancedPaymentModal: React.FC<EnhancedPaymentModalProps> = ({
     if (!paymentOrder || !paymentOrder.mock_mode) return;
 
     try {
-      const response = await fetch(`/api/v1/payment/mock/complete/${paymentOrder.out_trade_no}`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        },
-      });
+      const result = await apiClient.post(`/payment/mock/complete/${paymentOrder.out_trade_no}`);
 
-      const result = await response.json();
-
-      if (result.success) {
+      if (result.data.success) {
         setOrderStatus('paid');
         message.success('模拟支付成功！');
         setTimeout(() => {
