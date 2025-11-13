@@ -79,11 +79,11 @@ class ConceptDailyMetrics(OptimizedBase):
     
     # 覆盖索引优化
     __table_args__ = (
-        Index('idx_date_rank', 'trading_date', 'volume_rank'),
-        Index('idx_date_volume', 'trading_date', 'total_volume'),
-        Index('idx_concept_date', 'concept_name', 'trading_date'),
-        Index('idx_new_high', 'trading_date', 'is_new_high', 'volume_rank'),
-        Index('uk_concept_date', 'concept_name', 'trading_date', unique=True),
+        Index('idx_cdio_date_rank', 'trading_date', 'volume_rank'),
+        Index('idx_cdio_date_volume', 'trading_date', 'total_volume'),
+        Index('idx_cdio_concept_date', 'concept_name', 'trading_date'),
+        Index('idx_cdio_new_high', 'trading_date', 'is_new_high', 'volume_rank'),
+        Index('uk_cdio_concept_date', 'concept_name', 'trading_date', unique=True),
         {'comment': '概念每日指标表-极致优化版'}
     )
 
@@ -111,11 +111,11 @@ class StockConceptDailySnapshot(OptimizedBase):
     
     # 多维度查询优化索引
     __table_args__ = (
-        Index('idx_stock_date', 'stock_code', 'trading_date'),
-        Index('idx_concept_date_rank', 'concept_name', 'trading_date', 'concept_rank'),
-        Index('idx_date_volume', 'trading_date', 'trading_volume'),
-        Index('idx_concept_rank', 'concept_name', 'concept_rank'),
-        Index('uk_stock_concept_date', 'stock_code', 'concept_name', 'trading_date', unique=True),
+        Index('idx_scds_stock_date', 'stock_code', 'trading_date'),
+        Index('idx_scds_concept_date_rank', 'concept_name', 'trading_date', 'concept_rank'),
+        Index('idx_scds_date_volume', 'trading_date', 'trading_volume'),
+        Index('idx_scds_concept_rank', 'concept_name', 'concept_rank'),
+        Index('uk_scds_stock_concept_date', 'stock_code', 'concept_name', 'trading_date', unique=True),
         {'comment': '股票概念关系每日快照-超高速查询版'}
     )
 

@@ -27,11 +27,11 @@ class DailyConceptRanking(Base):
     # 索引
     __table_args__ = (
         # 唯一约束：同一概念、同一股票、同一日期只能有一条记录
-        Index('idx_unique_concept_stock_date', 'concept_id', 'stock_id', 'trade_date', unique=True),
-        Index('idx_concept_date', 'concept_id', 'trade_date'),
-        Index('idx_stock_date', 'stock_id', 'trade_date'),
-        Index('idx_trade_date', 'trade_date'),
-        Index('idx_rank', 'rank_in_concept'),
+        Index('idx_dcr_unique_concept_stock_date', 'concept_id', 'stock_id', 'trade_date', unique=True),
+        Index('idx_dcr_concept_date', 'concept_id', 'trade_date'),
+        Index('idx_dcr_stock_date', 'stock_id', 'trade_date'),
+        Index('idx_dcr_trade_date', 'trade_date'),
+        Index('idx_dcr_rank', 'rank_in_concept'),
     )
 
 
@@ -57,12 +57,12 @@ class DailyConceptSummary(Base):
     # 索引
     __table_args__ = (
         # 唯一约束：同一概念、同一日期只能有一条记录
-        Index('idx_unique_concept_date', 'concept_id', 'trade_date', unique=True),
-        Index('idx_concept_id', 'concept_id'),
-        Index('idx_trade_date', 'trade_date'),
-        Index('idx_total_heat_desc', 'total_heat_value', postgresql_using='btree'),
-        Index('idx_new_high', 'is_new_high', 'trade_date'),
-        Index('idx_new_high_days', 'new_high_days'),
+        Index('idx_dcs_unique_concept_date', 'concept_id', 'trade_date', unique=True),
+        Index('idx_dcs_concept_id', 'concept_id'),
+        Index('idx_dcs_trade_date', 'trade_date'),
+        Index('idx_dcs_total_heat_desc', 'total_heat_value', postgresql_using='btree'),
+        Index('idx_dcs_new_high', 'is_new_high', 'trade_date'),
+        Index('idx_dcs_new_high_days', 'new_high_days'),
     )
 
 
@@ -85,8 +85,8 @@ class DailyAnalysisTask(Base):
     # 索引
     __table_args__ = (
         # 唯一约束：同一日期、同一任务类型只能有一条记录
-        Index('idx_unique_date_task', 'trade_date', 'task_type', unique=True),
-        Index('idx_trade_date', 'trade_date'),
-        Index('idx_status', 'status'),
-        Index('idx_task_type', 'task_type'),
+        Index('idx_dat_unique_date_task', 'trade_date', 'task_type', unique=True),
+        Index('idx_dat_trade_date', 'trade_date'),
+        Index('idx_dat_status', 'status'),
+        Index('idx_dat_task_type', 'task_type'),
     )

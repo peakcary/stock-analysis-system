@@ -37,8 +37,8 @@ class ConceptDailySummary(Base):
     
     # 联合索引
     __table_args__ = (
-        Index('idx_concept_date', 'concept_name', 'trading_date'),
-        Index('idx_date_total', 'trading_date', 'total_volume'),
+        Index('idx_cds_concept_date', 'concept_name', 'trading_date'),
+        Index('idx_cds_date_total', 'trading_date', 'total_volume'),
     )
 
 
@@ -58,8 +58,8 @@ class StockConceptRanking(Base):
     
     # 联合索引
     __table_args__ = (
-        Index('idx_stock_concept_date', 'stock_code', 'concept_name', 'trading_date'),
-        Index('idx_concept_date_rank', 'concept_name', 'trading_date', 'concept_rank'),
+        Index('idx_scr_stock_concept_date', 'stock_code', 'concept_name', 'trading_date'),
+        Index('idx_scr_concept_date_rank', 'concept_name', 'trading_date', 'concept_rank'),
     )
 
 
@@ -77,8 +77,8 @@ class ConceptHighRecord(Base):
     
     # 联合索引
     __table_args__ = (
-        Index('idx_concept_date_period', 'concept_name', 'trading_date', 'days_period'),
-        Index('idx_date_volume_active', 'trading_date', 'total_volume', 'is_active'),
+        Index('idx_chr_concept_date_period', 'concept_name', 'trading_date', 'days_period'),
+        Index('idx_chr_date_volume_active', 'trading_date', 'total_volume', 'is_active'),
     )
 
 
