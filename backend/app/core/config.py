@@ -20,26 +20,22 @@ class Settings(BaseSettings):
     HOST: str = "0.0.0.0"
     PORT: int = 3007
     
-    # 数据库配置 - 使用环境变量
-    DATABASE_HOST: str = os.getenv("DATABASE_HOST", "127.0.0.1")
-    DATABASE_PORT: int = int(os.getenv("DATABASE_PORT", "3306"))
-    DATABASE_USER: str = os.getenv("DATABASE_USER", "root")
+    # 数据库配置 - 使用环境变量（PostgreSQL）
+    DATABASE_HOST: str = os.getenv("DATABASE_HOST", "localhost")
+    DATABASE_PORT: int = int(os.getenv("DATABASE_PORT", "5432"))
+    DATABASE_USER: str = os.getenv("DATABASE_USER", "postgres")
     DATABASE_PASSWORD: str = os.getenv("DATABASE_PASSWORD", "")
-    DATABASE_NAME: str = os.getenv("DATABASE_NAME", "stock_analysis_dev")
+    DATABASE_NAME: str = os.getenv("DATABASE_NAME", "stockdb")
     
     @property
     def DATABASE_URL(self) -> str:
         # 优先使用环境变量中的DATABASE_URL，如果没有则使用配置构建
         database_url = os.getenv("DATABASE_URL")
         if database_url:
-            # 确保环境变量也使用MySQL
-            if database_url.startswith("sqlite"):
-                # 如果环境变量设置的是SQLite，强制使用MySQL
-                return f"mysql+pymysql://{self.DATABASE_USER}:{self.DATABASE_PASSWORD}@{self.DATABASE_HOST}:{self.DATABASE_PORT}/{self.DATABASE_NAME}"
             return database_url
 
-        # 统一使用MySQL数据库
-        return f"mysql+pymysql://{self.DATABASE_USER}:{self.DATABASE_PASSWORD}@{self.DATABASE_HOST}:{self.DATABASE_PORT}/{self.DATABASE_NAME}"
+        # 使用PostgreSQL数据库（默认）
+        return f"postgresql+psycopg2://{self.DATABASE_USER}:{self.DATABASE_PASSWORD}@{self.DATABASE_HOST}:{self.DATABASE_PORT}/{self.DATABASE_NAME}"
     
     # JWT 配置 - 使用环境变量
     SECRET_KEY: str = os.getenv("SECRET_KEY", "")
