@@ -6,6 +6,7 @@ from datetime import date
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
+from sqlalchemy import case
 from app.core.database import get_db
 from app.services.chart_data import ChartDataService
 import logging
@@ -248,14 +249,16 @@ async def get_market_overview_chart(
         
         concept_stats = db.query(
             func.count(DailyConceptSummary.id).label('total_concepts'),
-            func.sum(DailyConceptSummary.is_new_high).label('innovation_concepts'),
+            func.sum(case(
+                (DailyConceptSummary.is_new_high == True, 1),
+                else_=0
+            )).label('innovation_concepts'),
             func.avg(DailyConceptSummary.total_heat_value).label('avg_concept_heat')
         ).filter(
             DailyConceptSummary.trade_date == trade_date
         ).first()
-        
-        # 热度分布统计 - 使用MySQL的CASE语句进行一次性统计，提升性能
-        from sqlalchemy import case
+
+        # 热度分布统计 - 使用CASE语句进行一次性统计，提升性能
         heat_distribution = db.query(
             func.sum(case(
                 (DailyStockData.heat_value.between(0, 9.99), 1),
