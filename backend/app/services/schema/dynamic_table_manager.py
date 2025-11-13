@@ -1,7 +1,8 @@
 from typing import Dict, List, Optional
-from sqlalchemy import text, MetaData, Table, Column, Integer, String, Date, DateTime, Boolean, Float, BigInteger, DECIMAL, Enum, JSON, Text, Index, UniqueConstraint
+from sqlalchemy import text, MetaData, Table, Column, Integer, String, Date, DateTime, Boolean, Float, BigInteger, DECIMAL, Enum, JSON, Text, Index, UniqueConstraint, func
 from sqlalchemy.orm import Session
 from sqlalchemy.engine import Engine
+from sqlalchemy.dialects import postgresql
 import logging
 
 logger = logging.getLogger(__name__)
@@ -97,7 +98,7 @@ class DynamicTableManager:
             Column('median_volume', DECIMAL(15,2), server_default='0', comment='中位数交易量'),
             Column('std_deviation', DECIMAL(15,4), server_default='0', comment='标准差'),
             Column('created_at', DateTime, nullable=False, server_default=text('CURRENT_TIMESTAMP')),
-            Column('updated_at', DateTime, nullable=False, server_default=text('CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP')),
+            Column('updated_at', DateTime, nullable=False, server_default=text('CURRENT_TIMESTAMP'), onupdate=func.now()),
 
             # 索引
             Index(f'idx_{prefix}concept_date', 'concept_name', 'trading_date'),
@@ -210,7 +211,7 @@ class DynamicTableManager:
             Column('error_details', JSON, nullable=True, comment='错误详情JSON'),
             Column('notes', Text, nullable=True, comment='备注信息'),
             Column('created_at', DateTime, nullable=False, server_default=text('CURRENT_TIMESTAMP')),
-            Column('updated_at', DateTime, nullable=False, server_default=text('CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP')),
+            Column('updated_at', DateTime, nullable=False, server_default=text('CURRENT_TIMESTAMP'), onupdate=func.now()),
 
             # 索引
             Index(f'idx_{prefix}trading_date_status', 'trading_date', 'import_status'),
@@ -238,9 +239,16 @@ class DynamicTableManager:
 
         try:
             with self.engine.connect() as conn:
+                # Check using PostgreSQL information_schema
                 for table_name in table_names:
-                    result = conn.execute(text(f"SHOW TABLES LIKE '{table_name}'"))
-                    if not result.fetchone():
+                    query = text("""
+                        SELECT EXISTS(
+                            SELECT 1 FROM information_schema.tables
+                            WHERE table_name = :table_name
+                        )
+                    """)
+                    result = conn.execute(query, {"table_name": table_name})
+                    if not result.scalar():
                         return False
             return True
         except Exception as e:
@@ -261,29 +269,30 @@ class DynamicTableManager:
             ]
 
             with self.engine.connect() as conn:
-                # 禁用外键检查
-                conn.execute(text("SET FOREIGN_KEY_CHECKS = 0"))
-
+                # Drop tables in order (reverse of creation)
                 for table_name in table_names:
                     try:
-                        conn.execute(text(f"DROP TABLE IF EXISTS {table_name}"))
+                        conn.execute(text(f"DROP TABLE IF EXISTS {table_name} CASCADE"))
                         logger.info(f"删除表 {table_name}")
                     except Exception as e:
                         logger.warning(f"删除表 {table_name} 时出错: {e}")
 
-                # 删除相关的枚举类型（如果数据库支持）
+                # Drop related enum types (PostgreSQL specific)
                 try:
                     enum_names = [
                         f'enum_{prefix}high_type' if prefix else 'enum_high_type',
                         f'enum_{prefix}import_status' if prefix else 'enum_import_status',
                         f'enum_{prefix}import_mode' if prefix else 'enum_import_mode'
                     ]
-                    # MySQL 不需要手动删除枚举，它们会随表自动清理
+                    for enum_name in enum_names:
+                        try:
+                            conn.execute(text(f"DROP TYPE IF EXISTS {enum_name} CASCADE"))
+                            logger.info(f"删除类型 {enum_name}")
+                        except Exception as e:
+                            logger.debug(f"删除类型 {enum_name} 时出错（可忽略）: {e}")
                 except Exception as e:
                     logger.debug(f"清理枚举类型时出错（可忽略）: {e}")
 
-                # 恢复外键检查
-                conn.execute(text("SET FOREIGN_KEY_CHECKS = 1"))
                 conn.commit()
 
             logger.info(f"成功删除文件类型 {file_type} 的所有表")
@@ -310,22 +319,27 @@ class DynamicTableManager:
             with self.engine.connect() as conn:
                 for table_name in table_names:
                     try:
-                        # 检查表是否存在
-                        result = conn.execute(text(f"SHOW TABLES LIKE '{table_name}'"))
-                        exists = result.fetchone() is not None
+                        # Check if table exists using PostgreSQL
+                        exists_query = text("""
+                            SELECT EXISTS(
+                                SELECT 1 FROM information_schema.tables
+                                WHERE table_name = :table_name
+                            )
+                        """)
+                        exists_result = conn.execute(exists_query, {"table_name": table_name})
+                        exists = exists_result.scalar()
 
                         if exists:
-                            # 获取表行数
+                            # Get row count
                             count_result = conn.execute(text(f"SELECT COUNT(*) FROM {table_name}"))
                             row_count = count_result.fetchone()[0]
 
-                            # 获取表大小信息
-                            size_result = conn.execute(text(f"""
+                            # Get table size from PostgreSQL (in KB)
+                            size_query = text("""
                                 SELECT
-                                    ROUND(((data_length + index_length) / 1024 / 1024), 2) AS size_mb
-                                FROM information_schema.tables
-                                WHERE table_schema = DATABASE() AND table_name = '{table_name}'
-                            """))
+                                    ROUND((pg_total_relation_size(:table_name)::numeric / 1024 / 1024), 2) AS size_mb
+                            """)
+                            size_result = conn.execute(size_query, {"table_name": table_name})
                             size_info = size_result.fetchone()
                             size_mb = size_info[0] if size_info else 0
 
