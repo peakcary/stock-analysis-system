@@ -104,6 +104,9 @@ Thumbs.db
 *.tgz
 *.tar.gz
 
+# Deployment packages (generated locally, not tracked)
+deploy-packages/
+
 # Coverage reports
 htmlcov/
 .tox/
