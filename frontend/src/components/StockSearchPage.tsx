@@ -45,6 +45,7 @@ const StockSearchPage: React.FC = () => {
   const [conceptStocksMap, setConceptStocksMap] = useState<Map<string, ConceptStocks>>(new Map());
   const [loadingConcepts, setLoadingConcepts] = useState<Set<string>>(new Set());
   const [expandedConcepts, setExpandedConcepts] = useState<Set<string>>(new Set());
+  const [expandedStockLists, setExpandedStockLists] = useState<Set<string>>(new Set());
 
   // 搜索股票
   const handleSearch = useCallback(async () => {
@@ -123,6 +124,7 @@ const StockSearchPage: React.FC = () => {
   const renderConceptStocks = useCallback((conceptName: string, conceptStocks: ConceptStocks) => {
     const { stocks } = conceptStocks;
     const isLoading = loadingConcepts.has(conceptName);
+    const isExpanded = expandedStockLists.has(conceptName);
 
     if (isLoading) {
       return (
@@ -143,9 +145,9 @@ const StockSearchPage: React.FC = () => {
       );
     }
 
-    // 显示前10个，其余隐藏
-    const visibleStocks = stocks.slice(0, 10);
-    const hiddenStocks = stocks.slice(10);
+    // 根据展开状态决定显示哪些股票
+    const visibleStocks = isExpanded ? stocks : stocks.slice(0, 10);
+    const hiddenStocks = isExpanded ? [] : stocks.slice(10);
 
     return (
       <div className="concept-stocks-container">
@@ -174,8 +176,10 @@ const StockSearchPage: React.FC = () => {
               type="link"
               size="small"
               onClick={() => {
-                // 这里可以展开显示更多股票
-                message.info(`还有 ${hiddenStocks.length} 只相关股票，功能开发中`);
+                // 展开显示所有股票
+                const newExpanded = new Set(expandedStockLists);
+                newExpanded.add(conceptName);
+                setExpandedStockLists(newExpanded);
               }}
             >
               查看更多 {hiddenStocks.length} 只股票 <DownOutlined />
@@ -183,15 +187,32 @@ const StockSearchPage: React.FC = () => {
           </div>
         )}
 
+        {isExpanded && stocks.length > 10 && (
+          <div style={{ textAlign: 'center', marginTop: '16px' }}>
+            <Button
+              type="link"
+              size="small"
+              onClick={() => {
+                // 收起隐藏超过10只的股票
+                const newExpanded = new Set(expandedStockLists);
+                newExpanded.delete(conceptName);
+                setExpandedStockLists(newExpanded);
+              }}
+            >
+              收起 <UpOutlined />
+            </Button>
+          </div>
+        )}
+
         <div className="stocks-summary">
           <Text type="secondary">
             <InfoCircleOutlined /> 共 {stocks.length} 只相关股票
-            {stocks.length > 10 && `，显示前 10 只`}
+            {!isExpanded && stocks.length > 10 && `，显示前 10 只`}
           </Text>
         </div>
       </div>
     );
-  }, [loadingConcepts]);
+  }, [loadingConcepts, expandedStockLists]);
 
   // 处理回车键搜索
   const handleKeyPress = useCallback((e: React.KeyboardEvent) => {
