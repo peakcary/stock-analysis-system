@@ -7,6 +7,10 @@ import zhCN from 'antd/locale/zh_CN';
 import AuthPage from './pages/AuthPage';
 import MembershipPage from './pages/MembershipPage';
 import AnalysisPage from './pages/AnalysisPage';
+import ClientStockAnalysisPage from './pages/ClientStockAnalysisPage';
+import ClientNewHighConceptPage from './pages/ClientNewHighConceptPage';
+import ClientTopConceptsStockPage from './pages/ClientTopConceptsStockPage';
+import ClientConvertibleBondsPage from './pages/ClientConvertibleBondsPage';
 import MobileLayout from './components/MobileLayout';
 import PaymentHistoryPage from './components/PaymentHistoryPage';
 import { tokenManager, mockLogin } from './utils/auth';
@@ -168,6 +172,18 @@ const App: React.FC = () => {
       case 'payment':
         return <PaymentHistoryPage />;
 
+      case 'stock-analysis':
+        return <ClientStockAnalysisPage user={user} />;
+
+      case 'new-high-concepts':
+        return <ClientNewHighConceptPage user={user} />;
+
+      case 'top-concepts':
+        return <ClientTopConceptsStockPage user={user} />;
+
+      case 'convertible-bonds':
+        return <ClientConvertibleBondsPage user={user} />;
+
       default:
         return <AnalysisPage user={user} />;
     }
@@ -243,63 +259,70 @@ const DesktopLayout: React.FC<{
           <span style={{ fontSize: '20px', fontWeight: '600' }}>智能股票分析</span>
         </div>
         
-        <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', overflowX: 'auto' }}>
           {user ?
-            ['首页', '分析', '会员', '支付记录', '个人中心'].map((item, index) => (
-              <button
-                key={item}
-                onClick={() => {
-                  const tabMap: Record<string, string> = {
-                    '首页': 'home',
-                    '分析': 'analysis',
-                    '会员': 'membership',
-                    '支付记录': 'payment',
-                    '个人中心': 'profile'
-                  };
-                  onTabChange(tabMap[item]);
-                }}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: 'white',
-                  fontSize: '16px',
-                  cursor: 'pointer',
-                  padding: '8px 16px',
-                  borderRadius: '8px',
-                  transition: 'all 0.3s ease',
-                  opacity: activeTab === (['home', 'analysis', 'membership', 'payment', 'profile'][index]) ? 1 : 0.8
-                }}
-              >
-                {item}
-              </button>
-            )) :
-            ['首页', '分析', '会员', '登录'].map((item, index) => (
-              <button
-                key={item}
-                onClick={() => {
-                  const tabMap: Record<string, string> = {
-                    '首页': 'home',
-                    '分析': 'analysis',
-                    '会员': 'membership',
-                    '登录': 'auth'
-                  };
-                  onTabChange(tabMap[item]);
-                }}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: 'white',
-                  fontSize: '16px',
-                  cursor: 'pointer',
-                  padding: '8px 16px',
-                  borderRadius: '8px',
-                  transition: 'all 0.3s ease',
-                  opacity: activeTab === (['home', 'analysis', 'membership', 'auth'][index]) ? 1 : 0.8
-                }}
-              >
-                {item}
-              </button>
-            ))
+            ['首页', '分析', '股票查询', '新高概念', '热门股票', '可转债', '会员', '个人中心'].map((item, index) => {
+              const tabMap: Record<string, string> = {
+                '首页': 'home',
+                '分析': 'analysis',
+                '股票查询': 'stock-analysis',
+                '新高概念': 'new-high-concepts',
+                '热门股票': 'top-concepts',
+                '可转债': 'convertible-bonds',
+                '会员': 'membership',
+                '个人中心': 'profile'
+              };
+              const tabKey = tabMap[item];
+              return (
+                <button
+                  key={item}
+                  onClick={() => onTabChange(tabKey)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'white',
+                    fontSize: '14px',
+                    cursor: 'pointer',
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    transition: 'all 0.3s ease',
+                    opacity: activeTab === tabKey ? 1 : 0.7,
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  {item}
+                </button>
+              );
+            }) :
+            ['首页', '分析', '会员', '登录'].map((item, index) => {
+              const tabMap: Record<string, string> = {
+                '首页': 'home',
+                '分析': 'analysis',
+                '会员': 'membership',
+                '登录': 'auth'
+              };
+              const tabKey = tabMap[item];
+              return (
+                <button
+                  key={item}
+                  onClick={() => onTabChange(tabKey)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'white',
+                    fontSize: '14px',
+                    cursor: 'pointer',
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    transition: 'all 0.3s ease',
+                    opacity: activeTab === tabKey ? 1 : 0.7,
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  {item}
+                </button>
+              );
+            })
           }
         </div>
       </div>

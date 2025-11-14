@@ -1,0 +1,275 @@
+.top-concepts-stock-page {
+  padding: 16px;
+}
+
+.top-concepts-stock-page .ant-card {
+  background: #fff;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.03), 0 1px 6px -1px rgba(0, 0, 0, 0.02),
+    0 2px 4px 0 rgba(0, 0, 0, 0.02);
+  border-radius: 6px;
+  border: none;
+}
+
+.top-concepts-stock-page .ant-card-head {
+  border-bottom: 1px solid #f0f0f0;
+  padding: 16px;
+  background: #fafafa;
+}
+
+.top-concepts-stock-page .ant-card-body {
+  padding: 24px;
+}
+
+/* 输入框样式 */
+.top-concepts-stock-page .ant-input-number,
+.top-concepts-stock-page .ant-picker {
+  border-radius: 4px;
+  border: 1px solid #d9d9d9;
+  transition: all 0.3s ease;
+}
+
+.top-concepts-stock-page .ant-input-number:hover,
+.top-concepts-stock-page .ant-picker:hover {
+  border-color: #faad14;
+  box-shadow: 0 0 0 2px rgba(250, 173, 20, 0.1);
+}
+
+.top-concepts-stock-page .ant-input-number-focused,
+.top-concepts-stock-page .ant-picker-focused {
+  border-color: #faad14;
+  box-shadow: 0 0 0 2px rgba(250, 173, 20, 0.2);
+}
+
+/* 按钮样式 */
+.top-concepts-stock-page .ant-btn-primary {
+  background: linear-gradient(135deg, #faad14 0%, #d4b106 100%);
+  border: none;
+  border-radius: 4px;
+  font-weight: 500;
+  transition: all 0.3s ease;
+}
+
+.top-concepts-stock-page .ant-btn-primary:hover {
+  background: linear-gradient(135deg, #f7b500 0%, #c7a600 100%);
+  box-shadow: 0 4px 12px rgba(250, 173, 20, 0.4);
+}
+
+.top-concepts-stock-page .ant-btn-primary:active {
+  transform: translateY(1px);
+}
+
+/* 统计信息样式 */
+.top-concepts-stock-page .ant-statistic {
+  text-align: left;
+  padding: 12px;
+  border-radius: 6px;
+  background: #f5f7fa;
+}
+
+.top-concepts-stock-page .ant-statistic-title {
+  font-size: 12px;
+  color: #999;
+  margin-bottom: 8px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.top-concepts-stock-page .ant-statistic-content {
+  font-size: 20px !important;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+/* Tag 样式 */
+.top-concepts-stock-page .ant-tag {
+  border-radius: 4px;
+  border: none;
+  padding: 4px 12px;
+  font-size: 13px;
+  transition: all 0.3s ease;
+}
+
+.top-concepts-stock-page .ant-tag-blue {
+  background: #e6f7ff;
+  color: #1890ff;
+}
+
+.top-concepts-stock-page .ant-tag-blue:hover {
+  background: #bae7ff;
+  transform: translateY(-2px);
+}
+
+.top-concepts-stock-page .ant-tag-green {
+  background: #f6ffed;
+  color: #52c41a;
+}
+
+.top-concepts-stock-page .ant-tag-green:hover {
+  background: #d9f7be;
+  transform: translateY(-2px);
+}
+
+.top-concepts-stock-page .ant-tag-orange {
+  background: #ffe7ba;
+  color: #fa8c16;
+}
+
+.top-concepts-stock-page .ant-tag-orange:hover {
+  background: #ffd666;
+  transform: translateY(-2px);
+}
+
+.top-concepts-stock-page .ant-tag-red {
+  background: #ffe7e1;
+  color: #ff7a45;
+}
+
+.top-concepts-stock-page .ant-tag-red:hover {
+  background: #ffbdac;
+  transform: translateY(-2px);
+}
+
+/* 表格样式 */
+.top-concepts-stock-page .ant-table {
+  font-size: 13px;
+}
+
+.top-concepts-stock-page .ant-table-thead > tr > th {
+  background: linear-gradient(135deg, #faad14 0%, #d4b106 100%);
+  color: white;
+  font-weight: 600;
+  padding: 12px 16px !important;
+  border-bottom: 2px solid #faad14;
+}
+
+.top-concepts-stock-page .ant-table-tbody > tr {
+  transition: all 0.3s ease;
+}
+
+.top-concepts-stock-page .ant-table-tbody > tr > td {
+  padding: 12px 16px !important;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.top-concepts-stock-page .ant-table-tbody > tr:hover > td {
+  background: #fffbe6;
+}
+
+/* 概念卡片样式 */
+.top-concepts-stock-page .concept-card {
+  border: 1px solid #ffe7ba !important;
+}
+
+.top-concepts-stock-page .concept-card .ant-card-head {
+  border-bottom: 2px solid #faad14 !important;
+}
+
+/* Alert 样式 */
+.top-concepts-stock-page .ant-alert {
+  border-radius: 6px;
+  border: 1px solid #ff7875;
+  background-color: #fff1f0;
+  margin-bottom: 24px;
+}
+
+.top-concepts-stock-page .ant-alert-message {
+  color: #ff4d4f;
+  font-weight: 600;
+}
+
+.top-concepts-stock-page .ant-alert-description {
+  color: #ff7875;
+}
+
+/* 空状态样式 */
+.top-concepts-stock-page .ant-empty {
+  padding: 40px 20px;
+}
+
+.top-concepts-stock-page .ant-empty-description {
+  color: #999;
+  font-size: 14px;
+}
+
+/* Divider 样式 */
+.top-concepts-stock-page .ant-divider {
+  border-top-color: #f0f0f0;
+}
+
+/* Loading 样式 */
+.top-concepts-stock-page .ant-spin {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* Space 样式 */
+.top-concepts-stock-page .ant-space {
+  width: 100%;
+}
+
+/* 动画 */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+  .top-concepts-stock-page {
+    padding: 8px;
+  }
+
+  .top-concepts-stock-page .ant-card-body {
+    padding: 16px;
+  }
+
+  .top-concepts-stock-page .ant-card-head {
+    padding: 12px;
+  }
+
+  .top-concepts-stock-page .ant-table {
+    font-size: 12px;
+  }
+
+  .top-concepts-stock-page .ant-table-thead > tr > th {
+    padding: 8px !important;
+  }
+
+  .top-concepts-stock-page .ant-table-tbody > tr > td {
+    padding: 8px !important;
+  }
+
+  .top-concepts-stock-page .ant-statistic-content {
+    font-size: 16px !important;
+  }
+
+  .top-concepts-stock-page .ant-statistic-title {
+    font-size: 11px;
+  }
+}
+
+@media (max-width: 480px) {
+  .top-concepts-stock-page .ant-input-number,
+  .top-concepts-stock-page .ant-picker,
+  .top-concepts-stock-page .ant-btn {
+    width: 100%;
+  }
+
+  .top-concepts-stock-page .ant-tag {
+    margin-bottom: 4px;
+  }
+
+  .top-concepts-stock-page .ant-table {
+    font-size: 11px;
+    overflow-x: auto;
+  }
+}

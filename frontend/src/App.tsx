@@ -27,6 +27,10 @@ import ConceptAnalysisPage from './components/ConceptAnalysisPage';
 import TxtImportRecords from './components/TxtImportRecords';
 import DataImportPage from './components/DataImportPage';
 import RawDataViewerPage from './pages/RawDataViewerPage';
+import StockAnalysisPage from './pages/StockAnalysisPage';
+import NewHighConceptPage from './pages/NewHighConceptPage';
+import TopConceptsStockPage from './pages/TopConceptsStockPage';
+import ConvertibleBondsQueryPage from './pages/ConvertibleBondsQueryPage';
 
 const { Header, Content, Sider } = Layout;
 const { Title, Text, Paragraph } = Typography;
@@ -1173,11 +1177,17 @@ const AdminApp: React.FC = () => {
             {activeTab === 'concepts' && <ConceptAnalysisPage />}
 
 
-            {/* 新的业务分析页面 */}
-            {activeTab === 'stock-analysis' && <NewStockAnalysisPage />}
+            {/* 个股概念查询页面 */}
+            {activeTab === 'stock-analysis' && <StockAnalysisPage />}
 
             {activeTab === 'innovation-analysis' && (
-              <InnovationAnalysisPage />
+              <NewHighConceptPage />
+            )}
+
+            {activeTab === 'top-concepts' && <TopConceptsStockPage />}
+
+            {activeTab === 'convertible-bonds-query' && (
+              <ConvertibleBondsQueryPage />
             )}
 
             {activeTab === 'convertible-bonds' && (

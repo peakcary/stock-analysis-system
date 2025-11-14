@@ -131,30 +131,60 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
         {/* 菜单项 */}
         <div style={{ padding: '16px 0' }}>
           {[
-            { 
-              icon: '🏠', 
-              title: '首页', 
+            {
+              icon: '🏠',
+              title: '首页',
               desc: '股票分析首页',
               key: 'home',
               color: '#3b82f6'
             },
-            { 
-              icon: '📊', 
-              title: '数据分析', 
+            {
+              icon: '📊',
+              title: '数据分析',
               desc: '深度股票分析',
               key: 'analysis',
               color: '#10b981'
             },
-            { 
-              icon: '💎', 
-              title: '会员中心', 
+            ...(user ? [
+              {
+                icon: '🔍',
+                title: '股票查询',
+                desc: '查询股票概念',
+                key: 'stock-analysis',
+                color: '#667eea'
+              },
+              {
+                icon: '🚀',
+                title: '新高概念',
+                desc: '达到新高的概念',
+                key: 'new-high-concepts',
+                color: '#f59e0b'
+              },
+              {
+                icon: '⭐',
+                title: '热门股票',
+                desc: '概念热门股票',
+                key: 'top-concepts',
+                color: '#fbbf24'
+              },
+              {
+                icon: '🎁',
+                title: '可转债',
+                desc: '可转债概念查询',
+                key: 'convertible-bonds',
+                color: '#f97316'
+              }
+            ] : []),
+            {
+              icon: '💎',
+              title: '会员中心',
               desc: '升级专业版',
               key: 'membership',
               color: '#f97316'
             },
             ...(user ? [{
-              icon: '👤', 
-              title: '个人中心', 
+              icon: '👤',
+              title: '个人中心',
               desc: '账户管理',
               key: 'profile',
               color: '#8b5cf6'
