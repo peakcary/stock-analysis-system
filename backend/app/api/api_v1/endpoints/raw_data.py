@@ -1,327 +1,439 @@
 """
-原始数据查询API
-提供CSV原始数据（未拆分）的查询、导出功能
+原始数据查看器 API 端点
+支持查询 CSV 原始数据表和 TTV/EEE 原始交易数据表
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, Depends, Query, HTTPException
+from sqlalchemy import inspect, text, desc
 from sqlalchemy.orm import Session
-from sqlalchemy import func
-from typing import List, Optional
-from datetime import date
-import csv
-from io import StringIO
-
+from typing import List, Dict, Any, Optional
 from app.core.database import get_db
-from app.models.stock import StockConceptRawData
+from app.models.stock import StockConceptRawData, RawImportData
+from app.models.daily_trading import DailyTrading
+from datetime import datetime, date
+from pydantic import BaseModel
 
 router = APIRouter()
 
 
-@router.get("/daily")
-async def get_raw_data_by_date(
-    trade_date: date = Query(..., description="交易日期，格式：2025-10-15"),
-    stock_code: Optional[str] = Query(None, description="股票代码，如：600036"),
-    concept: Optional[str] = Query(None, description="概念名称，支持模糊查询"),
-    industry: Optional[str] = Query(None, description="行业，支持模糊查询"),
-    sort_by: str = Query("net_inflow", description="排序字段：net_inflow|price|turnover_rate|total_reads"),
-    sort_order: str = Query("desc", description="排序方向：asc|desc"),
-    page: int = Query(1, ge=1, description="页码"),
-    size: int = Query(50, ge=1, le=1000, description="每页数量"),
-    db: Session = Depends(get_db)
-):
+class ColumnInfo(BaseModel):
+    """列信息"""
+    name: str
+    type: str
+    nullable: bool
+
+
+class TableInfo(BaseModel):
+    """表信息"""
+    name: str
+    display_name: str
+    record_count: int
+    columns: List[ColumnInfo]
+
+
+class RawDataRow(BaseModel):
+    """原始数据行 - 动态字段"""
+    class Config:
+        extra = "allow"  # 允许动态字段
+
+
+class RawDataResponse(BaseModel):
+    """原始数据查询响应"""
+    table_name: str
+    total_count: int
+    page: int
+    page_size: int
+    data: List[Dict[str, Any]]
+    columns: List[ColumnInfo]
+
+
+# 支持的原始数据表映射
+# 注意：TTV和EEE是动态表，table_name字段表示实际的表名
+RAW_TABLES = {
+    'stock_concept_raw_data': {
+        'model': StockConceptRawData,
+        'display_name': 'CSV概念股原始数据',
+        'description': '来自 CSV 文件的原始概念股数据',
+        'type': 'static',  # 静态模型表
+        'table_name': 'stock_concept_raw_data',
+        'date_field': 'trade_date'
+    },
+    'ttv_daily_trading': {
+        'model': None,  # 动态表，无静态模型
+        'display_name': 'TTV交易数据',
+        'description': 'TTV 格式的原始交易数据',
+        'type': 'dynamic',  # 动态表
+        'table_name': 'ttv_daily_trading',
+        'date_field': 'trading_date'
+    },
+    'eee_daily_trading': {
+        'model': None,  # 动态表，无静态模型
+        'display_name': 'EEE交易数据',
+        'description': 'EEE 格式的原始交易数据',
+        'type': 'dynamic',  # 动态表
+        'table_name': 'eee_daily_trading',
+        'date_field': 'trading_date'
+    },
+}
+
+
+def get_columns_info_from_table(db: Session, table_name: str) -> List[ColumnInfo]:
+    """从数据库获取表的列信息（适用于动态表）"""
+    columns = []
+    try:
+        # 使用information_schema获取列信息
+        query = f"""
+        SELECT column_name, data_type, is_nullable
+        FROM information_schema.columns
+        WHERE table_name = '{table_name}'
+        ORDER BY ordinal_position
+        """
+        result = db.execute(text(query)).fetchall()
+        for row in result:
+            columns.append(ColumnInfo(
+                name=row[0],
+                type=row[1],
+                nullable=row[2] == 'YES'
+            ))
+    except Exception as e:
+        # 如果查询失败，返回空列表
+        pass
+    return columns
+
+
+def get_columns_info(model) -> List[ColumnInfo]:
+    """获取静态模型的列信息"""
+    columns = []
+    try:
+        mapper = inspect(model)
+        for column in mapper.columns:
+            col_type = str(column.type).split('(')[0]  # 简化类型显示
+            columns.append(ColumnInfo(
+                name=column.name,
+                type=col_type,
+                nullable=column.nullable
+            ))
+    except Exception:
+        pass
+    return columns
+
+
+@router.get("/tables", response_model=List[TableInfo])
+async def get_raw_tables(db: Session = Depends(get_db)):
     """
-    查询指定日期的CSV原始数据
-
-    - **trade_date**: 交易日期
-    - **stock_code**: 可选，筛选指定股票
-    - **concept**: 可选，筛选指定概念（支持模糊查询）
-    - **industry**: 可选，筛选指定行业（支持模糊查询）
-    - **sort_by**: 排序字段
-    - **sort_order**: 排序方向
-    - **page**: 页码
-    - **size**: 每页数量
-    """
-
-    # 构建查询
-    query = db.query(StockConceptRawData).filter(
-        StockConceptRawData.trade_date == trade_date
-    )
-
-    # 添加筛选条件
-    if stock_code:
-        query = query.filter(StockConceptRawData.stock_code == stock_code)
-
-    if concept:
-        query = query.filter(StockConceptRawData.concept.like(f'%{concept}%'))
-
-    if industry:
-        query = query.filter(StockConceptRawData.industry.like(f'%{industry}%'))
-
-    # 总数统计
-    total = query.count()
-
-    # 排序
-    sort_column = getattr(StockConceptRawData, sort_by, StockConceptRawData.net_inflow)
-    if sort_order.lower() == 'desc':
-        query = query.order_by(sort_column.desc())
-    else:
-        query = query.order_by(sort_column.asc())
-
-    # 分页
-    offset = (page - 1) * size
-    records = query.offset(offset).limit(size).all()
-
-    return {
-        "success": True,
-        "trade_date": trade_date.isoformat(),
-        "total": total,
-        "page": page,
-        "size": size,
-        "total_pages": (total + size - 1) // size,
-        "data": [
-            {
-                "stock_code": r.stock_code,
-                "original_stock_code": r.original_stock_code,
-                "stock_code_prefix": r.stock_code_prefix,
-                "stock_name": r.stock_name,
-                "concept": r.concept,
-                "industry": r.industry,
-                "price": float(r.price) if r.price else 0,
-                "turnover_rate": float(r.turnover_rate) if r.turnover_rate else 0,
-                "net_inflow": float(r.net_inflow) if r.net_inflow else 0,
-                "pages_count": r.pages_count,
-                "total_reads": r.total_reads,
-                "file_name": r.file_name,
-                "row_number": r.row_number
-            }
-            for r in records
-        ]
-    }
-
-
-@router.get("/export/csv")
-async def export_raw_data_csv(
-    trade_date: date = Query(..., description="交易日期"),
-    stock_code: Optional[str] = Query(None, description="股票代码"),
-    concept: Optional[str] = Query(None, description="概念名称"),
-    db: Session = Depends(get_db)
-):
-    """
-    导出原始数据为CSV文件
-
-    返回与导入时格式一致的CSV文件
-    """
-
-    # 查询数据
-    query = db.query(StockConceptRawData).filter(
-        StockConceptRawData.trade_date == trade_date
-    )
-
-    if stock_code:
-        query = query.filter(StockConceptRawData.stock_code == stock_code)
-
-    if concept:
-        query = query.filter(StockConceptRawData.concept.like(f'%{concept}%'))
-
-    records = query.order_by(StockConceptRawData.net_inflow.desc()).all()
-
-    if not records:
-        raise HTTPException(status_code=404, detail=f"未找到 {trade_date} 的数据")
-
-    # 生成CSV
-    output = StringIO()
-    writer = csv.writer(output)
-
-    # 写入表头（中文格式）
-    writer.writerow([
-        '股票代码', '原始股票代码', '前缀', '股票名称', '全部页数', '热帖首页页阅读总数',
-        '价格', '行业', '概念', '换手', '净流入'
-    ])
-
-    # 写入数据
-    for r in records:
-        writer.writerow([
-            r.stock_code,
-            r.original_stock_code or r.stock_code,
-            r.stock_code_prefix or '',
-            r.stock_name,
-            r.pages_count,
-            r.total_reads,
-            float(r.price) if r.price else 0,
-            r.industry or '',
-            r.concept,
-            float(r.turnover_rate) if r.turnover_rate else 0,
-            float(r.net_inflow) if r.net_inflow else 0
-        ])
-
-    # 返回CSV文件
-    output.seek(0)
-    filename = f"stock_data_{trade_date.strftime('%Y%m%d')}.csv"
-
-    return StreamingResponse(
-        iter([output.getvalue().encode('utf-8-sig')]),  # 使用utf-8-sig支持Excel打开
-        media_type="text/csv",
-        headers={
-            "Content-Disposition": f"attachment; filename={filename}"
-        }
-    )
-
-
-@router.get("/stats/daily")
-async def get_daily_stats(
-    trade_date: date = Query(..., description="交易日期"),
-    db: Session = Depends(get_db)
-):
-    """
-    获取指定日期的数据统计
+    获取所有可用的原始数据表列表
 
     返回：
-    - 总记录数
-    - 股票数量
-    - 概念数量
-    - 行业数量
-    - 净流入总额
+    - table_name: 表名
+    - display_name: 显示名称
+    - record_count: 记录数
+    - columns: 列信息列表
     """
+    tables_info = []
 
-    stats = db.query(
-        func.count(StockConceptRawData.id).label('total_records'),
-        func.count(func.distinct(StockConceptRawData.stock_code)).label('stock_count'),
-        func.count(func.distinct(StockConceptRawData.concept)).label('concept_count'),
-        func.count(func.distinct(StockConceptRawData.industry)).label('industry_count'),
-        func.sum(StockConceptRawData.net_inflow).label('total_net_inflow'),
-        func.avg(StockConceptRawData.net_inflow).label('avg_net_inflow'),
-        func.max(StockConceptRawData.net_inflow).label('max_net_inflow'),
-        func.min(StockConceptRawData.net_inflow).label('min_net_inflow')
-    ).filter(
-        StockConceptRawData.trade_date == trade_date
-    ).first()
+    for table_key, table_config in RAW_TABLES.items():
+        table_name = table_config['table_name']
+        display_name = table_config['display_name']
 
-    if not stats or stats.total_records == 0:
-        raise HTTPException(status_code=404, detail=f"未找到 {trade_date} 的数据")
+        # 获取表的记录数
+        try:
+            if table_config['type'] == 'static':
+                # 静态表使用ORM查询
+                model = table_config['model']
+                count = db.query(model).count()
+                columns = get_columns_info(model)
+            else:
+                # 动态表使用SQL查询
+                result = db.execute(text(f"SELECT COUNT(*) FROM {table_name}")).scalar()
+                count = result if result else 0
+                columns = get_columns_info_from_table(db, table_name)
+        except Exception as e:
+            count = 0
+            columns = []
 
-    return {
-        "success": True,
-        "trade_date": trade_date.isoformat(),
-        "total_records": stats.total_records or 0,
-        "stock_count": stats.stock_count or 0,
-        "concept_count": stats.concept_count or 0,
-        "industry_count": stats.industry_count or 0,
-        "total_net_inflow": float(stats.total_net_inflow) if stats.total_net_inflow else 0,
-        "avg_net_inflow": float(stats.avg_net_inflow) if stats.avg_net_inflow else 0,
-        "max_net_inflow": float(stats.max_net_inflow) if stats.max_net_inflow else 0,
-        "min_net_inflow": float(stats.min_net_inflow) if stats.min_net_inflow else 0
-    }
+        tables_info.append(TableInfo(
+            name=table_key,
+            display_name=display_name,
+            record_count=count,
+            columns=columns
+        ))
+
+    return tables_info
 
 
-@router.get("/concepts")
-async def get_concepts_by_date(
-    trade_date: date = Query(..., description="交易日期"),
+@router.post("/{table_name}/query", response_model=RawDataResponse)
+async def query_raw_data(
+    table_name: str,
+    page: int = Query(1, ge=1, description="页码（从1开始）"),
+    page_size: int = Query(20, ge=1, le=1000, description="每页记录数"),
+    sort_by: Optional[str] = Query(None, description="排序字段名"),
+    sort_order: str = Query("asc", regex="^(asc|desc)$", description="排序顺序"),
+    start_date: Optional[str] = Query(None, description="开始日期 (YYYY-MM-DD)"),
+    end_date: Optional[str] = Query(None, description="结束日期 (YYYY-MM-DD)"),
     db: Session = Depends(get_db)
-):
+) -> RawDataResponse:
     """
-    获取指定日期的所有概念及统计
-    """
+    查询原始数据表
 
-    concepts = db.query(
-        StockConceptRawData.concept,
-        func.count(StockConceptRawData.id).label('stock_count'),
-        func.sum(StockConceptRawData.net_inflow).label('total_net_inflow'),
-        func.avg(StockConceptRawData.net_inflow).label('avg_net_inflow')
-    ).filter(
-        StockConceptRawData.trade_date == trade_date
-    ).group_by(
-        StockConceptRawData.concept
-    ).order_by(
-        func.sum(StockConceptRawData.net_inflow).desc()
-    ).all()
+    参数：
+    - table_name: 表名 (stock_concept_raw_data, ttv_daily_trading, eee_daily_trading)
+    - page: 页码（从1开始）
+    - page_size: 每页记录数（1-1000）
+    - sort_by: 排序字段名（可选）
+    - sort_order: 排序顺序 (asc/desc)
+    - start_date: 开始日期 (YYYY-MM-DD, 可选)
+    - end_date: 结束日期 (YYYY-MM-DD, 可选)
 
-    return {
-        "success": True,
-        "trade_date": trade_date.isoformat(),
-        "total_concepts": len(concepts),
-        "data": [
-            {
-                "concept": c.concept,
-                "stock_count": c.stock_count,
-                "total_net_inflow": float(c.total_net_inflow) if c.total_net_inflow else 0,
-                "avg_net_inflow": float(c.avg_net_inflow) if c.avg_net_inflow else 0
-            }
-            for c in concepts
-        ]
-    }
-
-
-@router.get("/stock/{stock_code}")
-async def get_stock_raw_data(
-    stock_code: str,
-    trade_date: date = Query(..., description="交易日期"),
-    db: Session = Depends(get_db)
-):
-    """
-    获取指定股票在指定日期的所有概念数据
-
-    一个股票可能属于多个概念，返回该股票在所有概念下的数据
+    返回：
+    - table_name: 表名
+    - total_count: 总记录数
+    - page: 当前页码
+    - page_size: 每页记录数
+    - data: 数据行列表
+    - columns: 列信息
     """
 
-    records = db.query(StockConceptRawData).filter(
-        StockConceptRawData.stock_code == stock_code,
-        StockConceptRawData.trade_date == trade_date
-    ).all()
-
-    if not records:
+    # 验证表名
+    if table_name not in RAW_TABLES:
         raise HTTPException(
             status_code=404,
-            detail=f"未找到股票 {stock_code} 在 {trade_date} 的数据"
+            detail=f"表不存在: {table_name}。支持的表: {list(RAW_TABLES.keys())}"
         )
 
-    return {
-        "success": True,
-        "stock_code": stock_code,
-        "stock_name": records[0].stock_name,
-        "trade_date": trade_date.isoformat(),
-        "concept_count": len(records),
-        "data": [
-            {
-                "concept": r.concept,
-                "industry": r.industry,
-                "price": float(r.price) if r.price else 0,
-                "turnover_rate": float(r.turnover_rate) if r.turnover_rate else 0,
-                "net_inflow": float(r.net_inflow) if r.net_inflow else 0,
-                "pages_count": r.pages_count,
-                "total_reads": r.total_reads
-            }
-            for r in records
-        ]
-    }
+    table_config = RAW_TABLES[table_name]
+    actual_table_name = table_config['table_name']
+    date_field = table_config['date_field']
+
+    try:
+        if table_config['type'] == 'static':
+            # 使用ORM查询静态表
+            model = table_config['model']
+
+            # 构建基础查询
+            base_query = db.query(model)
+
+            # 日期范围过滤
+            if start_date or end_date:
+                date_column = getattr(model, date_field, None)
+                if date_column is not None:
+                    if start_date:
+                        base_query = base_query.filter(date_column >= start_date)
+                    if end_date:
+                        base_query = base_query.filter(date_column <= end_date)
+
+            # 获取总记录数
+            total_count = base_query.count()
+
+            # 排序
+            query = base_query
+            if sort_by and hasattr(model, sort_by):
+                order_column = getattr(model, sort_by)
+                query = query.order_by(desc(order_column) if sort_order.lower() == "desc" else order_column)
+            else:
+                # 默认按 ID 倒序
+                if hasattr(model, 'id'):
+                    query = query.order_by(desc(model.id))
+
+            # 分页
+            offset = (page - 1) * page_size
+            records = query.offset(offset).limit(page_size).all()
+
+            # 转换为字典列表
+            data = []
+            for record in records:
+                row = {}
+                mapper = inspect(model)
+                for column in mapper.columns:
+                    value = getattr(record, column.name)
+                    # 处理日期/时间类型
+                    if isinstance(value, (datetime, date)):
+                        value = value.isoformat() if value else None
+                    row[column.name] = value
+                data.append(row)
+
+            # 获取列信息
+            columns = get_columns_info(model)
+
+        else:
+            # 使用SQL查询动态表
+            # 构建WHERE子句
+            where_clauses = []
+            if start_date:
+                where_clauses.append(f"{date_field} >= '{start_date}'")
+            if end_date:
+                where_clauses.append(f"{date_field} <= '{end_date}'")
+
+            where_sql = " WHERE " + " AND ".join(where_clauses) if where_clauses else ""
+
+            # 获取总记录数
+            count_query = f"SELECT COUNT(*) FROM {actual_table_name}{where_sql}"
+            total_count = db.execute(text(count_query)).scalar() or 0
+
+            # 构建排序子句
+            order_sql = ""
+            if sort_by:
+                order_direction = "DESC" if sort_order.lower() == "desc" else "ASC"
+                order_sql = f" ORDER BY {sort_by} {order_direction}"
+            else:
+                # 默认按 ID 倒序
+                order_sql = " ORDER BY id DESC"
+
+            # 构建分页子句
+            offset = (page - 1) * page_size
+            limit_sql = f" LIMIT {page_size} OFFSET {offset}"
+
+            # 查询数据
+            data_query = f"SELECT * FROM {actual_table_name}{where_sql}{order_sql}{limit_sql}"
+            result = db.execute(text(data_query)).fetchall()
+
+            # 转换为字典列表
+            data = []
+            if result:
+                for row in result:
+                    # 使用 _mapping 将 Row 转换为字典
+                    row_dict = dict(row._mapping)
+                    # 处理日期/时间类型
+                    for col_name, value in row_dict.items():
+                        if isinstance(value, (datetime, date)):
+                            row_dict[col_name] = value.isoformat() if value else None
+                    data.append(row_dict)
+
+            # 获取列信息
+            columns = get_columns_info_from_table(db, actual_table_name)
+
+        return RawDataResponse(
+            table_name=table_name,
+            total_count=total_count,
+            page=page,
+            page_size=page_size,
+            data=data,
+            columns=columns
+        )
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"查询失败: {str(e)}"
+        )
 
 
-@router.get("/dates")
-async def get_available_dates(
-    limit: int = Query(30, ge=1, le=365, description="返回最近N天"),
+@router.get("/{table_name}/columns", response_model=List[ColumnInfo])
+async def get_table_columns(
+    table_name: str,
     db: Session = Depends(get_db)
-):
+) -> List[ColumnInfo]:
     """
-    获取有数据的日期列表
+    获取指定表的列信息
+
+    参数：
+    - table_name: 表名
+
+    返回：
+    - 列信息列表（名称、类型、是否可为空）
     """
+    if table_name not in RAW_TABLES:
+        raise HTTPException(
+            status_code=404,
+            detail=f"表不存在: {table_name}"
+        )
 
-    dates = db.query(
-        StockConceptRawData.trade_date,
-        func.count(StockConceptRawData.id).label('record_count')
-    ).group_by(
-        StockConceptRawData.trade_date
-    ).order_by(
-        StockConceptRawData.trade_date.desc()
-    ).limit(limit).all()
+    table_config = RAW_TABLES[table_name]
 
-    return {
-        "success": True,
-        "total_dates": len(dates),
-        "data": [
-            {
-                "date": d.trade_date.isoformat(),
-                "record_count": d.record_count
-            }
-            for d in dates
-        ]
-    }
+    if table_config['type'] == 'static':
+        return get_columns_info(table_config['model'])
+    else:
+        return get_columns_info_from_table(db, table_config['table_name'])
+
+
+@router.get("/{table_name}/stats")
+async def get_table_stats(
+    table_name: str,
+    db: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    """
+    获取原始数据表的统计信息
+
+    参数：
+    - table_name: 表名
+
+    返回：
+    - total_count: 总记录数
+    - first_record_date: 最早记录日期
+    - last_record_date: 最新记录日期
+    - distinct_stocks: 不同股票数量（如果适用）
+    """
+    if table_name not in RAW_TABLES:
+        raise HTTPException(
+            status_code=404,
+            detail=f"表不存在: {table_name}"
+        )
+
+    table_config = RAW_TABLES[table_name]
+    actual_table_name = table_config['table_name']
+    date_field = table_config['date_field']
+
+    try:
+        stats = {
+            "table_name": table_name,
+        }
+
+        if table_config['type'] == 'static':
+            # 静态表统计
+            model = table_config['model']
+            stats['total_count'] = db.query(model).count()
+
+            if hasattr(model, date_field):
+                date_column = getattr(model, date_field)
+                first = db.query(date_column).order_by(date_column.asc()).first()
+                last = db.query(date_column).order_by(date_column.desc()).first()
+                stats['first_record_date'] = first[0].isoformat() if first and first[0] else None
+                stats['last_record_date'] = last[0].isoformat() if last and last[0] else None
+
+            if hasattr(model, 'stock_code'):
+                stats['distinct_stocks'] = db.query(model.stock_code).distinct().count()
+
+        else:
+            # 动态表统计
+            count_result = db.execute(text(f"SELECT COUNT(*) FROM {actual_table_name}")).scalar()
+            stats['total_count'] = count_result if count_result else 0
+
+            # 获取日期范围
+            try:
+                first_result = db.execute(
+                    text(f"SELECT {date_field} FROM {actual_table_name} ORDER BY {date_field} ASC LIMIT 1")
+                ).scalar()
+                last_result = db.execute(
+                    text(f"SELECT {date_field} FROM {actual_table_name} ORDER BY {date_field} DESC LIMIT 1")
+                ).scalar()
+
+                if first_result:
+                    if isinstance(first_result, date):
+                        stats['first_record_date'] = first_result.isoformat()
+                    else:
+                        stats['first_record_date'] = str(first_result)
+
+                if last_result:
+                    if isinstance(last_result, date):
+                        stats['last_record_date'] = last_result.isoformat()
+                    else:
+                        stats['last_record_date'] = str(last_result)
+            except Exception:
+                pass
+
+            # 获取不同股票数量
+            try:
+                stock_result = db.execute(
+                    text(f"SELECT COUNT(DISTINCT stock_code) FROM {actual_table_name}")
+                ).scalar()
+                if stock_result:
+                    stats['distinct_stocks'] = stock_result
+            except Exception:
+                pass
+
+        return stats
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"获取统计信息失败: {str(e)}"
+        )

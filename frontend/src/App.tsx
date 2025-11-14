@@ -26,6 +26,7 @@ import ConvertibleBondPage from './components/ConvertibleBondPage';
 import ConceptAnalysisPage from './components/ConceptAnalysisPage';
 import TxtImportRecords from './components/TxtImportRecords';
 import DataImportPage from './components/DataImportPage';
+import RawDataViewerPage from './pages/RawDataViewerPage';
 
 const { Header, Content, Sider } = Layout;
 const { Title, Text, Paragraph } = Typography;
@@ -1121,6 +1122,11 @@ const AdminApp: React.FC = () => {
       label: '转债分析',
     },
     {
+      key: 'raw-data',
+      icon: <DatabaseOutlined />,
+      label: '原始数据',
+    },
+    {
       key: 'user',
       icon: <UserOutlined />,
       label: '用户管理',
@@ -1177,6 +1183,8 @@ const AdminApp: React.FC = () => {
             {activeTab === 'convertible-bonds' && (
               <ConvertibleBondPage />
             )}
+
+            {activeTab === 'raw-data' && <RawDataViewerPage />}
 
         {activeTab === 'client-users' && <UserManagement />}
         {activeTab === 'admin-users' && <AdminManagement />}

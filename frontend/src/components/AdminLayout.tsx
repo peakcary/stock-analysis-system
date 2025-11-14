@@ -52,6 +52,11 @@ const AdminLayout: React.FC<AdminLayoutProps> = ({ children, activeTab, onTabCha
       label: '转债分析',
     },
     {
+      key: 'raw-data',
+      icon: <DatabaseOutlined />,
+      label: '原始数据',
+    },
+    {
       key: 'client-users',
       icon: <TeamOutlined />,
       label: '客户端用户',
