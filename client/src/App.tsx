@@ -13,7 +13,7 @@ import ClientTopConceptsStockPage from './pages/ClientTopConceptsStockPage';
 import ClientConvertibleBondsPage from './pages/ClientConvertibleBondsPage';
 import MobileLayout from './components/MobileLayout';
 import PaymentHistoryPage from './components/PaymentHistoryPage';
-import { tokenManager, mockLogin } from './utils/auth';
+import { tokenManager } from './utils/auth';
 
 // 主题配置
 const theme = {

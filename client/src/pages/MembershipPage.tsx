@@ -208,39 +208,23 @@ interface PaymentPackagesInlineProps {
 const PaymentPackagesInline: React.FC<PaymentPackagesInlineProps> = ({ onSuccess, onSelectPackage, packages, setPackages, selectedPackageObj }) => {
   const [loading, setLoading] = useState(false);
 
-  // Mock套餐数据
-  const mockPackages = [
-    { id: 1, package_type: 'queries_10', name: '轻量包', price: 9.99, queries_count: 10, validity_days: 30, membership_type: 'free', description: '适合新手入门，10次API查询额度', is_active: true },
-    { id: 2, package_type: 'queries_50', name: '进阶包', price: 49.99, queries_count: 50, validity_days: 60, membership_type: 'free', description: '适合专业投资者，50次API查询额度', is_active: true },
-    { id: 3, package_type: 'pro_monthly', name: '专业版月卡', price: 99.99, queries_count: 999999, validity_days: 30, membership_type: 'pro', description: '无限次查询+深度分析+智能报告', is_active: true },
-    { id: 4, package_type: 'pro_quarterly', name: '专业版季卡', price: 249.99, queries_count: 999999, validity_days: 90, membership_type: 'pro', description: '无限次查询+深度分析+智能报告', is_active: true },
-    { id: 5, package_type: 'pro_yearly', name: '专业版年卡', price: 899.99, queries_count: 999999, validity_days: 365, membership_type: 'pro', description: '无限次查询+深度分析+智能报告', is_active: true },
-    { id: 6, package_type: 'premium_monthly', name: '旗舰版月卡', price: 199.99, queries_count: 999999, validity_days: 30, membership_type: 'premium', description: '无限查询+企业级功能+AI预测+团队协作', is_active: true },
-    { id: 7, package_type: 'premium_quarterly', name: '旗舰版季卡', price: 499.99, queries_count: 999999, validity_days: 90, membership_type: 'premium', description: '无限查询+企业级功能+AI预测+团队协作', is_active: true },
-    { id: 8, package_type: 'premium_yearly', name: '旗舰版年卡', price: 1699.99, queries_count: 999999, validity_days: 365, membership_type: 'premium', description: '无限查询+企业级功能+AI预测+团队协作', is_active: true }
-  ];
-
   // 获取支付套餐列表
   const fetchPackages = async () => {
     setLoading(true);
     try {
-      // 先尝试从API获取，失败则使用Mock数据
-      try {
-        const response = await apiClient.get('/payment/packages');
-        console.log('获取到套餐数据:', response.data);
-        setPackages(response.data);
-      } catch (apiError) {
-        console.warn('API调用失败，使用Mock数据:', apiError);
-        setPackages(mockPackages);
-      }
+      const response = await apiClient.get('/payment/packages');
+      console.log('获取到套餐数据:', response.data);
+      setPackages(response.data || []);
+    } catch (error) {
+      console.error('获取套餐数据失败:', error);
+      setPackages([]);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    // 直接使用Mock数据，更快的用户体验
-    setPackages(mockPackages);
+    fetchPackages();
   }, []);
 
   // 获取套餐图标

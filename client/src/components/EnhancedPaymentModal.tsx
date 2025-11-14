@@ -46,7 +46,6 @@ interface PaymentOrder {
   h5_url?: string;
   expire_time: string;
   amount: number;
-  mock_mode?: boolean;
 }
 
 interface EnhancedPaymentModalProps {
@@ -173,26 +172,6 @@ const EnhancedPaymentModal: React.FC<EnhancedPaymentModalProps> = ({
     }
   };
 
-  // 模拟支付成功 (仅开发模式)
-  const simulatePaymentSuccess = async () => {
-    if (!paymentOrder || !paymentOrder.mock_mode) return;
-
-    try {
-      const result = await apiClient.post(`/payment/mock/complete/${paymentOrder.out_trade_no}`);
-
-      if (result.data.success) {
-        setOrderStatus('paid');
-        message.success('模拟支付成功！');
-        setTimeout(() => {
-          onSuccess();
-        }, 2000);
-      }
-    } catch (error) {
-      console.error('模拟支付失败:', error);
-      message.error('模拟支付失败');
-    }
-  };
-
   // 获取过期时间倒计时
   const getCountdownDeadline = () => {
     if (!paymentOrder) return Date.now();
@@ -299,26 +278,6 @@ const EnhancedPaymentModal: React.FC<EnhancedPaymentModalProps> = ({
               type="info"
               showIcon
             />
-
-            {paymentOrder?.mock_mode && (
-              <Alert
-                message="开发模式"
-                description={
-                  <Space direction="vertical">
-                    <Text>当前为开发模式，可以模拟支付成功</Text>
-                    <Button
-                      type="primary"
-                      size="small"
-                      onClick={simulatePaymentSuccess}
-                    >
-                      模拟支付成功
-                    </Button>
-                  </Space>
-                }
-                type="warning"
-                showIcon
-              />
-            )}
           </Space>
         </Col>
       </Row>

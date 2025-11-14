@@ -436,7 +436,18 @@ class DataImportService:
             
             # 提交事务
             self.db.commit()
-            
+
+            # 触发每日分析计算 - 生成概念汇总和排名数据
+            try:
+                print(f"🚀 触发 {import_date} 的每日分析计算...")
+                from app.services.ranking_calculator import RankingCalculatorService
+                ranking_service = RankingCalculatorService(self.db)
+                analysis_result = ranking_service.calculate_daily_rankings(import_date.isoformat())
+                print(f"✅ 分析计算完成: {analysis_result.get('message', '成功')}")
+            except Exception as e:
+                print(f"⚠️ 分析计算失败（但导入成功）: {str(e)}")
+                # 不影响导入结果，只记录警告
+
             return {
                 "imported_records": imported_records,
                 "skipped_records": skipped_records,
@@ -755,7 +766,18 @@ class DataImportService:
             
             # 提交事务
             self.db.commit()
-            
+
+            # 触发每日分析计算 - 生成概念汇总和排名数据
+            try:
+                print(f"🚀 触发 {target_date} 的每日分析计算...")
+                from app.services.ranking_calculator import RankingCalculatorService
+                ranking_service = RankingCalculatorService(self.db)
+                analysis_result = ranking_service.calculate_daily_rankings(target_date.isoformat())
+                print(f"✅ 分析计算完成: {analysis_result.get('message', '成功')}")
+            except Exception as e:
+                print(f"⚠️ 分析计算失败（但导入成功）: {str(e)}")
+                # 不影响导入结果，只记录警告
+
             return {
                 "imported_records": imported_records,
                 "skipped_records": skipped_records,
@@ -764,7 +786,7 @@ class DataImportService:
                 "overwrite": allow_overwrite or existing_record is not None,
                 "stats": stats
             }
-            
+
         except Exception as e:
             self.db.rollback()
             raise Exception(f"TXT解析失败: {str(e)}")

@@ -75,8 +75,8 @@ export const AnalysisPage: React.FC<AnalysisPageProps> = ({ user }) => {
   const [selectedStock, setSelectedStock] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [searchText, setSearchText] = useState('');
-  // 使用 2024 年的日期作为默认值，因为数据库中主要是 2024 年的数据
-  const [selectedDate, setSelectedDate] = useState<string>('2024-09-02');
+  // 使用当前日期作为默认值
+  const [selectedDate, setSelectedDate] = useState<string>(dayjs().format('YYYY-MM-DD'));
   
   // 概念分析数据状态
   const [innovationConcepts, setInnovationConcepts] = useState<InnovationConceptData[]>([]);
@@ -135,8 +135,8 @@ export const AnalysisPage: React.FC<AnalysisPageProps> = ({ user }) => {
       // 更新概览统计
       const marketStats = marketRes.market_stats || {};
       setOverviewStats({
-        totalConcepts: marketStats.total_concepts || 566, // 使用已知数据作为默认值
-        totalStocks: marketStats.total_stocks || 6413,
+        totalConcepts: marketStats.total_concepts ?? 0,
+        totalStocks: marketStats.total_stocks ?? 0,
         innovationCount: innovationRes.innovation_concepts?.length || 0,
         convertibleBondCount: 0 // 将在可转债页面加载时更新
       });
@@ -145,10 +145,10 @@ export const AnalysisPage: React.FC<AnalysisPageProps> = ({ user }) => {
     } catch (error) {
       console.error('Load analysis data error:', error);
       setAnalysisStatus('failed');
-      // 不显示错误消息，使用默认数据
+      // 重置统计数据
       setOverviewStats({
-        totalConcepts: 566,
-        totalStocks: 6413,
+        totalConcepts: 0,
+        totalStocks: 0,
         innovationCount: 0,
         convertibleBondCount: 0
       });
@@ -602,11 +602,9 @@ export const AnalysisPage: React.FC<AnalysisPageProps> = ({ user }) => {
               placeholder="选择日期"
               allowClear={false}
               disabledDate={(current) => {
-                // 禁用 2024年12月31日之后的日期（数据库只有2024年数据）
-                const isAfter2024 = current && current.isAfter(dayjs('2024-12-31').endOf('day'));
-                // 禁用 2020年之前的日期
-                const isTooOld = current && current.isBefore(dayjs('2020-01-01'));
-                return !!isAfter2024 || !!isTooOld;
+                // 禁用未来日期
+                const isFuture = current && current.isAfter(dayjs().endOf('day'));
+                return !!isFuture;
               }}
             />
             
