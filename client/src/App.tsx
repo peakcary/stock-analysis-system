@@ -11,6 +11,7 @@ import ClientStockAnalysisPage from './pages/ClientStockAnalysisPage';
 import ClientNewHighConceptPage from './pages/ClientNewHighConceptPage';
 import ClientTopConceptsStockPage from './pages/ClientTopConceptsStockPage';
 import ClientConvertibleBondsPage from './pages/ClientConvertibleBondsPage';
+import StockConceptQueryPage from './pages/StockConceptQueryPage';
 import MobileLayout from './components/MobileLayout';
 import PaymentHistoryPage from './components/PaymentHistoryPage';
 import { tokenManager } from './utils/auth';
@@ -184,6 +185,9 @@ const App: React.FC = () => {
       case 'convertible-bonds':
         return <ClientConvertibleBondsPage user={user} />;
 
+      case 'stock-concept-query':
+        return <StockConceptQueryPage />;
+
       default:
         return <AnalysisPage user={user} />;
     }
@@ -261,11 +265,12 @@ const DesktopLayout: React.FC<{
         
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px', overflowX: 'auto' }}>
           {user ?
-            ['首页', '分析', '股票查询', '新高概念', '热门股票', '可转债', '会员', '个人中心'].map((item, index) => {
+            ['首页', '分析', '股票查询', '股票概念', '新高概念', '热门股票', '可转债', '会员', '个人中心'].map((item, index) => {
               const tabMap: Record<string, string> = {
                 '首页': 'home',
                 '分析': 'analysis',
                 '股票查询': 'stock-analysis',
+                '股票概念': 'stock-concept-query',
                 '新高概念': 'new-high-concepts',
                 '热门股票': 'top-concepts',
                 '可转债': 'convertible-bonds',
