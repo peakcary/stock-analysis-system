@@ -11,6 +11,7 @@ import {
   RiseOutlined,
   BankOutlined,
 } from '@ant-design/icons';
+import { isMobile } from 'react-device-detect';
 import { motion, AnimatePresence } from 'framer-motion';
 import StockQueryTab from '../components/concept-analysis/StockQueryTab';
 import TopNConceptsTab from '../components/concept-analysis/TopNConceptsTab';
@@ -63,7 +64,7 @@ const AdvancedConceptAnalysisPage: React.FC = () => {
       transition={{ duration: 0.5 }}
       style={{
         minHeight: '100vh',
-        padding: '40px 20px',
+        padding: isMobile ? '20px 16px' : '40px 20px',
         background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
       }}
     >
@@ -73,13 +74,13 @@ const AdvancedConceptAnalysisPage: React.FC = () => {
           initial={{ opacity: 0, y: -30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6 }}
-          style={{ textAlign: 'center', marginBottom: '40px', color: 'white' }}
+          style={{ textAlign: 'center', marginBottom: isMobile ? '24px' : '40px', color: 'white' }}
         >
           <Title
             level={1}
             style={{
-              fontSize: '48px',
-              margin: '0 0 16px 0',
+              fontSize: isMobile ? '32px' : '48px',
+              margin: '0 0 12px 0',
               background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
               backgroundClip: 'text',
               WebkitBackgroundClip: 'text',
@@ -90,7 +91,7 @@ const AdvancedConceptAnalysisPage: React.FC = () => {
           </Title>
           <Paragraph
             style={{
-              fontSize: '18px',
+              fontSize: isMobile ? '14px' : '18px',
               color: '#64748b',
               maxWidth: '600px',
               margin: '0 auto',
@@ -138,17 +139,17 @@ const AdvancedConceptAnalysisPage: React.FC = () => {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.8 }}
           style={{
-            marginTop: '40px',
-            padding: '20px',
+            marginTop: isMobile ? '24px' : '40px',
+            padding: isMobile ? '16px' : '20px',
             background: 'white',
             borderRadius: '16px',
             boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
           }}
         >
-          <Title level={4} style={{ marginBottom: '12px' }}>
+          <Title level={4} style={{ marginBottom: '12px', fontSize: isMobile ? '16px' : '18px' }}>
             功能说明
           </Title>
-          <ul style={{ margin: 0, paddingLeft: '20px', color: '#666' }}>
+          <ul style={{ margin: 0, paddingLeft: '20px', color: '#666', fontSize: isMobile ? '13px' : '14px' }}>
             <li>
               <strong>股票查询</strong>：输入股票代码查看其所属概念及热度排名
             </li>

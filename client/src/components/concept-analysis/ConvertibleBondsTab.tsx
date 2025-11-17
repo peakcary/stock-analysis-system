@@ -21,6 +21,7 @@ import {
   BankOutlined,
   SortAscendingOutlined,
 } from '@ant-design/icons';
+import { isMobile } from 'react-device-detect';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getConvertibleBonds, ConvertibleBond } from '../../utils/conceptAnalysisApi';
 
@@ -160,11 +161,12 @@ const ConvertibleBondsTab: React.FC = () => {
           marginBottom: '24px',
           borderRadius: '12px',
           boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+          padding: isMobile ? '16px' : '24px',
         }}
       >
         <Space direction="vertical" size="large" style={{ width: '100%' }}>
           <div>
-            <Text strong style={{ display: 'block', marginBottom: '12px', fontSize: '16px' }}>
+            <Text strong style={{ display: 'block', marginBottom: '12px', fontSize: isMobile ? '13px' : '16px' }}>
               交易日期 (可选)
             </Text>
             <Row gutter={[16, 16]}>
@@ -175,10 +177,10 @@ const ConvertibleBondsTab: React.FC = () => {
                   onChange={(e) => setTradeDate(e.target.value)}
                   style={{
                     width: '100%',
-                    padding: '10px 12px',
+                    padding: isMobile ? '8px 10px' : '10px 12px',
                     borderRadius: '8px',
                     border: '1px solid #d9d9d9',
-                    fontSize: '14px',
+                    fontSize: isMobile ? '13px' : '14px',
                   }}
                 />
               </Col>
@@ -193,15 +195,15 @@ const ConvertibleBondsTab: React.FC = () => {
             loading={loading}
             style={{
               width: '100%',
-              height: '48px',
-              fontSize: '16px',
+              height: isMobile ? '44px' : '48px',
+              fontSize: isMobile ? '13px' : '16px',
               fontWeight: '600',
               borderRadius: '8px',
               background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
               borderColor: 'transparent',
             }}
           >
-            查询可转债热度排行
+            {isMobile ? '查询' : '查询可转债热度排行'}
           </Button>
         </Space>
       </Card>
@@ -305,19 +307,22 @@ const ConvertibleBondsTab: React.FC = () => {
             style={{
               boxShadow: '0 20px 60px rgba(0,0,0,0.1)',
               borderRadius: '16px',
+              overflow: 'hidden',
             }}
           >
-            <Title level={3} style={{ marginBottom: '24px' }}>
+            <Title level={isMobile ? 4 : 3} style={{ marginBottom: '24px', fontSize: isMobile ? '16px' : '20px' }}>
               <BankOutlined style={{ marginRight: '8px', color: '#667eea' }} />
               可转债热度排行表
             </Title>
-            <Table
-              columns={columns}
-              dataSource={data}
-              rowKey={(record) => record.stock_id}
-              pagination={false}
-              bordered
-              size="middle"
+            <div style={{ overflowX: 'auto' }}>
+              <Table
+                columns={columns}
+                dataSource={data}
+                rowKey={(record) => record.stock_id}
+                pagination={false}
+                bordered
+                size={isMobile ? 'small' : 'middle'}
+                scroll={{ x: isMobile ? 900 : undefined }}
               rowClassName={(record, index) => {
                 if (record.rank === 1) return 'rank-1';
                 if (record.rank === 2) return 'rank-2';
@@ -337,11 +342,13 @@ const ConvertibleBondsTab: React.FC = () => {
                   setPageSize(size);
                   handleQuery(1);
                 }}
-                showSizeChanger
-                pageSizeOptions={['10', '20', '50']}
-                showTotal={(total) => `共 ${total} 只转债`}
-                style={{ paddingTop: '16px' }}
+                showSizeChanger={!isMobile}
+                pageSizeOptions={isMobile ? ['10', '20'] : ['10', '20', '50']}
+                showTotal={(total) => isMobile ? `共${total}只` : `共 ${total} 只转债`}
+                style={{ paddingTop: '16px', fontSize: isMobile ? '12px' : '14px' }}
+                size={isMobile ? 'small' : 'default'}
               />
+            </div>
             </div>
           </Card>
 

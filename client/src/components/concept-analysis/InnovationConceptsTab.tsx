@@ -23,6 +23,7 @@ import {
   TrophyOutlined,
   RiseOutlined,
 } from '@ant-design/icons';
+import { isMobile } from 'react-device-detect';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getInnovationConcepts, InnovationConcept } from '../../utils/conceptAnalysisApi';
 
@@ -193,40 +194,41 @@ const InnovationConceptsTab: React.FC = () => {
           marginBottom: '24px',
           borderRadius: '12px',
           boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+          padding: isMobile ? '16px' : '24px',
         }}
       >
         <Space direction="vertical" size="large" style={{ width: '100%' }}>
-          <Row gutter={[16, 16]}>
+          <Row gutter={isMobile ? [8, 16] : [16, 16]}>
             <Col xs={24} sm={12}>
               <div>
-                <Text strong style={{ display: 'block', marginBottom: '12px', fontSize: '16px' }}>
+                <Text strong style={{ display: 'block', marginBottom: '8px', fontSize: isMobile ? '13px' : '16px' }}>
                   创新高时间范围（天数）
                 </Text>
                 <Input
-                  size="large"
+                  size={isMobile ? 'middle' : 'large'}
                   type="number"
                   min="1"
                   max="365"
-                  placeholder="输入天数，如：10, 20, 30"
+                  placeholder={isMobile ? '天数' : '输入天数，如：10, 20, 30'}
                   value={daysBack}
                   onChange={(e) => setDaysBack(parseInt(e.target.value) || 1)}
                   onKeyPress={handleKeyPress}
-                  style={{ borderRadius: '8px' }}
+                  style={{ borderRadius: '8px', fontSize: isMobile ? '14px' : '16px' }}
                 />
               </div>
             </Col>
             <Col xs={24} sm={12}>
               <div>
-                <Text strong style={{ display: 'block', marginBottom: '12px', fontSize: '16px' }}>
+                <Text strong style={{ display: 'block', marginBottom: '8px', fontSize: isMobile ? '13px' : '16px' }}>
                   交易日期 (可选)
                 </Text>
                 <Input
-                  size="large"
+                  size={isMobile ? 'middle' : 'large'}
                   type="date"
                   value={tradeDate}
                   onChange={(e) => setTradeDate(e.target.value)}
                   onKeyPress={handleKeyPress}
-                  style={{ borderRadius: '8px' }}
+                  style={{ borderRadius: '8px', fontSize: isMobile ? '14px' : '16px' }}
                 />
               </div>
             </Col>
@@ -240,15 +242,15 @@ const InnovationConceptsTab: React.FC = () => {
             loading={loading}
             style={{
               width: '100%',
-              height: '48px',
-              fontSize: '16px',
+              height: isMobile ? '44px' : '48px',
+              fontSize: isMobile ? '13px' : '16px',
               fontWeight: '600',
               borderRadius: '8px',
               background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
               borderColor: 'transparent',
             }}
           >
-            查询最近 {daysBack} 天创新高的概念
+            {isMobile ? `查询最近${daysBack}天创新高` : `查询最近 ${daysBack} 天创新高的概念`}
           </Button>
         </Space>
       </Card>
@@ -353,24 +355,27 @@ const InnovationConceptsTab: React.FC = () => {
               boxShadow: '0 20px 60px rgba(0,0,0,0.1)',
               borderRadius: '16px',
               marginBottom: '24px',
+              overflow: 'hidden',
             }}
           >
-            <Title level={3} style={{ marginBottom: '24px' }}>
+            <Title level={isMobile ? 4 : 3} style={{ marginBottom: '24px', fontSize: isMobile ? '16px' : '20px' }}>
               <TrophyOutlined style={{ marginRight: '8px', color: '#667eea' }} />
               创新高概念详情列表
             </Title>
-            <Table
-              columns={conceptColumns}
-              dataSource={data}
-              rowKey={(record) => record.concept_id}
-              pagination={{
-                pageSize: 15,
-                showSizeChanger: true,
-                pageSizeOptions: ['10', '15', '20'],
-                showTotal: (total) => `共 ${total} 个创新高概念`,
-              }}
-              bordered
-              size="middle"
+            <div style={{ overflowX: 'auto' }}>
+              <Table
+                columns={conceptColumns}
+                dataSource={data}
+                rowKey={(record) => record.concept_id}
+                pagination={{
+                  pageSize: isMobile ? 10 : 15,
+                  showSizeChanger: !isMobile,
+                  pageSizeOptions: isMobile ? ['10', '15'] : ['10', '15', '20'],
+                  showTotal: (total) => `共 ${total} 个创新高概念`,
+                }}
+                bordered
+                size={isMobile ? 'small' : 'middle'}
+                scroll={{ x: isMobile ? 1000 : undefined }}
               expandable={{
                 expandedRowRender: (record: InnovationConcept) => (
                   <Card
@@ -412,6 +417,7 @@ const InnovationConceptsTab: React.FC = () => {
                 return '';
               }}
             />
+            </div>
           </Card>
 
           {/* 提示信息 */}

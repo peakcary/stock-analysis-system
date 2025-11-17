@@ -19,6 +19,7 @@ import {
   LoadingOutlined,
   LineChartOutlined,
 } from '@ant-design/icons';
+import { isMobile } from 'react-device-detect';
 import { motion } from 'framer-motion';
 import {
   getConceptStockRanking,
@@ -100,7 +101,7 @@ const ConceptStockDrawer: React.FC<ConceptStockDrawerProps> = ({
     {
       title: '排名',
       key: 'rank',
-      width: 60,
+      width: isMobile ? 50 : 60,
       render: (_: any, record: StockRanking, index: number) => (
         <Tag
           color={
@@ -112,6 +113,7 @@ const ConceptStockDrawer: React.FC<ConceptStockDrawerProps> = ({
                   ? '#2db7f5'
                   : 'default'
           }
+          style={{ fontSize: isMobile ? '12px' : '14px' }}
         >
           #{record.rank}
         </Tag>
@@ -121,53 +123,81 @@ const ConceptStockDrawer: React.FC<ConceptStockDrawerProps> = ({
       title: '股票代码',
       dataIndex: 'stock_code',
       key: 'stock_code',
-      width: 100,
+      width: isMobile ? 80 : 100,
       render: (text: string) => (
         <Button
           type="link"
           onClick={() => handleStockClick(text)}
-          style={{ padding: 0, height: 'auto', fontSize: '14px', fontWeight: '600' }}
+          style={{
+            padding: 0,
+            height: 'auto',
+            fontSize: isMobile ? '12px' : '14px',
+            fontWeight: '600',
+            minHeight: isMobile ? '36px' : 'auto',
+            display: 'flex',
+            alignItems: 'center',
+          }}
         >
           {text}
         </Button>
       ),
     },
-    {
-      title: '股票名称',
-      dataIndex: 'stock_name',
-      key: 'stock_name',
-      width: 100,
-    },
+    ...(isMobile ? [] : [
+      {
+        title: '股票名称',
+        dataIndex: 'stock_name',
+        key: 'stock_name',
+        width: 100,
+      },
+    ]),
     {
       title: '热度值',
       dataIndex: 'heat_value',
       key: 'heat_value',
-      width: 120,
+      width: isMobile ? 100 : 120,
       render: (value: number) => (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <FireOutlined style={{ color: '#ff4d4f' }} />
-          <Text strong style={{ color: '#ff4d4f' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '4px' : '6px' }}>
+          <FireOutlined style={{ color: '#ff4d4f', fontSize: isMobile ? '12px' : '16px' }} />
+          <Text strong style={{ color: '#ff4d4f', fontSize: isMobile ? '12px' : '14px' }}>
             {value.toFixed(2)}
           </Text>
         </div>
       ),
       sorter: (a: StockRanking, b: StockRanking) => b.heat_value - a.heat_value,
     },
-    {
-      title: '操作',
-      key: 'action',
-      width: 80,
-      render: (_: any, record: StockRanking) => (
-        <Button
-          type="primary"
-          size="small"
-          icon={<LineChartOutlined />}
-          onClick={() => handleStockClick(record.stock_code)}
-        >
-          查看图表
-        </Button>
-      ),
-    },
+    ...(isMobile ? [
+      {
+        title: '操作',
+        key: 'action',
+        width: 60,
+        render: (_: any, record: StockRanking) => (
+          <Button
+            type="primary"
+            size="small"
+            onClick={() => handleStockClick(record.stock_code)}
+            style={{ fontSize: isMobile ? '12px' : '14px' }}
+          >
+            图表
+          </Button>
+        ),
+      },
+    ] : [
+      {
+        title: '操作',
+        key: 'action',
+        width: 100,
+        render: (_: any, record: StockRanking) => (
+          <Button
+            type="primary"
+            size="small"
+            icon={<LineChartOutlined />}
+            onClick={() => handleStockClick(record.stock_code)}
+          >
+            查看图表
+          </Button>
+        ),
+      },
+    ]),
   ];
 
   const displayedCount = stocks.length;
@@ -179,18 +209,19 @@ const ConceptStockDrawer: React.FC<ConceptStockDrawerProps> = ({
         title={
           concept ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <FireOutlined style={{ color: '#ff4d4f', fontSize: '20px' }} />
-              <span>{concept.concept_name} - 概念内股票</span>
+              <FireOutlined style={{ color: '#ff4d4f', fontSize: isMobile ? '18px' : '20px' }} />
+              <span style={{ fontSize: isMobile ? '14px' : '16px' }}>{concept.concept_name} - 概念内股票</span>
             </div>
           ) : (
             '概念详情'
           )
         }
-        placement="right"
+        placement={isMobile ? 'bottom' : 'right'}
         onClose={onClose}
         open={open}
-        width={1000}
-        bodyStyle={{ padding: '24px' }}
+        width={isMobile ? '100%' : 1000}
+        height={isMobile ? 'auto' : undefined}
+        bodyStyle={{ padding: isMobile ? '16px' : '24px' }}
       >
         {concept && (
           <motion.div
@@ -268,14 +299,17 @@ const ConceptStockDrawer: React.FC<ConceptStockDrawerProps> = ({
 
               {stocks.length > 0 ? (
                 <Spin spinning={loading && currentPage > 1} indicator={<LoadingOutlined />}>
-                  <Table
-                    columns={columns}
-                    dataSource={stocks}
-                    rowKey={(record) => record.stock_id}
-                    pagination={false}
-                    bordered
-                    size="small"
-                  />
+                  <div style={{ overflowX: 'auto' }}>
+                    <Table
+                      columns={columns}
+                      dataSource={stocks}
+                      rowKey={(record) => record.stock_id}
+                      pagination={false}
+                      bordered
+                      size={isMobile ? 'small' : 'middle'}
+                      scroll={{ x: isMobile ? 500 : undefined }}
+                    />
+                  </div>
 
                   {/* 加载更多按钮 */}
                   {hasMore && (
@@ -284,10 +318,13 @@ const ConceptStockDrawer: React.FC<ConceptStockDrawerProps> = ({
                         type="primary"
                         onClick={handleLoadMore}
                         loading={loading}
-                        style={{ minWidth: '200px' }}
+                        style={{
+                          minWidth: isMobile ? '100%' : '200px',
+                          height: isMobile ? '44px' : 'auto',
+                          fontSize: isMobile ? '14px' : '16px',
+                        }}
                       >
-                        加载更多 10 只 ({displayedCount + 10 > totalCount ? totalCount : displayedCount + 10}/
-                        {totalCount})
+                        {isMobile ? '加载更多' : `加载更多 10 只 (${displayedCount + 10 > totalCount ? totalCount : displayedCount + 10}/${totalCount})`}
                       </Button>
                     </div>
                   )}

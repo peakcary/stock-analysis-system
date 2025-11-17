@@ -22,6 +22,7 @@ import {
   StockOutlined,
   BankOutlined,
 } from '@ant-design/icons';
+import { isMobile } from 'react-device-detect';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   getStockConceptRanking,
@@ -89,9 +90,9 @@ const StockQueryTab: React.FC = () => {
     {
       title: '排名',
       key: 'rank',
-      width: 80,
+      width: isMobile ? 60 : 80,
       render: (_: any, record: ConceptRanking, index: number) => (
-        <Tag color={index === 0 ? 'gold' : index === 1 ? 'silver' : 'blue'}>
+        <Tag color={index === 0 ? 'gold' : index === 1 ? 'silver' : 'blue'} style={{ fontSize: isMobile ? '12px' : '14px' }}>
           #{record.rank}
         </Tag>
       ),
@@ -100,16 +101,19 @@ const StockQueryTab: React.FC = () => {
       title: '概念名称',
       dataIndex: 'concept_name',
       key: 'concept_name',
-      width: '30%',
+      width: isMobile ? '40%' : '30%',
       render: (text: string, record: ConceptRanking) => (
         <Button
           type="link"
           onClick={() => handleConceptClick(record)}
           style={{
-            fontSize: '14px',
+            fontSize: isMobile ? '12px' : '14px',
             fontWeight: '600',
             padding: 0,
             height: 'auto',
+            minHeight: isMobile ? '36px' : 'auto',
+            display: 'flex',
+            alignItems: 'center',
           }}
         >
           {text}
@@ -120,39 +124,59 @@ const StockQueryTab: React.FC = () => {
       title: '热度值',
       dataIndex: 'heat_value',
       key: 'heat_value',
-      width: '20%',
+      width: isMobile ? '30%' : '20%',
       render: (value: number) => (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <FireOutlined style={{ color: '#ff4d4f', fontSize: '16px' }} />
-          <Text strong style={{ color: '#ff4d4f', fontSize: '14px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '4px' : '8px' }}>
+          <FireOutlined style={{ color: '#ff4d4f', fontSize: isMobile ? '14px' : '16px' }} />
+          <Text strong style={{ color: '#ff4d4f', fontSize: isMobile ? '12px' : '14px' }}>
             {value.toFixed(2)}
           </Text>
         </div>
       ),
       sorter: (a: ConceptRanking, b: ConceptRanking) => b.heat_value - a.heat_value,
     },
-    {
-      title: '概念股票总数',
-      dataIndex: 'total_stocks',
-      key: 'total_stocks',
-      width: '20%',
-      render: (value: number) => <Tag color="cyan">{value} 只</Tag>,
-      sorter: (a: ConceptRanking, b: ConceptRanking) => b.total_stocks - a.total_stocks,
-    },
-    {
-      title: '操作',
-      key: 'action',
-      width: '10%',
-      render: (_: any, record: ConceptRanking) => (
-        <Button
-          type="primary"
-          size="small"
-          onClick={() => handleConceptClick(record)}
-        >
-          查看股票
-        </Button>
-      ),
-    },
+    ...(isMobile ? [] : [
+      {
+        title: '概念股票总数',
+        dataIndex: 'total_stocks',
+        key: 'total_stocks',
+        width: '20%',
+        render: (value: number) => <Tag color="cyan">{value} 只</Tag>,
+        sorter: (a: ConceptRanking, b: ConceptRanking) => b.total_stocks - a.total_stocks,
+      },
+    ]),
+    ...(isMobile ? [
+      {
+        title: '操作',
+        key: 'action',
+        width: '20%',
+        render: (_: any, record: ConceptRanking) => (
+          <Button
+            type="primary"
+            size="small"
+            onClick={() => handleConceptClick(record)}
+            style={{ minHeight: '36px', fontSize: isMobile ? '12px' : '14px' }}
+          >
+            查看
+          </Button>
+        ),
+      },
+    ] : [
+      {
+        title: '操作',
+        key: 'action',
+        width: '10%',
+        render: (_: any, record: ConceptRanking) => (
+          <Button
+            type="primary"
+            size="small"
+            onClick={() => handleConceptClick(record)}
+          >
+            查看股票
+          </Button>
+        ),
+      },
+    ]),
   ];
 
   return (
@@ -168,41 +192,42 @@ const StockQueryTab: React.FC = () => {
           marginBottom: '24px',
           borderRadius: '12px',
           boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+          padding: isMobile ? '16px' : '24px',
         }}
       >
         <Space direction="vertical" size="large" style={{ width: '100%' }}>
           <div>
-            <Text strong style={{ display: 'block', marginBottom: '12px', fontSize: '16px' }}>
+            <Text strong style={{ display: 'block', marginBottom: '12px', fontSize: isMobile ? '14px' : '16px' }}>
               股票代码
             </Text>
             <Input
-              size="large"
-              placeholder="输入股票代码，如：000001, 600000"
+              size={isMobile ? 'middle' : 'large'}
+              placeholder={isMobile ? '股票代码' : '输入股票代码，如：000001, 600000'}
               prefix={<StockOutlined />}
               value={stockCode}
               onChange={(e) => setStockCode(e.target.value.toUpperCase())}
               onKeyPress={handleKeyPress}
-              style={{ borderRadius: '8px' }}
+              style={{ borderRadius: '8px', fontSize: isMobile ? '14px' : '16px' }}
             />
           </div>
 
           <Button
             type="primary"
-            size="large"
+            size={isMobile ? 'large' : 'large'}
             icon={<SearchOutlined />}
             onClick={handleQuery}
             loading={loading}
             style={{
               width: '100%',
-              height: '48px',
-              fontSize: '16px',
+              height: isMobile ? '44px' : '48px',
+              fontSize: isMobile ? '14px' : '16px',
               fontWeight: '600',
               borderRadius: '8px',
               background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
               borderColor: 'transparent',
             }}
           >
-            查询
+            {isMobile ? '查询' : '查询'}
           </Button>
         </Space>
       </Card>
@@ -315,31 +340,35 @@ const StockQueryTab: React.FC = () => {
                 style={{
                   boxShadow: '0 20px 60px rgba(0,0,0,0.1)',
                   borderRadius: '16px',
+                  overflow: 'hidden',
                 }}
               >
-                <Title level={3} style={{ marginBottom: '24px' }}>
+                <Title level={isMobile ? 4 : 3} style={{ marginBottom: '24px', fontSize: isMobile ? '16px' : '20px' }}>
                   <BankOutlined style={{ marginRight: '8px', color: '#667eea' }} />
                   所属概念列表
                 </Title>
-                <Table
-                  columns={columns}
-                  dataSource={data.concept_rankings}
-                  rowKey={(record) => record.concept_id}
-                  pagination={{
-                    pageSize: 20,
-                    showSizeChanger: true,
-                    pageSizeOptions: ['10', '20', '50'],
-                    showTotal: (total) => `共 ${total} 个概念`,
-                  }}
-                  bordered
-                  size="middle"
-                  rowClassName={(record, index) => {
-                    if (index === 0) return 'rank-1';
-                    if (index === 1) return 'rank-2';
-                    if (index === 2) return 'rank-3';
-                    return '';
-                  }}
-                />
+                <div style={{ overflowX: 'auto' }}>
+                  <Table
+                    columns={columns}
+                    dataSource={data.concept_rankings}
+                    rowKey={(record) => record.concept_id}
+                    pagination={{
+                      pageSize: isMobile ? 10 : 20,
+                      showSizeChanger: !isMobile,
+                      pageSizeOptions: isMobile ? ['10', '20'] : ['10', '20', '50'],
+                      showTotal: (total) => `共 ${total} 个概念`,
+                    }}
+                    bordered
+                    size={isMobile ? 'small' : 'middle'}
+                    scroll={{ x: isMobile ? 800 : undefined }}
+                    rowClassName={(record, index) => {
+                      if (index === 0) return 'rank-1';
+                      if (index === 1) return 'rank-2';
+                      if (index === 2) return 'rank-3';
+                      return '';
+                    }}
+                  />
+                </div>
               </Card>
             </motion.div>
           ) : (

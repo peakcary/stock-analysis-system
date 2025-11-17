@@ -15,6 +15,7 @@ import {
   LoadingOutlined,
   FileExcelOutlined,
 } from '@ant-design/icons';
+import { isMobile } from 'react-device-detect';
 import { motion } from 'framer-motion';
 import { getStockChartData } from '../../utils/conceptAnalysisApi';
 import EChartsReact from 'echarts-for-react';
@@ -136,12 +137,12 @@ const StockChartModal: React.FC<StockChartModalProps> = ({
       open={open}
       onCancel={onClose}
       footer={[
-        <Button key="close" onClick={onClose}>
+        <Button key="close" onClick={onClose} style={{ height: isMobile ? '44px' : 'auto', fontSize: isMobile ? '14px' : '16px' }}>
           关闭
         </Button>,
       ]}
-      width={1000}
-      bodyStyle={{ padding: '24px' }}
+      width={isMobile ? '100%' : 1000}
+      bodyStyle={{ padding: isMobile ? '16px' : '24px', maxHeight: isMobile ? '90vh' : 'auto', overflow: isMobile ? 'auto' : 'visible' }}
     >
       {loading ? (
         <div style={{ textAlign: 'center', padding: '60px 20px' }}>
@@ -170,38 +171,38 @@ const StockChartModal: React.FC<StockChartModalProps> = ({
                 borderRadius: '12px',
               }}
             >
-              <Row gutter={[24, 24]}>
+              <Row gutter={[16, 16]}>
                 <Col xs={24} sm={12} md={6}>
                   <Statistic
-                    title={<Text style={{ color: 'rgba(255,255,255,0.8)' }}>股票代码</Text>}
+                    title={<Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: isMobile ? '12px' : '14px' }}>股票代码</Text>}
                     value={stockCode}
-                    valueStyle={{ color: 'white', fontSize: '20px' }}
+                    valueStyle={{ color: 'white', fontSize: isMobile ? '16px' : '20px' }}
                   />
                 </Col>
                 <Col xs={24} sm={12} md={6}>
                   <Statistic
-                    title={<Text style={{ color: 'rgba(255,255,255,0.8)' }}>股票名称</Text>}
+                    title={<Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: isMobile ? '12px' : '14px' }}>股票名称</Text>}
                     value={data.stock_name}
-                    valueStyle={{ color: 'white', fontSize: '16px' }}
+                    valueStyle={{ color: 'white', fontSize: isMobile ? '14px' : '16px' }}
                   />
                 </Col>
                 <Col xs={24} sm={12} md={6}>
                   <Statistic
-                    title={<Text style={{ color: 'rgba(255,255,255,0.8)' }}>最新热度</Text>}
+                    title={<Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: isMobile ? '12px' : '14px' }}>最新热度</Text>}
                     value={
                       data.heat_values && data.heat_values.length > 0
                         ? data.heat_values[data.heat_values.length - 1].toFixed(2)
                         : 0
                     }
-                    valueStyle={{ color: '#fff23b', fontSize: '20px' }}
+                    valueStyle={{ color: '#fff23b', fontSize: isMobile ? '16px' : '20px' }}
                   />
                 </Col>
                 <Col xs={24} sm={12} md={6}>
                   <Statistic
-                    title={<Text style={{ color: 'rgba(255,255,255,0.8)' }}>数据点数</Text>}
+                    title={<Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: isMobile ? '12px' : '14px' }}>数据点数</Text>}
                     value={data.dates?.length || 0}
                     suffix="个"
-                    valueStyle={{ color: '#52c41a', fontSize: '20px' }}
+                    valueStyle={{ color: '#52c41a', fontSize: isMobile ? '16px' : '20px' }}
                   />
                 </Col>
               </Row>
@@ -218,12 +219,12 @@ const StockChartModal: React.FC<StockChartModalProps> = ({
             {data.dates && data.dates.length > 0 ? (
               <EChartsReact
                 option={getChartOption()}
-                style={{ height: '400px', width: '100%' }}
+                style={{ height: isMobile ? '300px' : '400px', width: '100%' }}
                 notMerge={true}
                 lazyUpdate={true}
               />
             ) : (
-              <Empty description="暂无图表数据" style={{ padding: '40px' }} />
+              <Empty description="暂无图表数据" style={{ padding: isMobile ? '20px' : '40px' }} />
             )}
           </Card>
 
@@ -235,14 +236,14 @@ const StockChartModal: React.FC<StockChartModalProps> = ({
               border: 'none',
             }}
           >
-            <Row gutter={[24, 12]}>
+            <Row gutter={[16, 12]}>
               <Col span={24}>
-                <Text strong style={{ fontSize: '14px' }}>
+                <Text strong style={{ fontSize: isMobile ? '13px' : '14px' }}>
                   📊 图表说明：
                 </Text>
               </Col>
               <Col span={24}>
-                <ul style={{ margin: 0, marginLeft: '20px', color: '#666', fontSize: '12px' }}>
+                <ul style={{ margin: 0, marginLeft: '20px', color: '#666', fontSize: isMobile ? '11px' : '12px' }}>
                   <li>横轴表示交易日期</li>
                   <li>纵轴表示该股票在所属概念中的热度值</li>
                   <li>热度值越高，表示该股票在市场中的关注度越高</li>
