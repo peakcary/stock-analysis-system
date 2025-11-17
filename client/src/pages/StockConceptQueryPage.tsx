@@ -49,7 +49,7 @@ const StockConceptQueryPage: React.FC = () => {
 
     try {
       const response = await apiClient.get(
-        `/api/v1/stock-analysis/stocks/${stockCode}/ranking`
+        `/api/v1/concept-analysis/stocks/${stockCode}/ranking`
       );
 
       if (response.data) {

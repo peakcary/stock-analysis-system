@@ -12,6 +12,7 @@ import ClientNewHighConceptPage from './pages/ClientNewHighConceptPage';
 import ClientTopConceptsStockPage from './pages/ClientTopConceptsStockPage';
 import ClientConvertibleBondsPage from './pages/ClientConvertibleBondsPage';
 import StockConceptQueryPage from './pages/StockConceptQueryPage';
+import AdvancedConceptAnalysisPage from './pages/AdvancedConceptAnalysisPage';
 import MobileLayout from './components/MobileLayout';
 import PaymentHistoryPage from './components/PaymentHistoryPage';
 import { tokenManager } from './utils/auth';
@@ -188,6 +189,9 @@ const App: React.FC = () => {
       case 'stock-concept-query':
         return <StockConceptQueryPage />;
 
+      case 'advanced-concepts':
+        return <AdvancedConceptAnalysisPage />;
+
       default:
         return <AnalysisPage user={user} />;
     }
@@ -263,14 +267,15 @@ const DesktopLayout: React.FC<{
           <span style={{ fontSize: '20px', fontWeight: '600' }}>智能股票分析</span>
         </div>
         
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', overflowX: 'auto' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', overflowX: 'auto', flex: 1 }}>
           {user ?
-            ['首页', '分析', '股票查询', '股票概念', '新高概念', '热门股票', '可转债', '会员', '个人中心'].map((item, index) => {
+            ['首页', '分析', '股票查询', '股票概念', '高级分析', '新高概念', '热门股票', '可转债', '会员', '个人中心'].map((item, index) => {
               const tabMap: Record<string, string> = {
                 '首页': 'home',
                 '分析': 'analysis',
                 '股票查询': 'stock-analysis',
                 '股票概念': 'stock-concept-query',
+                '高级分析': 'advanced-concepts',
                 '新高概念': 'new-high-concepts',
                 '热门股票': 'top-concepts',
                 '可转债': 'convertible-bonds',
@@ -330,6 +335,41 @@ const DesktopLayout: React.FC<{
             })
           }
         </div>
+
+        {/* 右上角用户信息 */}
+        {user && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ color: 'white', fontSize: '14px', fontWeight: '600' }}>
+                {user.name}
+              </div>
+              <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: '12px' }}>
+                {user.memberType === 'free' ? '免费版' : user.memberType === 'pro' ? '专业版' : '旗舰版'}
+              </div>
+            </div>
+            <button
+              onClick={() => handleMenuClick('logout')}
+              style={{
+                background: 'rgba(255,255,255,0.2)',
+                border: 'none',
+                color: 'white',
+                fontSize: '12px',
+                cursor: 'pointer',
+                padding: '6px 12px',
+                borderRadius: '6px',
+                transition: 'all 0.3s ease'
+              }}
+              onMouseOver={(e) => {
+                (e.target as HTMLButtonElement).style.background = 'rgba(255,255,255,0.3)';
+              }}
+              onMouseOut={(e) => {
+                (e.target as HTMLButtonElement).style.background = 'rgba(255,255,255,0.2)';
+              }}
+            >
+              退出登录
+            </button>
+          </div>
+        )}
       </div>
       
       {/* 桌面端内容区域 */}
