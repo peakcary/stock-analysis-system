@@ -294,6 +294,76 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
     </Drawer>
   );
 
+  // 移动端底部导航
+  const BottomNavigation = () => {
+    const navItems = user ? [
+      { icon: '🏠', label: '首页', key: 'home' },
+      { icon: '📊', label: '分析', key: 'analysis' },
+      { icon: '🔍', label: '查询', key: 'stock-analysis' },
+      { icon: '💎', label: '会员', key: 'membership' },
+      { icon: '👤', label: '我的', key: 'profile' }
+    ] : [
+      { icon: '🏠', label: '首页', key: 'home' },
+      { icon: '📊', label: '分析', key: 'analysis' },
+      { icon: '💎', label: '会员', key: 'membership' },
+      { icon: '🔐', label: '登录', key: 'auth' }
+    ];
+
+    return (
+      <div style={{
+        position: 'fixed',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        height: '60px',
+        background: 'white',
+        borderTop: '1px solid #e5e7eb',
+        display: 'flex',
+        justifyContent: 'space-around',
+        alignItems: 'center',
+        zIndex: 999,
+        boxShadow: '0 -2px 8px rgba(0,0,0,0.08)'
+      }}>
+        {navItems.map((item) => (
+          <motion.div
+            key={item.key}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => {
+              onTabChange(item.key);
+            }}
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flex: 1,
+              height: '100%',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+              opacity: activeTab === item.key ? 1 : 0.6,
+            }}
+          >
+            <div style={{
+              fontSize: '20px',
+              marginBottom: '2px',
+              transition: 'transform 0.2s ease',
+              transform: activeTab === item.key ? 'scale(1.1)' : 'scale(1)'
+            }}>
+              {item.icon}
+            </div>
+            <div style={{
+              fontSize: '10px',
+              color: activeTab === item.key ? '#667eea' : '#6b7280',
+              fontWeight: activeTab === item.key ? '600' : '400'
+            }}>
+              {item.label}
+            </div>
+          </motion.div>
+        ))}
+      </div>
+    );
+  };
+
   if (!isMobile) {
     // 桌面端布局
     return <div style={{ minHeight: '100vh' }}>{children}</div>;
@@ -303,15 +373,17 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
   return (
     <Layout style={{ minHeight: '100vh' }}>
       <MobileHeader />
-      
+
       <div style={{
         marginTop: '56px',
-        minHeight: 'calc(100vh - 56px)',
+        marginBottom: '60px',
+        minHeight: 'calc(100vh - 116px)',
         background: '#f5f7fa'
       }}>
         {children}
       </div>
-      
+
+      <BottomNavigation />
       <MobileDrawerMenu />
     </Layout>
   );
