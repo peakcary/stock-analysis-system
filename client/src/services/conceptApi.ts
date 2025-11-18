@@ -55,7 +55,7 @@ export interface TopConceptData {
  * Provides methods to fetch concept and stock analysis data
  */
 export class ConceptAnalysisApi {
-  private static baseUrl = '/api/concepts';
+  private static baseUrl = '/concepts';
 
   /**
    * Get concepts for a specific stock
