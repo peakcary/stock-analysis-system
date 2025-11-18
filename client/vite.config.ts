@@ -22,7 +22,10 @@ export default defineConfig({
       '/api': {
         target: 'http://127.0.0.1:3007',
         changeOrigin: true,
-        secure: false
+        secure: false,
+        pathRewrite: {
+          '^/api': '/api'  // 保留完整的 /api/v1 前缀
+        }
       }
     }
   },
@@ -35,7 +38,10 @@ export default defineConfig({
       '/api': {
         target: 'http://127.0.0.1:3007',
         changeOrigin: true,
-        secure: false
+        secure: false,
+        pathRewrite: {
+          '^/api': '/api'  // 保留完整的 /api/v1 前缀
+        }
       }
     }
   },

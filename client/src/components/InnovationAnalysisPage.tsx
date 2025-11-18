@@ -80,7 +80,7 @@ const InnovationAnalysisPage: React.FC = () => {
     setLoading(true);
     try {
       const token = localStorage.getItem('admin_token') || localStorage.getItem('token');
-      const response = await fetch(`/stock-analysis/concepts/new-highs?days=${days}&trading_date=${tradingDate}`, {
+      const response = await fetch(`/api/v1/stock-analysis/concepts/new-highs?days=${days}&trading_date=${tradingDate}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -116,7 +116,7 @@ const InnovationAnalysisPage: React.FC = () => {
   const viewStockChart = async (stockCode: string, conceptName: string) => {
     try {
       const token = localStorage.getItem('admin_token') || localStorage.getItem('token');
-      const response = await fetch(`/stock-analysis/stock/${stockCode}/chart-data?concept_name=${conceptName}&days=30`, {
+      const response = await fetch(`/api/v1/stock-analysis/stock/${stockCode}/chart-data?concept_name=${conceptName}&days=30`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
