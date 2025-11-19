@@ -178,3 +178,97 @@ class StockConceptRawData(Base):
         Index('idx_raw_trade_date_concept', 'trade_date', 'concept'),
         Index('idx_raw_stock_concept', 'stock_code', 'concept'),
     )
+
+
+class EeeDailyTrading(Base):
+    """EEE热度数据表 - 存储EEE.txt导入的原始热度数据"""
+    __tablename__ = "eee_daily_trading"
+
+    id = Column(Integer, primary_key=True, index=True, comment="主键ID")
+    original_stock_code = Column(String(20), nullable=False, index=True, comment="原始股票代码（含前缀）")
+    normalized_stock_code = Column(String(10), nullable=False, index=True, comment="规范化代码")
+    stock_code = Column(String(20), nullable=False, index=True, comment="股票代码")
+    trading_date = Column(Date, nullable=False, index=True, comment="交易日期")
+    trading_volume = Column(Integer, nullable=False, comment="热度值")
+    created_at = Column(DateTime, default=func.now(), comment="创建时间")
+
+    # 约束条件
+    __table_args__ = (
+        Index('idx_eee_stock_date', 'stock_code', 'trading_date'),
+        Index('idx_eee_date_volume', 'trading_date', 'trading_volume'),
+    )
+
+
+class EeeImportRecord(Base):
+    """EEE导入记录表 - 记录导入元信息"""
+    __tablename__ = "eee_import_record"
+
+    id = Column(Integer, primary_key=True, index=True, comment="主键ID")
+    filename = Column(String(255), nullable=False, comment="文件名")
+    trading_date = Column(Date, nullable=False, comment="交易日期")
+    file_size = Column(BigInteger, nullable=False, comment="文件大小")
+    file_hash = Column(String(64), comment="文件哈希")
+    import_status = Column(String(20), nullable=False, default='processing', comment="导入状态")
+    imported_by = Column(String(50), nullable=False, comment="导入人")
+    import_mode = Column(String(20), comment="导入模式")
+    total_records = Column(Integer, default=0, comment="总记录数")
+    success_records = Column(Integer, default=0, comment="成功记录数")
+    error_records = Column(Integer, default=0, comment="错误记录数")
+    duplicate_records = Column(Integer, default=0, comment="重复记录数")
+    concept_count = Column(Integer, default=0, comment="概念数")
+    ranking_count = Column(Integer, default=0, comment="排名数")
+    new_high_count = Column(Integer, default=0, comment="创新高数")
+    import_started_at = Column(DateTime, nullable=False, comment="导入开始时间")
+    import_completed_at = Column(DateTime, comment="导入完成时间")
+    calculation_time = Column(DECIMAL(10, 3), default=0, comment="计算耗时")
+    error_message = Column(Text, comment="错误信息")
+    notes = Column(Text, comment="备注")
+    created_at = Column(DateTime, default=func.now(), comment="创建时间")
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now(), comment="更新时间")
+
+
+class TtvDailyTrading(Base):
+    """TTV交易数据表 - 存储TTV.txt导入的原始数据"""
+    __tablename__ = "ttv_daily_trading"
+
+    id = Column(Integer, primary_key=True, index=True, comment="主键ID")
+    original_stock_code = Column(String(20), nullable=False, index=True, comment="原始股票代码（含前缀）")
+    normalized_stock_code = Column(String(10), nullable=False, index=True, comment="规范化代码")
+    stock_code = Column(String(20), nullable=False, index=True, comment="股票代码")
+    trading_date = Column(Date, nullable=False, index=True, comment="交易日期")
+    trading_volume = Column(Integer, nullable=False, comment="交易值")
+    created_at = Column(DateTime, default=func.now(), comment="创建时间")
+
+    # 约束条件
+    __table_args__ = (
+        Index('idx_ttv_stock_date', 'stock_code', 'trading_date'),
+        Index('idx_ttv_date_volume', 'trading_date', 'trading_volume'),
+    )
+
+
+class TtvImportRecord(Base):
+    """TTV导入记录表 - 记录导入元信息"""
+    __tablename__ = "ttv_import_record"
+
+    id = Column(Integer, primary_key=True, index=True, comment="主键ID")
+    filename = Column(String(255), nullable=False, comment="文件名")
+    trading_date = Column(Date, nullable=False, comment="交易日期")
+    file_size = Column(BigInteger, nullable=False, comment="文件大小")
+    file_hash = Column(String(64), comment="文件哈希")
+    import_status = Column(String(20), nullable=False, default='processing', comment="导入状态")
+    imported_by = Column(String(50), nullable=False, comment="导入人")
+    import_mode = Column(String(20), comment="导入模式")
+    total_records = Column(Integer, default=0, comment="总记录数")
+    success_records = Column(Integer, default=0, comment="成功记录数")
+    error_records = Column(Integer, default=0, comment="错误记录数")
+    duplicate_records = Column(Integer, default=0, comment="重复记录数")
+    concept_count = Column(Integer, default=0, comment="概念数")
+    ranking_count = Column(Integer, default=0, comment="排名数")
+    new_high_count = Column(Integer, default=0, comment="创新高数")
+    import_started_at = Column(DateTime, nullable=False, comment="导入开始时间")
+    import_completed_at = Column(DateTime, comment="导入完成时间")
+    calculation_time = Column(DECIMAL(10, 3), default=0, comment="计算耗时")
+    error_message = Column(Text, comment="错误信息")
+    notes = Column(Text, comment="备注")
+    created_at = Column(DateTime, default=func.now(), comment="创建时间")
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now(), comment="更新时间")
