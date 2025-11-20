@@ -442,7 +442,7 @@ class DataImportService:
                 print(f"🚀 触发 {import_date} 的每日分析计算...")
                 from app.services.ranking_calculator import RankingCalculatorService
                 ranking_service = RankingCalculatorService(self.db)
-                analysis_result = ranking_service.calculate_daily_rankings(import_date.isoformat())
+                analysis_result = await ranking_service.calculate_daily_rankings(import_date)
                 print(f"✅ 分析计算完成: {analysis_result.get('message', '成功')}")
             except Exception as e:
                 print(f"⚠️ 分析计算失败（但导入成功）: {str(e)}")
