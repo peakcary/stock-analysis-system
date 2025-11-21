@@ -433,7 +433,7 @@ class DataImportService:
             if errors:
                 print(f"   ⚠️  错误数量: {len(errors)} 个")
             print(f"   ✅ 导入状态: {'完全成功' if not errors else '部分成功'}")
-            
+
             # 提交事务
             self.db.commit()
 

@@ -4,6 +4,7 @@
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
+from sqlalchemy import desc
 from typing import List, Optional, Union
 from app.core.database import get_db
 from app.core.auth import get_optional_user
@@ -11,6 +12,7 @@ from app.core.admin_auth import get_optional_admin_user, get_current_admin_user
 from app.crud.user import UserCRUD
 from app.models import Stock, DailyStockData, StockConcept, Concept, User
 from app.models.user import QueryType
+from app.models.concept_analysis import DailyConceptRanking
 from app.schemas.stock import StockResponse, StockWithConcepts, StockChartData
 from datetime import date
 
@@ -225,10 +227,25 @@ def get_stock_by_code(
         }):
             raise HTTPException(status_code=403, detail="查询次数不足，请升级会员或购买查询包")
 
-    # 获取股票概念
-    concepts = db.query(Concept).join(StockConcept).filter(
+    # 获取股票概念，按热度值从高到低排序
+    # 获取最新日期的概念排名数据
+    today = date.today()
+    concepts_with_ranking = db.query(Concept, DailyConceptRanking.heat_value).join(
+        StockConcept
+    ).outerjoin(
+        DailyConceptRanking, (
+            (DailyConceptRanking.concept_id == Concept.id) &
+            (DailyConceptRanking.stock_id == stock.id) &
+            (DailyConceptRanking.trade_date == today)
+        )
+    ).filter(
         StockConcept.stock_id == stock.id
-    ).limit(50).all()  # 限制概念数量避免过大查询
+    ).order_by(
+        desc(DailyConceptRanking.heat_value)
+    ).limit(50).all()
+
+    # 提取概念对象（忽略热度值None的情况）
+    concepts = [concept for concept, heat_value in concepts_with_ranking]
 
     return {
         "stock": stock,
