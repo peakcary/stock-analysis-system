@@ -2,6 +2,7 @@
 管理员用户CRUD操作
 """
 from typing import Optional, List
+from datetime import datetime
 from sqlalchemy.orm import Session
 from sqlalchemy.sql import func
 from passlib.context import CryptContext
@@ -65,9 +66,9 @@ class AdminUserCRUD:
             return None
         if not admin_user.is_active:
             return None
-        
+
         # 更新最后登录时间
-        admin_user.last_login = func.now()
+        admin_user.last_login = datetime.now()
         self.db.commit()
         return admin_user
     
@@ -75,7 +76,7 @@ class AdminUserCRUD:
         """更新最后登录时间"""
         admin_user = self.get_by_id(admin_id)
         if admin_user:
-            admin_user.last_login = func.now()
+            admin_user.last_login = datetime.now()
             self.db.commit()
     
     def get_all(self, skip: int = 0, limit: int = 100) -> List[AdminUser]:

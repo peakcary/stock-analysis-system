@@ -3,7 +3,10 @@
 """
 
 from app.core.database import Base
-from .stock import Stock, DailyStockData, StockConceptRawData, ImportBatch, RawImportData, RawDataMapping
+from .stock import (
+    Stock, DailyStockData, StockConceptRawData, ImportBatch, RawImportData, RawDataMapping,
+    StockDailyMetrics, ConceptMetricsSummary, MetricsCalculationTask
+)
 from .concept_analysis import DailyConceptRanking, DailyConceptSummary, DailyAnalysisTask
 from .concept import Concept, StockConcept, DailyConceptSum
 from .user import User, UserQuery, Payment, MembershipType, QueryType, PaymentType, PaymentStatus
@@ -22,6 +25,8 @@ __all__ = [
     "Stock", "DailyStockData", "StockConceptRawData",
     # Raw data models (v2.7.3)
     "ImportBatch", "RawImportData", "RawDataMapping",
+    # Unified metrics models (v3.0.0)
+    "StockDailyMetrics", "ConceptMetricsSummary", "MetricsCalculationTask",
     # Concept models
     "Concept", "StockConcept", "DailyConceptSum",
     # Concept analysis models

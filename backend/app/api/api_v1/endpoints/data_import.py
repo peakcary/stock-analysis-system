@@ -7,6 +7,8 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.services.data_import import DataImportService
 from app.services.ranking_calculator import RankingCalculatorService
+from app.services.timeseries_import_service import TimeSeriesImportService
+from app.services.metrics_calculation_service import MetricsCalculationService
 from app.models import DataImportRecord
 from datetime import date, datetime
 from typing import Optional, List
@@ -408,3 +410,198 @@ async def auto_extract_date_from_files(
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"日期提取失败: {str(e)}")
+
+
+# ==================== 时间序列数据导入端点 ====================
+
+@router.post("/import-eee")
+async def import_eee_data(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db)
+):
+    """
+    导入 EEE 热度数据
+
+    - 支持 .txt 格式的 EEE 热度数据
+    - 格式: 股票代码\t日期\t热度值
+    - 自动规范化股票代码，保存到 StockDailyMetrics 表
+    """
+
+    # 验证文件基本信息
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="文件名不能为空")
+
+    if not file.filename.endswith('.txt'):
+        raise HTTPException(status_code=400, detail="EEE 文件必须是 TXT 格式")
+
+    # 验证文件大小 (限制50MB)
+    if file.size and file.size > 50 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="文件大小不能超过50MB")
+
+    try:
+        # 读取文件内容
+        content = await file.read()
+
+        # 验证文件内容不为空
+        if not content:
+            raise HTTPException(status_code=400, detail="文件内容为空")
+
+        # 验证文件大小（实际读取后）
+        if len(content) > 50 * 1024 * 1024:
+            raise HTTPException(status_code=400, detail="文件内容超过50MB限制")
+
+        print(f"📄 开始处理 EEE 文件: {file.filename}, 大小: {len(content)} bytes")
+
+        # 使用时间序列导入服务处理文件
+        import_service = TimeSeriesImportService(db)
+        result = import_service.import_timeseries_data(
+            handler_name='eee',
+            content=content,
+            filename=file.filename
+        )
+
+        if result.get('success'):
+            print(f"✅ EEE 处理完成: 导入{result.get('stats', {}).get('imported', 0)}条, "
+                  f"跳过{result.get('stats', {}).get('skipped', 0)}条")
+
+            return {
+                "success": True,
+                "message": result.get('message', 'EEE 数据导入成功'),
+                "filename": file.filename,
+                "batch_id": result.get('batch_id'),
+                "trade_date": result.get('trade_date'),
+                "stats": result.get('stats', {}),
+                "parse_errors": result.get('parse_errors', [])
+            }
+        else:
+            print(f"❌ EEE 导入失败: {result.get('message')}")
+            raise HTTPException(status_code=400, detail=result.get('message', 'EEE 导入失败'))
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ EEE 导入异常: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"EEE 导入失败: {str(e)}")
+
+
+@router.post("/import-ttv")
+async def import_ttv_data(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db)
+):
+    """
+    导入 TTV 交易量数据
+
+    - 支持 .txt 格式的 TTV 交易量数据
+    - 格式: 股票代码\t日期\t交易量
+    - 自动规范化股票代码，保存到 StockDailyMetrics 表
+    """
+
+    # 验证文件基本信息
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="文件名不能为空")
+
+    if not file.filename.endswith('.txt'):
+        raise HTTPException(status_code=400, detail="TTV 文件必须是 TXT 格式")
+
+    # 验证文件大小 (限制50MB)
+    if file.size and file.size > 50 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="文件大小不能超过50MB")
+
+    try:
+        # 读取文件内容
+        content = await file.read()
+
+        # 验证文件内容不为空
+        if not content:
+            raise HTTPException(status_code=400, detail="文件内容为空")
+
+        # 验证文件大小（实际读取后）
+        if len(content) > 50 * 1024 * 1024:
+            raise HTTPException(status_code=400, detail="文件内容超过50MB限制")
+
+        print(f"📄 开始处理 TTV 文件: {file.filename}, 大小: {len(content)} bytes")
+
+        # 使用时间序列导入服务处理文件
+        import_service = TimeSeriesImportService(db)
+        result = import_service.import_timeseries_data(
+            handler_name='ttv',
+            content=content,
+            filename=file.filename
+        )
+
+        if result.get('success'):
+            print(f"✅ TTV 处理完成: 导入{result.get('stats', {}).get('imported', 0)}条, "
+                  f"跳过{result.get('stats', {}).get('skipped', 0)}条")
+
+            return {
+                "success": True,
+                "message": result.get('message', 'TTV 数据导入成功'),
+                "filename": file.filename,
+                "batch_id": result.get('batch_id'),
+                "trade_date": result.get('trade_date'),
+                "stats": result.get('stats', {}),
+                "parse_errors": result.get('parse_errors', [])
+            }
+        else:
+            print(f"❌ TTV 导入失败: {result.get('message')}")
+            raise HTTPException(status_code=400, detail=result.get('message', 'TTV 导入失败'))
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ TTV 导入异常: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"TTV 导入失败: {str(e)}")
+
+
+@router.post("/calculate-metrics")
+async def calculate_metrics(
+    trade_date: str = Query(..., description="目标计算日期 (YYYY-MM-DD)"),
+    metric_type: Optional[str] = Query(None, description="指标类型过滤 (eee_heat 或 ttv_trading_volume)"),
+    db: Session = Depends(get_db)
+):
+    """
+    计算指定日期的时间序列指标
+
+    - 计算股票排名（按概念分组）
+    - 计算概念级汇总
+    - 检测创新高
+    - 更新 StockDailyMetrics、ConceptMetricsSummary、ConceptHighRecord
+    """
+
+    try:
+        # 验证日期格式
+        try:
+            target_date = datetime.strptime(trade_date, '%Y-%m-%d').date()
+        except ValueError:
+            raise HTTPException(status_code=400, detail="日期格式错误，应为 YYYY-MM-DD")
+
+        print(f"📊 开始计算 {target_date} 的指标数据 (metric_type={metric_type})")
+
+        # 使用计算服务进行计算
+        calc_service = MetricsCalculationService(db)
+        result = calc_service.calculate_daily_metrics(
+            target_date=target_date,
+            metric_type=metric_type
+        )
+
+        if result.get('success'):
+            print(f"✅ 计算完成: {result.get('message')}")
+
+            return {
+                "success": True,
+                "message": result.get('message'),
+                "target_date": trade_date,
+                "task_id": result.get('task_id'),
+                "stats": result.get('stats', {}),
+                "metric_type": metric_type
+            }
+        else:
+            print(f"❌ 计算失败: {result.get('message')}")
+            raise HTTPException(status_code=400, detail=result.get('message', '计算失败'))
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ 计算异常: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"计算失败: {str(e)}")

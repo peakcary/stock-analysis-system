@@ -473,6 +473,7 @@ class DataImportService:
         导入策略：
         - 如果是同一日期的重复导入，完全覆盖该日期的所有数据
         - 支持数据纠正：重新导入可以覆盖之前错误的数据
+        - 只更新已存在的股票，不创建新股票（股票应该来自CSV导入）
         """
         
         # 第一步：预解析TXT内容以确定日期和数据范围
@@ -553,7 +554,8 @@ class DataImportService:
                 'deleted_records': 0,
                 'updated_records': 0,
                 'new_records': 0,
-                'error_records': 0
+                'error_records': 0,
+                'skipped_no_stock': 0
             }
 
             # 创建导入批次记录
@@ -651,31 +653,17 @@ class DataImportService:
                         stats['error_records'] += 1
                         continue
                     
-                    # 查找股票记录
+                    # 查找股票记录 - 重要：只查找已存在的股票，不创建新股票
                     stock = self.db.query(Stock).filter(
                         Stock.stock_code == stock_code
                     ).first()
                     
                     if not stock:
-                        # 为不存在的股票创建基础记录
-                        is_convertible_bond = (
-                            len(stock_code) == 6 and
-                            stock_code.startswith('1') and
-                            stock_code.isdigit()
-                        )
-
-                        stock_prefix = self._extract_prefix(stock_code_with_prefix)
-
-                        stock = Stock(
-                            stock_code=stock_code,
-                            original_stock_code=stock_code_with_prefix,
-                            stock_code_prefix=stock_prefix,
-                            stock_name=f"股票{stock_code}",  # 临时名称
-                            is_convertible_bond=is_convertible_bond
-                        )
-                        self.db.add(stock)
-                        self.db.flush()  # 获取ID
-                        print(f"💫 自动创建股票记录: {stock_code} (原始: {stock_code_with_prefix}, 前缀: {stock_prefix})")
+                        # 股票不存在，跳过此记录（因为没有概念信息）
+                        skipped_records += 1
+                        stats['skipped_no_stock'] += 1
+                        errors.append(f"第{line_num}行: 股票 {stock_code} 不存在（应该先通过CSV导入）")
+                        continue
                     
                     # 创建每日数据记录（因为之前已删除，这里都是新建）
                     daily_data = DailyStockData(
@@ -735,16 +723,17 @@ class DataImportService:
             import_batch.status = 'success' if not errors else 'partial'
 
             # 打印导入总结
-            print(f"\n📈 TXT导入完成总结:")
+            print(f"\n📊 TXT导入完成总结:")
             print(f"   📋 文件名: {filename}")
             print(f"   📅 目标日期: {target_date}")
             print(f"   📊 处理记录: {imported_records} 成功, {skipped_records} 跳过")
             print(f"   🗑️  删除记录: {stats['deleted_records']} 条旧数据")
             print(f"   ✨ 新增记录: {stats['new_records']} 条热度数据")
             print(f"   📥 原始数据: {stats.get('raw_import_records', 0)} 条记录（已保存）")
+            print(f"   ⚠️  跳过的股票: {stats['skipped_no_stock']} 只（不存在）")
             print(f"   ❌ 错误记录: {stats['error_records']} 条")
             if errors:
-                print(f"   ⚠️  错误详情: 显示前3个")
+                print(f"   📋 错误详情: 显示前3个")
                 for error in errors[:3]:
                     print(f"      - {error}")
             print(f"   ✅ 导入状态: {'完全成功' if not errors else '部分成功'}")

@@ -272,3 +272,159 @@ class TtvImportRecord(Base):
     notes = Column(Text, comment="备注")
     created_at = Column(DateTime, default=func.now(), comment="创建时间")
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now(), comment="更新时间")
+
+
+class StockDailyMetrics(Base):
+    """统一的每日股票指标汇总表 - 支持多种指标类型
+    
+    用途：存储各种类型的时间序列数据（热度、交易量等）
+    设计：单表存储多种指标，通过 metric_type 区分
+    支持：EEE热度数据、TTV交易量数据及未来的其他指标
+    """
+    __tablename__ = "stock_daily_metrics"
+
+    id = Column(Integer, primary_key=True, index=True, comment="主键ID")
+    
+    # 股票关联
+    stock_id = Column(Integer, ForeignKey('stocks.id'), nullable=False, index=True, comment="股票ID")
+    
+    # 时间维度
+    trade_date = Column(Date, nullable=False, index=True, comment="交易日期")
+    
+    # 指标类型（eee_heat, ttv_trading_volume, 等）
+    metric_type = Column(String(50), nullable=False, index=True, comment="指标类型")
+    
+    # 指标值
+    metric_value = Column(DECIMAL(15, 2), nullable=False, comment="指标数值")
+    
+    # 相关的汇总数据（冗余存储，加快查询）
+    # 在该概念中的排名（0表示未计算）
+    ranking_in_concept = Column(Integer, default=0, comment="在概念中的排名")
+    
+    # 在该概念中的占比（百分比）
+    percentage_in_concept = Column(DECIMAL(5, 2), default=0, comment="在概念中的占比百分比")
+    
+    # 元数据
+    data_source = Column(String(20), comment="数据来源（csv/eee/ttv等）")
+    is_recalculated = Column(Boolean, default=False, index=True, comment="是否为重新计算的数据")
+    
+    created_at = Column(DateTime, default=func.now(), comment="创建时间")
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now(), comment="更新时间")
+    
+    # 关联关系
+    stock = relationship("Stock", foreign_keys=[stock_id])
+    
+    # 索引
+    __table_args__ = (
+        Index('idx_stock_date_type', 'stock_id', 'trade_date', 'metric_type'),
+        Index('idx_metric_type_date', 'metric_type', 'trade_date'),
+        Index('idx_date_metric_value', 'trade_date', 'metric_value'),
+    )
+
+
+class ConceptMetricsSummary(Base):
+    """概念指标汇总表 - 支持多种指标类型的概念级聚合
+    
+    用途：存储按概念聚合的各种指标（热度和、热度均值等）
+    支持：快速查询概念的日度汇总指标
+    """
+    __tablename__ = "concept_metrics_summary"
+
+    id = Column(Integer, primary_key=True, index=True, comment="主键ID")
+    
+    # 概念关联
+    concept_id = Column(Integer, ForeignKey('concepts.id'), nullable=False, index=True, comment="概念ID")
+    
+    # 时间维度
+    trade_date = Column(Date, nullable=False, index=True, comment="交易日期")
+    
+    # 指标类型
+    metric_type = Column(String(50), nullable=False, index=True, comment="指标类型")
+    
+    # 聚合指标
+    total_value = Column(DECIMAL(15, 2), nullable=False, comment="指标总值")
+    avg_value = Column(DECIMAL(15, 2), nullable=False, comment="指标平均值")
+    max_value = Column(DECIMAL(15, 2), nullable=False, comment="指标最大值")
+    min_value = Column(DECIMAL(15, 2), nullable=False, comment="指标最小值")
+    
+    # 股票数量
+    stock_count = Column(Integer, nullable=False, comment="参与计算的股票数")
+    
+    # 创新高信息
+    is_new_high = Column(Boolean, default=False, comment="是否创新高")
+    historical_max = Column(DECIMAL(15, 2), comment="历史最大值")
+    
+    created_at = Column(DateTime, default=func.now(), comment="创建时间")
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now(), comment="更新时间")
+    
+    # 关联关系
+    concept = relationship("Concept", foreign_keys=[concept_id])
+    
+    # 索引
+    __table_args__ = (
+        Index('idx_concept_date_type', 'concept_id', 'trade_date', 'metric_type'),
+        Index('idx_metric_type_date', 'metric_type', 'trade_date'),
+        Index('idx_date_is_new_high', 'trade_date', 'is_new_high'),
+    )
+
+
+class MetricsCalculationTask(Base):
+    """指标计算任务表 - 支持可重新计算的计算任务管理
+    
+    用途：记录指标计算任务的执行情况，支持重新计算和审计
+    功能：
+      - 追踪计算任务的执行时间和状态
+      - 支持失败重试
+      - 支持数据版本管理
+    """
+    __tablename__ = "metrics_calculation_task"
+
+    id = Column(Integer, primary_key=True, index=True, comment="主键ID")
+    
+    # 任务标识
+    task_type = Column(String(50), nullable=False, index=True, comment="任务类型（daily_ranking/concept_summary等）")
+    
+    # 时间维度
+    target_date = Column(Date, nullable=False, index=True, comment="目标计算日期")
+    
+    # 指标类型（可选，用于指定计算特定指标）
+    metric_type = Column(String(50), comment="指标类型过滤（留空则处理所有）")
+    
+    # 任务状态
+    status = Column(String(20), nullable=False, default='pending', index=True, 
+                   comment="任务状态：pending/processing/success/failed/partial")
+    
+    # 执行信息
+    started_at = Column(DateTime, comment="开始时间")
+    completed_at = Column(DateTime, comment="完成时间")
+    duration_seconds = Column(Integer, comment="执行耗时（秒）")
+    
+    # 处理统计
+    total_items = Column(Integer, default=0, comment="总处理项数")
+    success_items = Column(Integer, default=0, comment="成功项数")
+    failed_items = Column(Integer, default=0, comment="失败项数")
+    
+    # 错误和日志
+    error_message = Column(Text, comment="错误信息")
+    log_details = Column(Text, comment="详细日志")
+    
+    # 重试信息
+    retry_count = Column(Integer, default=0, comment="重试次数")
+    max_retries = Column(Integer, default=3, comment="最大重试次数")
+    
+    # 数据版本
+    data_version = Column(String(50), comment="数据版本标识")
+    is_latest = Column(Boolean, default=True, index=True, comment="是否为最新版本")
+    
+    created_by = Column(String(50), comment="任务创建人")
+    remarks = Column(Text, comment="备注说明")
+    
+    created_at = Column(DateTime, default=func.now(), comment="创建时间")
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now(), comment="更新时间")
+    
+    # 索引
+    __table_args__ = (
+        Index('idx_task_type_date', 'task_type', 'target_date'),
+        Index('idx_task_status_date', 'status', 'target_date'),
+        Index('idx_date_is_latest', 'target_date', 'is_latest'),
+    )
